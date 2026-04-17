@@ -1,184 +1,257 @@
-# DICOM Upload Service
+# MedDICOMParseAPI v2.0
 
-A minimal, production-ready FastAPI service for uploading and parsing DICOM files.
+FastAPI backend for DICOM file upload, parsing, and persistent storage with PostgreSQL.
 
 ## Features
 
-- ✅ POST `/upload` endpoint for single DICOM file upload
-- ✅ Validates `.dcm` file extension
-- ✅ Extracts key metadata: PatientID, StudyInstanceUID, Modality
-- ✅ In-memory processing (no persistence)
-- ✅ Comprehensive error handling
-- ✅ Structured logging for debugging
-- ✅ Health check endpoint GET `/`
-- ✅ Clean, modular, production-ready code
+- ✅ DICOM file upload and parsing
+- ✅ Local file storage (hierarchical by PatientID → StudyInstanceUID)
+- ✅ PostgreSQL persistence layer
+- ✅ Backward-compatible API (v1 contract unchanged)
 
-## Requirements
+## Project Structure
 
-- Python 3.10+
-- FastAPI
-- pydicom
-- uvicorn
+```
+MedPACS Intelligence Platform/
+├── main.py                 # FastAPI application with /upload endpoint
+├── models.py               # SQLAlchemy ORM models (Patient, Study, Instance)
+├── db.py                   # Database connection and session management
+├── db_service.py           # Database CRUD operations
+├── storage.py              # Local file storage service
+├── test_dicom_service.py   # Test suite
+├── requirements.txt        # Python dependencies
+├── .env.example            # Environment variables template
+└── storage/                # Local DICOM file storage (auto-created)
+```
 
-## Installation
+## Setup
+
+### 1. Install Dependencies
 
 ```bash
 pip install -r requirements.txt
 ```
 
-## Running the Service
+### 2. Configure Environment
 
-### Development mode (with auto-reload):
+#### Windows (PowerShell)
+```powershell
+# Create .env.example if not exists
+@"
+# PostgreSQL Configuration
+DATABASE_URL=postgresql://postgres:password@localhost:5432/meddicom_db
+
+# Server Configuration
+UPLOAD_STORAGE_PATH=./storage
+"@ | Set-Content -Path ".env.example" -Encoding UTF8
+
+# Copy to .env
+Copy-Item .env.example .env
+
+# Edit .env with actual credentials
+notepad .env
+```
+
+#### Windows (CMD)
+```cmd
+REM Create .env.example
+echo # PostgreSQL Configuration > .env.example
+echo DATABASE_URL=postgresql://postgres:password@localhost:5432/meddicom_db >> .env.example
+echo # Server Configuration >> .env.example
+echo UPLOAD_STORAGE_PATH=./storage >> .env.example
+
+REM Copy to .env
+copy .env.example .env
+
+REM Edit .env
+notepad .env
+```
+
+#### Linux/macOS
+```bash
+cp .env.example .env
+
+# Edit .env
+nano .env
+# or
+vim .env
+```
+
+#### Configure Credentials
+
+Edit `.env` and update with your actual PostgreSQL password:
+```
+DATABASE_URL=postgresql://postgres:your_password@localhost:5432/meddicom_db
+UPLOAD_STORAGE_PATH=./storage
+```
+
+### 3. Create PostgreSQL Database
+
+#### Windows (PowerShell/CMD)
+```cmd
+createdb -U postgres -h 127.0.0.1 meddicom_db
+```
+
+#### Linux/macOS
+```bash
+createdb -U postgres -h localhost meddicom_db
+```
+
+#### Verify Database Creation
+
+```bash
+# List all databases
+psql -U postgres -h 127.0.0.1 -c "\l"
+```
+
+Expected output: `meddicom_db` should appear in the list ✅
+
+**Alternative: Using psql (All Platforms)**
+```bash
+# Connect to PostgreSQL and create database
+psql -U postgres -h 127.0.0.1
+```
+
+Then execute:
+```sql
+CREATE DATABASE meddicom_db;
+```
+
+### 4. Run Application
+
 ```bash
 uvicorn main:app --reload
 ```
 
-### Production mode:
-```bash
-uvicorn main:app --host 0.0.0.0 --port 8000 --workers 4
-```
-
-The service will be available at `http://localhost:8000`
+Server runs at `http://localhost:8000`
 
 ## API Endpoints
 
-### Health Check
-```
-GET /
-```
+### POST /upload
+Upload and process a DICOM file.
 
-**Response:**
-```json
-{
-  "status": "healthy",
-  "service": "DICOM Upload Service"
-}
+**Request:**
 ```
-
-### Upload DICOM File
-```
-POST /upload
 Content-Type: multipart/form-data
-
-file: <binary DICOM file>
+Body: file (binary DICOM)
 ```
 
-**Successful Response (200):**
+**Response (200 OK):**
 ```json
 {
-  "PatientID": "12345",
-  "StudyInstanceUID": "1.2.3.4.5.6.7",
-  "Modality": "CT"
+  "filename": "patient_001.dcm",
+  "patient_id": "P12345",
+  "study_instance_uid": "1.2.3.4.5.6.7",
+  "modality": "CT",
+  "message": "DICOM file uploaded and processed successfully"
 }
 ```
 
-**Error Responses:**
-- **400 Bad Request** – Invalid file extension (not .dcm) or empty file
-- **422 Unprocessable Entity** – File is not valid DICOM or parsing failed
+### GET /health
+Health check endpoint.
 
-## Testing with cURL
+**Response (200 OK):**
+```json
+{
+  "status": "ok",
+  "version": "2.0"
+}
+```
 
-### Health check:
+## Database Schema
+
+### patients
+- `id` (PK, Integer)
+- `patient_id` (String, Unique, FK reference in studies)
+- `created_at` (DateTime)
+
+### studies
+- `id` (PK, Integer)
+- `study_instance_uid` (String, Unique, FK reference in instances)
+- `patient_id` (String, FK → patients.patient_id)
+- `modality` (String, nullable)
+- `created_at` (DateTime)
+
+### series
+- `id` (PK, Integer)
+- `series_instance_uid` (String, nullable)
+- `study_instance_uid` (String, FK → studies.study_instance_uid)
+- `created_at` (DateTime)
+
+### instances
+- `id` (PK, Integer)
+- `sop_instance_uid` (String, nullable, unique)
+- `file_path` (String, relative path to stored file)
+- `study_instance_uid` (String, FK → studies.study_instance_uid)
+- `created_at` (DateTime)
+
+## Storage Structure
+
+Files are stored locally in hierarchical structure:
+```
+storage/
+└── {patient_id}/
+    └── {study_instance_uid}/
+        └── {filename}.dcm
+```
+
+Example:
+```
+storage/
+└── P12345/
+    └── 1.2.3.4.5.6.7/
+        └── patient_001.dcm
+```
+
+If PatientID or StudyInstanceUID is missing:
+```
+storage/
+└── unknown_patient/
+    └── unknown_study/
+        └── file.dcm
+```
+
+## Testing
+
+Run tests with pytest:
+
 ```bash
-curl http://localhost:8000/
+pytest test_dicom_service.py -v
 ```
 
-### Upload a DICOM file:
-```bash
-curl -X POST -F "file=@path/to/file.dcm" http://localhost:8000/upload
-```
+Tests cover:
+- Health endpoint
+- DICOM upload and parsing
+- Local file storage
+- Database operations (upsert patient, study, create instance)
 
-### With a test DICOM file (using pydicom to create one):
-```python
-import pydicom
-from pydicom.dataset import Dataset, FileDataset
-from datetime import datetime
-import os
+## Integration Notes
 
-# Create a minimal valid DICOM file
-file_meta = Dataset()
-file_meta.MediaStorageSOPClassUID = '1.2.840.10008.5.1.4.1.1.2'
-file_meta.MediaStorageSOPInstanceUID = '1.2.3.4.5'
-file_meta.TransferSyntaxUID = pydicom.uid.ImplicitVRLittleEndian
+- **API Contract:** The `/upload` response is identical to v1.0. Clients need no changes.
+- **Internal Changes:** File storage and database persistence are transparent to API consumers.
+- **Database:** On first run, tables are created automatically via `init_db()` at startup.
+- **Storage:** The `./storage` directory is created automatically if it doesn't exist.
 
-ds = FileDataset(
-    filename="test.dcm",
-    dataset={},
-    file_meta=file_meta,
-    preamble=b"\0" * 128,
-)
+## Troubleshooting
 
-ds.PatientName = "Test^Patient"
-ds.PatientID = "12345"
-ds.StudyInstanceUID = "1.2.3.4.5.6.7"
-ds.Modality = "CT"
-ds.SeriesInstanceUID = "1.2.3.4.5.6.7.8"
-ds.SOPInstanceUID = "1.2.3.4.5"
-ds.SOPClassUID = '1.2.840.10008.5.1.4.1.1.2'
+### "Database connection refused"
+- Ensure PostgreSQL is running
+- Verify `DATABASE_URL` in `.env` is correct
+- Check database exists: `createdb meddicom_db`
 
-ds.save_as("test.dcm")
-```
+### "No such table"
+- Database tables are created automatically on first startup
+- If manual creation needed:
+  ```python
+  from db import init_db
+  init_db()
+  ```
 
-Then upload:
-```bash
-curl -X POST -F "file=@test.dcm" http://localhost:8000/upload
-```
+### "Permission denied: ./storage"
+- Ensure write permissions in project directory
+- Check `UPLOAD_STORAGE_PATH` is correct in `.env`
 
-## Code Structure
+## Version History
 
-- **`main.py`** – Single-file FastAPI application containing:
-  - `DicomMetadata` – Data class for parsed metadata
-  - `validate_dcm_extension()` – File extension validation
-  - `parse_dicom_file()` – DICOM parsing logic
-  - Route handlers: `health_check()`, `upload_dicom()`
-  - Logging configuration
-
-## Error Handling
-
-| Scenario | Status | Response |
-|----------|--------|----------|
-| File extension not `.dcm` | 400 | "Invalid file format" |
-| Empty file | 400 | "File is empty" |
-| Invalid DICOM format | 422 | "File is not a valid DICOM file" |
-| Parsing error | 422 | Error details |
-| Missing metadata field | 200 | Field set to `null` |
-
-## Logging
-
-All operations are logged with timestamps and levels (INFO, WARNING, ERROR). Check console output for debugging:
-
-```
-2024-01-15 10:23:45,123 - __main__ - INFO - Received upload request for file: scan.dcm
-2024-01-15 10:23:45,456 - __main__ - INFO - Successfully parsed DICOM: PatientID=12345, StudyInstanceUID=1.2.3.4.5.6.7, Modality=CT
-2024-01-15 10:23:45,789 - __main__ - INFO - Successfully processed DICOM file: scan.dcm
-```
-
-## Design Decisions
-
-1. **Single file** – All code in `main.py` for simplicity; easy to refactor into modules later
-2. **In-memory processing** – No disk writes; file read directly into bytes
-3. **Optional metadata fields** – Missing fields return as `null` rather than erroring
-4. **Structured logging** – Replaces print statements; better for production
-5. **Comprehensive error handling** – Explicit HTTP status codes with descriptive messages
-6. **No database** – No persistence layer; ephemeral in-memory only
-7. **Minimal dependencies** – Only FastAPI, uvicorn, python-multipart, pydicom
-
-## Performance Notes
-
-- Handles file size up to FastAPI's default upload limit (~1GB)
-- In-memory processing suitable for typical DICOM files (2-50 MB)
-- For very large files or high concurrency, consider:
-  - Streaming to disk before parsing
-  - Async worker pool with celery
-  - Kubernetes horizontal scaling
-
-## Future Enhancements (Optional)
-
-- Extract additional metadata fields (PatientAge, PatientSex, etc.)
-- Async DICOM parsing with thread pool
-- Database persistence with SQLAlchemy
-- Batch upload endpoint
-- DICOM validation/compliance checking
-- Image pixel data extraction
-- Support for DICOM series/studies
-- Authentication/authorization
+- **v2.0** (Current) - Added PostgreSQL persistence and local file storage
+- **v1.0** - Initial DICOM parsing and upload

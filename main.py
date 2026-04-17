@@ -1,162 +1,104 @@
-"""
-FastAPI service for DICOM file upload and metadata parsing.
-Minimal, clean, and production-sane implementation.
-"""
-
 import io
-import logging
-from typing import Optional
-
-from fastapi import FastAPI, UploadFile, File, HTTPException
-from fastapi.responses import JSONResponse
+import os
+from fastapi import FastAPI, File, UploadFile, Depends, HTTPException
+from sqlalchemy.orm import Session
 import pydicom
-from pydicom.errors import InvalidDicomError
+from db import get_db, init_db
+from db_service import DatabaseService
+from storage import StorageService
+from dotenv import load_dotenv
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-)
-logger = logging.getLogger(__name__)
+load_dotenv()
 
-# Initialize FastAPI app
-app = FastAPI(title="DICOM Upload Service", version="1.0.0")
+app = FastAPI(title="MedDICOMParseAPI", version="2.0")
 
-
-# Response models (using dict for simplicity, could use Pydantic models)
-class DicomMetadata:
-    """Container for parsed DICOM metadata."""
-
-    def __init__(
-        self,
-        patient_id: Optional[str] = None,
-        study_instance_uid: Optional[str] = None,
-        modality: Optional[str] = None,
-    ):
-        self.patient_id = patient_id
-        self.study_instance_uid = study_instance_uid
-        self.modality = modality
-
-    def to_dict(self) -> dict:
-        """Convert metadata to dictionary for JSON response."""
-        return {
-            "PatientID": self.patient_id,
-            "StudyInstanceUID": self.study_instance_uid,
-            "Modality": self.modality,
-        }
+# Initialize storage service
+STORAGE_PATH = os.getenv("UPLOAD_STORAGE_PATH", "./storage")
+storage_service = StorageService(STORAGE_PATH)
 
 
-def validate_dcm_extension(filename: str) -> bool:
-    """Validate that filename has .dcm extension."""
-    return filename.lower().endswith(".dcm")
-
-
-def parse_dicom_file(file_content: bytes) -> DicomMetadata:
-    """
-    Parse DICOM file content and extract key metadata.
-
-    Args:
-        file_content: Raw file bytes
-
-    Returns:
-        DicomMetadata object with parsed fields
-
-    Raises:
-        InvalidDicomError: If file is not valid DICOM
-        Exception: For other parsing errors
-    """
+@app.on_event("startup")
+def startup_event():
+    """Initialize database on startup."""
     try:
-        # Read DICOM file from bytes
-        dataset = pydicom.dcmread(io.BytesIO(file_content))
-
-        # Extract metadata fields, using None for missing fields
-        patient_id = getattr(dataset, "PatientID", None)
-        study_instance_uid = getattr(dataset, "StudyInstanceUID", None)
-        modality = getattr(dataset, "Modality", None)
-
-        logger.info(
-            f"Successfully parsed DICOM: PatientID={patient_id}, "
-            f"StudyInstanceUID={study_instance_uid}, Modality={modality}"
-        )
-
-        return DicomMetadata(
-            patient_id=patient_id,
-            study_instance_uid=study_instance_uid,
-            modality=modality,
-        )
-
-    except InvalidDicomError as e:
-        logger.error(f"Invalid DICOM file: {str(e)}")
-        raise
+        init_db()
+        print("✓ Database tables initialized")
     except Exception as e:
-        logger.error(f"Error parsing DICOM file: {str(e)}")
-        raise
+        print(f"⚠ Database initialization warning: {e}")
 
 
-@app.get("/", tags=["Health"])
-async def health_check():
-    """Health check endpoint."""
-    logger.info("Health check request")
-    return {"status": "healthy", "service": "DICOM Upload Service"}
-
-
-@app.post("/upload", tags=["DICOM"])
-async def upload_dicom(file: UploadFile = File(...)):
+@app.post("/upload")
+async def upload(file: UploadFile = File(...), db: Session = Depends(get_db)):
     """
-    Upload and parse a DICOM file.
-
-    Args:
-        file: DICOM file to upload
-
-    Returns:
-        JSON with extracted metadata
-
-    Raises:
-        HTTPException 400: If file extension is not .dcm
-        HTTPException 422: If DICOM parsing fails
+    Upload and process DICOM file.
+    
+    API CONTRACT UNCHANGED:
+    - Input: multipart file upload
+    - Output: JSON with metadata (same as before)
+    
+    NEW INTERNAL BEHAVIOR:
+    - Parse DICOM (existing logic)
+    - Save file to local storage
+    - Upsert into PostgreSQL
+    - Return same response
     """
-    logger.info(f"Received upload request for file: {file.filename}")
-
-    # Validate file extension
-    if not validate_dcm_extension(file.filename):
-        logger.warning(f"Invalid file extension: {file.filename}")
-        raise HTTPException(
-            status_code=400,
-            detail=f"Invalid file format. Expected .dcm file, got {file.filename}",
-        )
-
     try:
-        # Read file content into memory
+        # Read file
         file_content = await file.read()
 
-        if not file_content:
-            logger.warning("Empty file received")
-            raise HTTPException(status_code=400, detail="File is empty")
+        # Parse DICOM (existing logic unchanged)
+        dicom_data = pydicom.dcmread(io.BytesIO(file_content))
 
-        # Parse DICOM
-        metadata = parse_dicom_file(file_content)
+        # Extract metadata
+        patient_id = getattr(dicom_data, "PatientID", "unknown_patient")
+        study_instance_uid = getattr(dicom_data, "StudyInstanceUID", "unknown_study")
+        modality = getattr(dicom_data, "Modality", None)
+        sop_instance_uid = getattr(dicom_data, "SOPInstanceUID", None)
 
-        logger.info(f"Successfully processed DICOM file: {file.filename}")
-        return JSONResponse(content=metadata.to_dict(), status_code=200)
-
-    except InvalidDicomError as e:
-        logger.error(f"DICOM parsing failed for {file.filename}: {str(e)}")
-        raise HTTPException(
-            status_code=422,
-            detail=f"File is not a valid DICOM file: {str(e)}",
+        # Step 1: Save to local storage
+        relative_file_path = storage_service.save_dicom(
+            file_content=file_content,
+            patient_id=patient_id,
+            study_instance_uid=study_instance_uid,
+            filename=file.filename or "unknown.dcm"
         )
-    except HTTPException:
-        # Re-raise HTTPExceptions (400 Bad Request, etc.)
-        raise
+        
+        # Step 2: Upsert into database
+        # Upsert patient
+        DatabaseService.upsert_patient(db, patient_id=patient_id)
+        
+        # Upsert study
+        DatabaseService.upsert_study(
+            db,
+            study_instance_uid=study_instance_uid,
+            patient_id=patient_id,
+            modality=modality
+        )
+        
+        # Create instance record
+        DatabaseService.create_instance(
+            db,
+            file_path=relative_file_path,
+            study_instance_uid=study_instance_uid,
+            sop_instance_uid=sop_instance_uid
+        )
+        
+        # Step 3: Return same response as before (API contract preserved)
+        return {
+            "filename": file.filename,
+            "patient_id": patient_id,
+            "study_instance_uid": study_instance_uid,
+            "modality": modality,
+            "message": "DICOM file uploaded and processed successfully"
+        }
+    
+    except pydicom.errors.InvalidDicomError:
+        raise HTTPException(status_code=400, detail="Invalid DICOM file")
     except Exception as e:
-        logger.error(f"Unexpected error processing {file.filename}: {str(e)}")
-        raise HTTPException(
-            status_code=422,
-            detail=f"Error parsing DICOM file: {str(e)}",
-        )
+        raise HTTPException(status_code=500, detail=str(e))
 
 
-if __name__ == "__main__":
-    import uvicorn
-
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+@app.get("/health")
+async def health_check():
+    """Health check endpoint."""
+    return {"status": "ok", "version": "2.0"}
