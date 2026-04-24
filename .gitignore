@@ -13,5 +13,6 @@ Thumbs.db
 # env
 .env
 venv/
+.venv/
 
 test_dicom_files/

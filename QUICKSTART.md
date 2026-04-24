@@ -1,124 +1,272 @@
-# DICOM Upload Service - Quick Start
+# QUICKSTART Guide - MedDICOMParseAPI v2.0
 
-## 1. Install Dependencies
+Get up and running in 5 minutes.
+
+## Prerequisites
+
+- Python 3.8+
+- PostgreSQL installed and running
+- pip
+
+## Installation & Setup
+
+### 1. Install Dependencies
+
 ```bash
+cd MedPACS Intelligence Platform
 pip install -r requirements.txt
 ```
 
-## 2. Run the Service
+### 2. Setup Database
+
+#### Step 1: Create PostgreSQL Database
+
+**Windows (PowerShell/CMD):**
+```powershell
+createdb -U postgres -h 127.0.0.1 meddicom_db
+```
+
+**Linux/macOS:**
+```bash
+createdb -U postgres -h localhost meddicom_db
+```
+
+#### Step 2: Setup Environment Configuration
+
+**Windows (PowerShell):**
+```powershell
+# Create .env.example if not exists
+@"
+# PostgreSQL Configuration
+DATABASE_URL=postgresql://postgres:password@localhost:5432/meddicom_db
+
+# Server Configuration
+UPLOAD_STORAGE_PATH=./storage
+"@ | Set-Content -Path ".env.example" -Encoding UTF8
+
+# Copy to .env
+Copy-Item .env.example .env
+
+# Edit .env
+notepad .env
+```
+
+**Windows (CMD):**
+```cmd
+copy .env.example .env
+notepad .env
+```
+
+**Linux/macOS:**
+```bash
+cp .env.example .env
+nano .env
+```
+
+#### Step 3: Configure Credentials
+
+Edit `.env` and update with your actual PostgreSQL password:
+
+````
+DATABASE_URL=postgresql://postgres:your_password@localhost:5432/meddicom_db
+UPLOAD_STORAGE_PATH=./storage
+````
+**⚠️ Important:**
+- Replace `your_actual_password` with your PostgreSQL password
+- `.env` should **NOT** be committed to version control (add to `.gitignore`)
+- `.env.example` should be committed (template only, no secrets)
+
+#### Step 4: Verify Database Connection
+
+**All Platforms (PowerShell/CMD/Bash):**
+````bash
+# Test connection
+psql -U postgres -h 127.0.0.1 -d meddicom_db -c "SELECT version();"
+````
+
+Expected output: PostgreSQL version information ✅
+
+### 3. Run Server
+
 ```bash
 uvicorn main:app --reload
 ```
 
-Service will be available at: **http://localhost:8000**
-
-## 3. Test the API
-
-### Option A: Using cURL
-```bash
-# Health check
-curl http://localhost:8000/
-
-# Create a test DICOM file (Python one-liner)
-python -c "
-import pydicom
-from pydicom.dataset import Dataset, FileDataset
-
-file_meta = Dataset()
-file_meta.MediaStorageSOPClassUID = '1.2.840.10008.5.1.4.1.1.2'
-file_meta.MediaStorageSOPInstanceUID = '1.2.3'
-file_meta.TransferSyntaxUID = pydicom.uid.ImplicitVRLittleEndian
-
-ds = FileDataset('test.dcm', {}, file_meta=file_meta, preamble=b'\0'*128)
-ds.PatientID = 'TEST001'
-ds.StudyInstanceUID = '1.2.3.4.5'
-ds.Modality = 'CT'
-ds.save_as('test.dcm')
-print('Created test.dcm')
-"
-
-# Upload the test file
-curl -X POST -F "file=@test.dcm" http://localhost:8000/upload
+Output:
+```
+INFO:     Uvicorn running on http://127.0.0.1:8000
+✓ Database tables initialized
 ```
 
-### Option B: Using Python Test Script
+## Quick Test
+
+### Health Check
+
+**All Platforms:**
 ```bash
-# In one terminal:
+curl http://localhost:8000/health
+```
+
+Response:
+```json
+{"status":"ok","version":"2.0"}
+```
+
+### Upload DICOM
+
+**Linux/macOS:**
+```bash
+curl -X POST http://localhost:8000/upload \
+  -F "file=@test_dicom_files/patient_001.dcm"
+```
+**Windows (PowerShell):**
+```powershell
+curl.exe -X POST http://localhost:8000/upload -F "file=@test_dicom_files/patient_001.dcm"
+```
+
+**Windows (Alternative - PowerShell):**
+```powershell
+$form = @{ file = Get-Item -Path "test_dicom_files/patient_001.dcm" }
+Invoke-RestMethod -Uri "http://localhost:8000/upload" -Method Post -Form $form
+```
+
+Response (All Platforms):
+```json
+{
+  "filename": "patient_001.dcm",
+  "patient_id": "...",
+  "study_instance_uid": "...",
+  "modality": "...",
+  "message": "DICOM file uploaded and processed successfully"
+}
+```
+
+## Verify Data in PostgreSQL
+
+```bash
+# Connect to database
+psql meddicom_db
+
+# View patients
+SELECT id, patient_id, created_at FROM patients;
+
+# View studies
+SELECT id, study_instance_uid, patient_id, modality FROM studies;
+
+# View instances
+SELECT id, file_path, study_instance_uid FROM instances;
+```
+
+## Verify Files on Disk
+
+```bash
+# Check storage directory
+ls -la storage/
+
+# Expected structure:
+# storage/
+#   └── {patient_id}/
+#       └── {study_instance_uid}/
+#           └── filename.dcm
+```
+
+## Run Tests
+
+```bash
+pytest test_dicom_service.py -v
+```
+
+Expected output:
+```
+test_dicom_service.py::test_health_check PASSED
+test_dicom_service.py::test_upload_with_valid_dicom PASSED
+test_dicom_service.py::test_upload_stores_file_locally PASSED
+test_dicom_service.py::test_database_upsert_patient PASSED
+test_dicom_service.py::test_database_upsert_study PASSED
+test_dicom_service.py::test_database_create_instance PASSED
+
+====== 6 passed ======
+```
+
+## What's New (v1.0 → v2.0)
+
+| Feature | v1.0 | v2.0 |
+|---------|------|------|
+| DICOM Upload | ✅ | ✅ |
+| DICOM Parsing | ✅ | ✅ |
+| Local Storage | ❌ | ✅ |
+| PostgreSQL | ❌ | ✅ |
+| API Contract | - | **Unchanged** ✅ |
+
+## File Locations
+
+After first upload, you'll have:
+
+```
+MedDICOMParseAPI/
+├── main.py
+├── storage/                        ← NEW: Local DICOM storage
+│   └── P12345/
+│       └── 1.2.3.4.5.6.7/
+│           └── patient_001.dcm
+├── test.db                         ← SQLite (for tests only)
+├── .env                            ← Your environment config
+└── ...
+```
+
+PostgreSQL database `meddicom_db` now contains:
+- `patients` table
+- `studies` table
+- `series` table
+- `instances` table
+
+## Common Commands
+
+```bash
+# Start server
 uvicorn main:app --reload
 
-# In another terminal:
-python test_dicom_service.py
+# Run tests
+pytest test_dicom_service.py -v
+
+# Check server health
+curl http://localhost:8000/health
+
+# View database
+psql meddicom_db -c "SELECT * FROM patients;"
+
+# Delete test database
+dropdb meddicom_db
+
+# Recreate test database
+createdb meddicom_db
 ```
 
-## 4. API Endpoints
+## Environment Variables
 
-### GET / (Health Check)
-```
-curl http://localhost:8000/
-```
+Required in `.env`:
 
-**Response:**
-```json
-{
-  "status": "healthy",
-  "service": "DICOM Upload Service"
-}
+```
+DATABASE_URL=postgresql://postgres:password@localhost:5432/meddicom_db
+UPLOAD_STORAGE_PATH=./storage
 ```
 
-### POST /upload (Upload DICOM)
-```
-curl -X POST -F "file=@path/to/file.dcm" http://localhost:8000/upload
-```
+## Troubleshooting
 
-**Success (200):**
-```json
-{
-  "PatientID": "12345",
-  "StudyInstanceUID": "1.2.3.4.5",
-  "Modality": "CT"
-}
-```
+| Issue | Solution |
+|-------|----------|
+| `Connection refused` | Check PostgreSQL is running: `psql -l` |
+| `database does not exist` | Run: `createdb meddicom_db` |
+| `No such file or directory` | Run from project root: `pwd` should show `MedDICOMParseAPI` |
+| `Permission denied ./storage` | Check write permissions: `chmod 755 .` |
+| `ModuleNotFoundError` | Reinstall deps: `pip install -r requirements.txt` |
 
-**Errors:**
-- **400** – Invalid file extension or empty file
-- **422** – Invalid DICOM file
+## Next Steps
 
-## 5. Files Included
+1. ✅ Server running? Check with `curl http://localhost:8000/health`
+2. ✅ Database connected? Check tables: `psql meddicom_db -l`
+3. ✅ Upload a DICOM file (see "Quick Test" above)
+4. ✅ Verify in PostgreSQL: `psql meddicom_db -c "SELECT * FROM patients;"`
+5. ✅ Check storage directory: `ls -la storage/`
 
-- **main.py** – FastAPI application (production-ready)
-- **requirements.txt** – Python dependencies
-- **test_dicom_service.py** – Comprehensive test suite
-- **README.md** – Full documentation
-
-## 6. Key Features
-
-✅ Single POST `/upload` endpoint  
-✅ Validates `.dcm` file extension  
-✅ Parses DICOM with pydicom  
-✅ Extracts PatientID, StudyInstanceUID, Modality  
-✅ In-memory processing (no disk persistence)  
-✅ Comprehensive error handling  
-✅ Structured logging  
-✅ Health check endpoint  
-✅ Clean, modular code  
-
-## 7. Logs
-
-Watch the console output for detailed logs:
-```
-2024-01-15 10:23:45,123 - __main__ - INFO - Received upload request for file: scan.dcm
-2024-01-15 10:23:45,456 - __main__ - INFO - Successfully parsed DICOM: PatientID=12345
-2024-01-15 10:23:45,789 - __main__ - INFO - Successfully processed DICOM file: scan.dcm
-```
-
-## 8. Interactive API Docs
-
-Once running, visit:
-- **Swagger UI**: http://localhost:8000/docs
-- **ReDoc**: http://localhost:8000/redoc
-
-You can test endpoints directly from the browser!
-
----
-
-That's it! Your production-ready DICOM service is live. 🚀
+You're all set! 🎉
