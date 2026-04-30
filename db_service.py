@@ -1,7 +1,7 @@
 from typing import Optional
 from sqlalchemy.orm import Session
 from sqlalchemy import insert, update
-from models import Patient, Study, Instance
+from models import Patient, Study, Instance, Series
 
 
 class DatabaseService:
@@ -86,3 +86,17 @@ class DatabaseService:
         db.commit()
         db.refresh(instance)
         return instance
+
+
+# --- Day 6-7: Query functions ---
+
+def get_all_studies(db: Session) -> list:
+    return db.query(Study).order_by(Study.created_at.desc()).all()
+
+
+def get_series_by_id(db: Session, series_id: int):
+    return db.query(Series).filter(Series.id == series_id).first()
+
+
+def get_instance_by_id(db: Session, instance_id: int):
+    return db.query(Instance).filter(Instance.id == instance_id).first()

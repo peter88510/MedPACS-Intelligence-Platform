@@ -1,6 +1,6 @@
 import io
 import os
-from fastapi import FastAPI, File, UploadFile, Depends, HTTPException
+from fastapi import FastAPI, File, UploadFile, Depends
 from fastapi.responses import JSONResponse
 
 from sqlalchemy.orm import Session
@@ -12,6 +12,9 @@ from dotenv import load_dotenv
 
 from validation.dicom_validator import validate_dicom
 from validation.exceptions import ValidationError
+
+from fastapi import HTTPException
+from db_service import get_all_studies, get_series_by_id, get_instance_by_id
 
 load_dotenv()
 
@@ -112,3 +115,32 @@ async def upload(file: UploadFile = File(...), db: Session = Depends(get_db)):
 async def health_check():
     """Health check endpoint."""
     return {"status": "ok", "version": "2.0"}
+
+
+# --- Day 6-7: Query endpoints ---
+
+def _row(obj) -> dict:
+    d = obj.__dict__.copy()
+    d.pop("_sa_instance_state", None)
+    return d
+
+@app.get("/studies")
+def list_studies(db: Session = Depends(get_db)):
+    studies = get_all_studies(db)
+    return {"studies": [_row(s) for s in studies]}
+
+
+@app.get("/series/{id}")
+def get_series(id: int, db: Session = Depends(get_db)):
+    series = get_series_by_id(db, id)
+    if not series:
+        raise HTTPException(status_code=404, detail=f"Series with id {id} not found")
+    return _row(series)
+
+
+@app.get("/instances/{id}")
+def get_instance(id: int, db: Session = Depends(get_db)):
+    instance = get_instance_by_id(db, id)
+    if not instance:
+        raise HTTPException(status_code=404, detail=f"Instance with id {id} not found")
+    return _row(instance)

@@ -141,6 +141,48 @@ Response (All Platforms):
 }
 ```
 
+### List all studies / Fetch a series by id / Fetch an instance by id
+**Manual smoke test** (server must be running):
+
+> `curl` is available natively on **Linux**, **macOS**, and **Windows 10/11 (build 1803+)**.  
+> Windows PowerShell users: use `curl.exe` explicitly to avoid the `Invoke-WebRequest` alias.
+
+**Linux / macOS / Windows CMD**
+```bash
+# List all studies
+curl http://localhost:8000/studies
+
+# Fetch a series by id
+curl http://localhost:8000/series/1
+
+# Fetch an instance by id
+curl http://localhost:8000/instances/1
+```
+
+**Windows PowerShell**
+```powershell
+# List all studies
+curl.exe http://localhost:8000/studies
+
+# Fetch a series by id
+curl.exe http://localhost:8000/series/1
+
+# Fetch an instance by id
+curl.exe http://localhost:8000/instances/1
+```
+
+> **Windows 7 / 8 / Server 2012 (no built-in curl):**  
+> Install [curl for Windows](https://curl.se/windows/) or use PowerShell's native `Invoke-WebRequest`:
+> ```powershell
+> Invoke-WebRequest -Uri http://localhost:8000/studies | Select-Object -ExpandProperty Content
+> ```
+
+Expected 404 shape when id does not exist:
+```json
+{ "detail": "Series with id 1 not found" }
+```
+
+
 ## Verify Data in PostgreSQL
 
 ```bash
@@ -175,7 +217,6 @@ ls -la storage/
 ```bash
 pytest test_dicom_service.py -v
 ```
-
 Expected output:
 ```
 test_dicom_service.py::test_health_check PASSED
@@ -186,6 +227,29 @@ test_dicom_service.py::test_database_upsert_study PASSED
 test_dicom_service.py::test_database_create_instance PASSED
 
 ====== 6 passed ======
+```
+
+### Query API Tests
+
+Run only the new query endpoint tests:
+
+```bash
+pytest test_query_api.py -v
+```
+Expected output:
+```
+collected 8 items
+
+test_query_api.py::TestListStudies::test_returns_empty_list PASSED
+test_query_api.py::TestListStudies::test_returns_list_of_studies PASSED
+test_query_api.py::TestGetSeries::test_returns_series_when_found PASSED
+test_query_api.py::TestGetSeries::test_returns_404_when_not_found PASSED
+test_query_api.py::TestGetSeries::test_id_passed_correctly PASSED
+test_query_api.py::TestGetInstance::test_returns_instance_when_found PASSED
+test_query_api.py::TestGetInstance::test_returns_404_when_not_found PASSED
+test_query_api.py::TestGetInstance::test_id_passed_correctly PASSED
+
+=============================== 8 passed in 0.XXs ===============================
 ```
 
 ## What's New (v1.0 → v2.0)

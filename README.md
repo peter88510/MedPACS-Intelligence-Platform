@@ -158,6 +158,51 @@ Health check endpoint.
 }
 ```
 
+
+### GET /studies
+Returns all studies stored in the database, ordered by most recently ingested.
+
+**Response `200`**
+```json
+{
+  "studies": [
+    { "id": 1, "study_instance_uid": "1.2.840.10008..." },
+    ...
+  ]
+}
+```
+
+---
+
+### GET /series/{id}
+Returns a single series record by its database ID.
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `id` | integer | Database primary key of the series |
+
+**Response `200`** — series object  
+**Response `404`**
+```json
+{ "detail": "Series with id 99 not found" }
+```
+
+---
+
+### GET /instances/{id}
+Returns a single instance record by its database ID.
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `id` | integer | Database primary key of the instance |
+
+**Response `200`** — instance object  
+**Response `404`**
+```json
+{ "detail": "Instance with id 99 not found" }
+```
+
+
 ## Database Schema
 
 ### patients
