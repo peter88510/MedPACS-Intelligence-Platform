@@ -1,12 +1,17 @@
 import io
 import os
 from fastapi import FastAPI, File, UploadFile, Depends, HTTPException
+from fastapi.responses import JSONResponse
+
 from sqlalchemy.orm import Session
 import pydicom
 from db import get_db, init_db
 from db_service import DatabaseService
 from storage import StorageService
 from dotenv import load_dotenv
+
+from validation.dicom_validator import validate_dicom
+from validation.exceptions import ValidationError
 
 load_dotenv()
 
@@ -48,6 +53,11 @@ async def upload(file: UploadFile = File(...), db: Session = Depends(get_db)):
 
         # Parse DICOM (existing logic unchanged)
         dicom_data = pydicom.dcmread(io.BytesIO(file_content))
+
+        try:
+            validate_dicom(dicom_data)
+        except ValidationError as e:
+            return JSONResponse(status_code=400, content={"error": str(e)})
 
         # Extract metadata
         patient_id = getattr(dicom_data, "PatientID", "unknown_patient")
