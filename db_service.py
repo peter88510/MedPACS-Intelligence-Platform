@@ -29,10 +29,10 @@ class DatabaseService:
 
     @staticmethod
     def upsert_study(
-        db: Session,
-        study_instance_uid: str,
-        patient_id: str,
-        modality: Optional[str] = None
+            db: Session,
+            study_instance_uid: str,
+            patient_id: str,
+            modality: Optional[str] = None
     ) -> Study:
         """
         Upsert study record.
@@ -60,10 +60,10 @@ class DatabaseService:
 
     @staticmethod
     def create_instance(
-        db: Session,
-        file_path: str,
-        study_instance_uid: str,
-        sop_instance_uid: Optional[str] = None
+            db: Session,
+            file_path: str,
+            study_instance_uid: str,
+            sop_instance_uid: Optional[str] = None
     ) -> Instance:
         """
         Create instance record (always new, never update).
@@ -100,3 +100,19 @@ def get_series_by_id(db: Session, series_id: int):
 
 def get_instance_by_id(db: Session, instance_id: int):
     return db.query(Instance).filter(Instance.id == instance_id).first()
+
+
+# --- Day 8-9: Frontend API support functions ---
+
+def get_instance_file_path(db: Session, instance_id: int):
+    instance = db.query(Instance).filter(Instance.id == instance_id).first()
+    if not instance:
+        return None
+    return instance.file_path
+
+
+def get_instance_metadata(db: Session, instance_id: int):
+    instance = db.query(Instance).filter(Instance.id == instance_id).first()
+    if not instance:
+        return None
+    return {k: v for k, v in instance.__dict__.items() if not k.startswith("_")}
