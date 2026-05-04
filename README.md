@@ -201,7 +201,59 @@ Returns a single instance record by its database ID.
 ```json
 { "detail": "Instance with id 99 not found" }
 ```
+---
 
+### GET /instances/{id}/file
+串流回傳 DICOM 原始檔案。
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `id` | integer | Instance 的資料庫 primary key |
+
+**Response `200`** — `application/dicom` 檔案串流  
+**Response `404`** — instance 不存在，或檔案不在磁碟上
+
+---
+### GET /instances/{id}/metadata
+回傳 instance 的所有 metadata 欄位。
+
+**Response `200`**
+```json
+{ "id": 1, "sop_instance_uid": "1.2.840...", "series_id": 10, ... }
+```
+**Response `404`**
+```json
+{ "detail": "Instance with id 99 not found" }
+```
+---
+
+## AI Endpoints (Stub)
+
+### POST /ai/segment/{id}
+對指定 instance 觸發 AI 分割（目前為 stub）。
+
+**Response `200`**
+```json
+{ "instance_id": 1, "status": "queued", "message": "Segmentation job accepted (stub)" }
+```
+**Response `404`**
+```json
+{ "detail": "Instance with id 99 not found" }
+```
+---
+
+### GET /ai/result/{id}
+取得指定 instance 的 AI 分割結果（目前為 stub）。
+
+**Response `200`**
+```json
+{ "instance_id": 1, "status": "completed", "result": { "mask": "stub_mask_data", "confidence": 0.95 } }
+```
+**Response `404`**
+```json
+{ "detail": "Instance with id 99 not found" }
+```
+---
 
 ## Database Schema
 
