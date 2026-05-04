@@ -115,3 +115,134 @@ class TestGetInstance:
         client.get("/instances/77")
         call_args = mock_get.call_args[0]
         assert call_args[1] == 77
+
+
+# ---------------------------------------------------------------------------
+# GET /instances/{id}/file
+# ---------------------------------------------------------------------------
+
+class TestGetInstanceFile:
+    @patch("main.get_instance_file_path")
+    @patch("os.path.exists")
+    def test_returns_file_when_found(self, mock_exists, mock_get_path):
+        mock_get_path.return_value = "/fake/path/test.dcm"
+        mock_exists.return_value = True
+        with patch("main.FileResponse") as mock_fr:
+            mock_fr.return_value = MagicMock(status_code=200)
+            response = client.get("/instances/1/file")
+        assert response.status_code == 200
+
+    @patch("main.get_instance_file_path")
+    def test_returns_404_when_instance_not_found(self, mock_get_path):
+        mock_get_path.return_value = None
+        response = client.get("/instances/999/file")
+        assert response.status_code == 404
+        assert "not found" in response.json()["detail"].lower()
+
+    @patch("main.get_instance_file_path")
+    @patch("os.path.exists")
+    def test_returns_404_when_file_missing_on_disk(self, mock_exists, mock_get_path):
+        mock_get_path.return_value = "/fake/path/missing.dcm"
+        mock_exists.return_value = False
+        response = client.get("/instances/1/file")
+        assert response.status_code == 404
+        assert "disk" in response.json()["detail"].lower()
+
+    @patch("main.get_instance_file_path")
+    @patch("os.path.exists")
+    def test_id_passed_correctly(self, mock_exists, mock_get_path):
+        mock_get_path.return_value = "/fake/path/test.dcm"
+        mock_exists.return_value = True
+        with patch("main.FileResponse", return_value=MagicMock(status_code=200)):
+            client.get("/instances/55/file")
+        call_args = mock_get_path.call_args[0]
+        assert call_args[1] == 55
+
+
+# ---------------------------------------------------------------------------
+# GET /instances/{id}/metadata
+# ---------------------------------------------------------------------------
+
+class TestGetInstanceMetadata:
+
+    @patch("main.get_instance_metadata")
+    def test_returns_metadata_when_found(self, mock_get):
+        mock_get.return_value = {"id": 1, "sop_instance_uid": "1.2.3"}
+        response = client.get("/instances/1/metadata")
+        assert response.status_code == 200
+        assert response.json()["id"] == 1
+
+    @patch("main.get_instance_metadata")
+    def test_returns_404_when_not_found(self, mock_get):
+        mock_get.return_value = None
+        response = client.get("/instances/999/metadata")
+        assert response.status_code == 404
+        assert "not found" in response.json()["detail"].lower()
+
+    @patch("main.get_instance_metadata")
+    def test_id_passed_correctly(self, mock_get):
+        mock_get.return_value = {"id": 42, "sop_instance_uid": "9.8.7"}
+        client.get("/instances/42/metadata")
+        call_args = mock_get.call_args[0]
+        assert call_args[1] == 42
+
+
+# ---------------------------------------------------------------------------
+# POST /ai/segment/{id}
+# ---------------------------------------------------------------------------
+
+class TestAiSegment:
+
+    @patch("main.get_instance_by_id")
+    def test_returns_queued_status_when_found(self, mock_get):
+        mock_get.return_value = make_instance(id=1)
+        response = client.post("/ai/segment/1")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["instance_id"] == 1
+        assert data["status"] == "queued"
+
+    @patch("main.get_instance_by_id")
+    def test_returns_404_when_not_found(self, mock_get):
+        mock_get.return_value = None
+        response = client.post("/ai/segment/999")
+        assert response.status_code == 404
+        assert "not found" in response.json()["detail"].lower()
+
+    @patch("main.get_instance_by_id")
+    def test_id_passed_correctly(self, mock_get):
+        mock_get.return_value = make_instance(id=7)
+        client.post("/ai/segment/7")
+        call_args = mock_get.call_args[0]
+        assert call_args[1] == 7
+
+
+# ---------------------------------------------------------------------------
+# GET /ai/result/{id}
+# ---------------------------------------------------------------------------
+
+class TestAiResult:
+
+    @patch("main.get_instance_by_id")
+    def test_returns_result_when_found(self, mock_get):
+        mock_get.return_value = make_instance(id=1)
+        response = client.get("/ai/result/1")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["instance_id"] == 1
+        assert data["status"] == "completed"
+        assert "result" in data
+
+    @patch("main.get_instance_by_id")
+    def test_returns_404_when_not_found(self, mock_get):
+        mock_get.return_value = None
+        response = client.get("/ai/result/999")
+        assert response.status_code == 404
+        assert "not found" in response.json()["detail"].lower()
+
+    @patch("main.get_instance_by_id")
+    def test_id_passed_correctly(self, mock_get):
+        mock_get.return_value = make_instance(id=33)
+        client.get("/ai/result/33")
+        call_args = mock_get.call_args[0]
+        assert call_args[1] == 33

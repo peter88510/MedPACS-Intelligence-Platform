@@ -2,6 +2,7 @@ import io
 import os
 from fastapi import FastAPI, File, UploadFile, Depends
 from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse
 
 from sqlalchemy.orm import Session
 import pydicom
@@ -14,7 +15,9 @@ from validation.dicom_validator import validate_dicom
 from validation.exceptions import ValidationError
 
 from fastapi import HTTPException
-from db_service import get_all_studies, get_series_by_id, get_instance_by_id
+from db_service import get_all_studies, get_series_by_id, get_instance_by_id, get_instance_file_path, get_instance_metadata
+from storage_backend import LocalStorageBackend
+from config import settings
 
 load_dotenv()
 
@@ -75,11 +78,11 @@ async def upload(file: UploadFile = File(...), db: Session = Depends(get_db)):
             study_instance_uid=study_instance_uid,
             filename=file.filename or "unknown.dcm"
         )
-        
+
         # Step 2: Upsert into database
         # Upsert patient
         DatabaseService.upsert_patient(db, patient_id=patient_id)
-        
+
         # Upsert study
         DatabaseService.upsert_study(
             db,
@@ -87,7 +90,7 @@ async def upload(file: UploadFile = File(...), db: Session = Depends(get_db)):
             patient_id=patient_id,
             modality=modality
         )
-        
+
         # Create instance record
         DatabaseService.create_instance(
             db,
@@ -95,7 +98,7 @@ async def upload(file: UploadFile = File(...), db: Session = Depends(get_db)):
             study_instance_uid=study_instance_uid,
             sop_instance_uid=sop_instance_uid
         )
-        
+
         # Step 3: Return same response as before (API contract preserved)
         return {
             "filename": file.filename,
@@ -104,7 +107,7 @@ async def upload(file: UploadFile = File(...), db: Session = Depends(get_db)):
             "modality": modality,
             "message": "DICOM file uploaded and processed successfully"
         }
-    
+
     except pydicom.errors.InvalidDicomError:
         raise HTTPException(status_code=400, detail="Invalid DICOM file")
     except Exception as e:
@@ -123,6 +126,7 @@ def _row(obj) -> dict:
     d = obj.__dict__.copy()
     d.pop("_sa_instance_state", None)
     return d
+
 
 @app.get("/studies")
 def list_studies(db: Session = Depends(get_db)):
@@ -144,3 +148,58 @@ def get_instance(id: int, db: Session = Depends(get_db)):
     if not instance:
         raise HTTPException(status_code=404, detail=f"Instance with id {id} not found")
     return _row(instance)
+
+
+# --- Day 8-9: Frontend-facing endpoints ---
+storage = LocalStorageBackend(base_dir=settings.UPLOAD_STORAGE_PATH)
+
+
+@app.get("/instances/{id}/file")
+def download_instance_file(id: int, db: Session = Depends(get_db)):
+    file_path = get_instance_file_path(db, id)
+    if not file_path:
+        raise HTTPException(status_code=404, detail=f"Instance with id {id} not found")
+    if not storage.exists(file_path):
+        raise HTTPException(status_code=404, detail=f"File not found on disk for instance {id}")
+    return FileResponse(
+        path=storage.absolute_path(file_path),
+        media_type="application/dicom",
+        filename=os.path.basename(file_path)
+    )
+
+
+@app.get("/instances/{id}/metadata")
+def get_instance_meta(id: int, db: Session = Depends(get_db)):
+    metadata = get_instance_metadata(db, id)
+    if metadata is None:
+        raise HTTPException(status_code=404, detail=f"Instance with id {id} not found")
+    return metadata
+
+
+@app.post("/ai/segment/{id}")
+def ai_segment(id: int, db: Session = Depends(get_db)):
+    instance = get_instance_by_id(db, id)
+    if not instance:
+        raise HTTPException(status_code=404, detail=f"Instance with id {id} not found")
+    # Stub: AI segmentation placeholder
+    return {
+        "instance_id": id,
+        "status": "queued",
+        "message": "Segmentation job accepted (stub)"
+    }
+
+
+@app.get("/ai/result/{id}")
+def ai_result(id: int, db: Session = Depends(get_db)):
+    instance = get_instance_by_id(db, id)
+    if not instance:
+        raise HTTPException(status_code=404, detail=f"Instance with id {id} not found")
+    # Stub: return fixed mock result
+    return {
+        "instance_id": id,
+        "status": "completed",
+        "result": {
+            "mask": "stub_mask_data",
+            "confidence": 0.95
+        }
+    }

@@ -231,14 +231,25 @@ test_dicom_service.py::test_database_create_instance PASSED
 
 ### Query API Tests
 
-Run only the new query endpoint tests:
+
+Run only the new endpoint tests:
+
+```bash
+pytest test_query_api.py::TestGetInstanceFile -v
+pytest test_query_api.py::TestGetInstanceMetadata -v
+pytest test_query_api.py::TestAiSegment -v
+pytest test_query_api.py::TestAiResult -v
+```
+
+Or run all query API tests together:
 
 ```bash
 pytest test_query_api.py -v
 ```
-Expected output:
+
+**Expected output:**
 ```
-collected 8 items
+collected 16 items
 
 test_query_api.py::TestListStudies::test_returns_empty_list PASSED
 test_query_api.py::TestListStudies::test_returns_list_of_studies PASSED
@@ -248,8 +259,37 @@ test_query_api.py::TestGetSeries::test_id_passed_correctly PASSED
 test_query_api.py::TestGetInstance::test_returns_instance_when_found PASSED
 test_query_api.py::TestGetInstance::test_returns_404_when_not_found PASSED
 test_query_api.py::TestGetInstance::test_id_passed_correctly PASSED
+test_query_api.py::TestGetInstanceFile::test_returns_file_when_found PASSED
+test_query_api.py::TestGetInstanceFile::test_returns_404_when_instance_not_found PASSED
+test_query_api.py::TestGetInstanceFile::test_returns_404_when_file_missing_on_disk PASSED
+test_query_api.py::TestGetInstanceFile::test_id_passed_correctly PASSED
+test_query_api.py::TestGetInstanceMetadata::test_returns_metadata_when_found PASSED
+test_query_api.py::TestGetInstanceMetadata::test_returns_404_when_not_found PASSED
+test_query_api.py::TestGetInstanceMetadata::test_id_passed_correctly PASSED
+test_query_api.py::TestAiSegment::test_returns_queued_status_when_found PASSED
+test_query_api.py::TestAiSegment::test_returns_404_when_not_found PASSED
+test_query_api.py::TestAiSegment::test_id_passed_correctly PASSED
+test_query_api.py::TestAiResult::test_returns_result_when_found PASSED
+test_query_api.py::TestAiResult::test_returns_404_when_not_found PASSED
+test_query_api.py::TestAiResult::test_id_passed_correctly PASSED
 
-=============================== 8 passed in 0.XXs ===============================
+=============================== 21 passed in 0.XXs ===============================
+```
+
+**Manual smoke test** (server must be running):
+
+```bash
+# Download DICOM file
+curl http://localhost:8000/instances/1/file --output test.dcm
+
+# Fetch instance metadata
+curl http://localhost:8000/instances/1/metadata
+
+# Trigger AI segmentation
+curl -X POST http://localhost:8000/ai/segment/1
+
+# Fetch AI result
+curl http://localhost:8000/ai/result/1
 ```
 
 ## What's New (v1.0 → v2.0)
