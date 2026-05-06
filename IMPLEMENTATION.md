@@ -1,12 +1,22 @@
-# Implementation Summary - MedDICOMParseAPI v2.0
+---
+docspec: "2.0"
+type: ARCHITECTURE
+title: "MedDICOMParseAPI v2.0 Implementation Summary"
+version: "2.0.0"
+status: "approved"
+---
+
+# MedDICOMParseAPI v2.0 Implementation Summary
 
 ## Overview
 
-Extended FastAPI DICOM parser with PostgreSQL persistence layer and local file storage. **API contract unchanged** (v1.0 → v2.0 backward compatible).
+Extended FastAPI DICOM parser with PostgreSQL persistence layer and local file storage. The API contract is unchanged from v1.0 to v2.0 (fully backward compatible).
 
-## New Files Added
+## New and Updated Files
 
-```
+The following files were added or modified in v2.0:
+
+```text
 MedDICOMParseAPI/
 ├── models.py           (NEW) SQLAlchemy ORM models
 ├── db.py               (NEW) Database connection/session management
@@ -19,9 +29,11 @@ MedDICOMParseAPI/
 └── QUICKSTART.md       (NEW) 5-minute setup guide
 ```
 
-## Architecture
+## System Architecture
 
-```
+The following diagram describes the data flow through the system on each `/upload` request:
+
+```text
 ┌─────────────────────────────────────────────┐
 │         FastAPI /upload Endpoint            │
 └──────────────┬──────────────────────────────┘
@@ -52,7 +64,8 @@ MedDICOMParseAPI/
 
 ## Key Changes to main.py
 
-**Before (v1.0):**
+### Before: v1.0 Upload Endpoint
+
 ```python
 @app.post("/upload")
 async def upload(file: UploadFile = File(...)):
@@ -64,21 +77,22 @@ async def upload(file: UploadFile = File(...)):
     }
 ```
 
-**After (v2.0):**
+### After: v2.0 Upload Endpoint
+
 ```python
 @app.post("/upload")
 async def upload(file: UploadFile = File(...), db: Session = Depends(get_db)):
     # 1. Parse DICOM (existing logic)
     dicom = pydicom.dcmread(file.file)
-    
+
     # 2. Save to local storage
     file_path = storage_service.save_dicom(...)
-    
+
     # 3. Upsert to PostgreSQL
     DatabaseService.upsert_patient(db, patient_id)
     DatabaseService.upsert_study(db, study_instance_uid, patient_id, modality)
     DatabaseService.create_instance(db, file_path, study_instance_uid, sop_uid)
-    
+
     # 4. Return same response as v1.0 (API contract preserved)
     return { "patient_id": patient_id, ... }
 ```
@@ -86,26 +100,30 @@ async def upload(file: UploadFile = File(...), db: Session = Depends(get_db)):
 ## Module Responsibilities
 
 ### models.py
-- **Patient**: Unique patient_id, one-to-many relationship with studies
-- **Study**: Unique study_instance_uid, FK to patient, stores modality
-- **Series**: Series-level grouping (extensible for future use)
-- **Instance**: Individual DICOM file record, FK to study, stores file_path
+
+- **Patient**: Stores unique `patient_id`; has a one-to-many relationship with studies.
+- **Study**: Stores unique `study_instance_uid`; has a foreign key to patient; stores modality.
+- **Series**: Provides series-level grouping; extensible for future use.
+- **Instance**: Represents an individual DICOM file record; has a foreign key to study; stores `file_path`.
 
 ### db.py
-- Creates SQLAlchemy engine with PostgreSQL connection
-- Provides `get_db()` dependency for FastAPI
-- `init_db()` creates all tables on startup (idempotent)
-- Uses `NullPool` to avoid connection pooling complexity
+
+- Creates the SQLAlchemy engine with a PostgreSQL connection.
+- Provides the `get_db()` dependency for FastAPI.
+- `init_db()` creates all tables on startup (idempotent).
+- Uses `NullPool` to avoid connection pooling complexity.
 
 ### db_service.py
-- `upsert_patient()`: Inserts if not exists, returns existing if duplicate
-- `upsert_study()`: Inserts if not exists by study_instance_uid
-- `create_instance()`: Always creates new instance record (no upsert needed)
+
+- `upsert_patient()`: Inserts a patient if not exists; returns the existing record on duplicate.
+- `upsert_study()`: Inserts a study if not exists, keyed by `study_instance_uid`.
+- `create_instance()`: Always creates a new instance record (no upsert required).
 
 ### storage.py
-- `save_dicom()`: Writes file to `storage/{patient_id}/{study_uid}/{filename}`
-- Handles missing metadata with "unknown_patient" / "unknown_study" fallbacks
-- Returns relative path for database storage
+
+- `save_dicom()`: Writes the DICOM file to `storage/{patient_id}/{study_uid}/{filename}`.
+- Handles missing metadata with `"unknown_patient"` and `"unknown_study"` fallbacks.
+- Returns a relative path for storage in the database.
 
 ## Database Schema
 
@@ -144,74 +162,80 @@ CREATE TABLE instances (
 );
 ```
 
-## Workflow on /upload
+## Upload Workflow
 
-1. **Parse**: pydicom.dcmread() → extract PatientID, StudyInstanceUID, Modality, SOPInstanceUID
-2. **Store**: Save to `storage/{patient_id}/{study_uid}/{filename}`
+The following steps occur on every `/upload` request:
+
+1. **Parse**: `pydicom.dcmread()` extracts `PatientID`, `StudyInstanceUID`, `Modality`, and `SOPInstanceUID`.
+2. **Store**: Saves the file to `storage/{patient_id}/{study_uid}/{filename}`.
 3. **Persist**:
-   - Upsert patient (patient_id as unique key)
-   - Upsert study (study_instance_uid as unique key)
-   - Create instance (new record, FK to study)
-4. **Respond**: Return JSON (identical to v1.0 API)
+  - Upsert patient (keyed by `patient_id`).
+  - Upsert study (keyed by `study_instance_uid`).
+  - Create instance (new record, foreign key to study).
+4. **Respond**: Returns JSON response identical to v1.0 API.
 
 ## Error Handling
 
-- **Invalid DICOM**: `pydicom.errors.InvalidDicomError` → HTTP 400
-- **Database Error**: Generic exception → HTTP 500
-- **Missing Metadata**: Gracefully handled with "unknown_*" placeholders
+| Error Condition | Handling |
+|---|---|
+| Invalid DICOM (`pydicom.errors.InvalidDicomError`) | Returns HTTP 400 |
+| Database error (generic exception) | Returns HTTP 500 |
+| Missing metadata fields | Replaced with `"unknown_patient"` or `"unknown_study"` placeholders |
 
 ## Environment Variables
 
-```
+```text
 DATABASE_URL=postgresql://postgres:password@localhost:5432/meddicom_db
 UPLOAD_STORAGE_PATH=./storage
 ```
 
-## Dependencies Added
+## Dependencies Added in v2.0
 
-```
+```text
 sqlalchemy==2.0.23      # ORM
 psycopg2-binary==2.9.9  # PostgreSQL driver
 python-dotenv==1.0.0    # Environment variables
 ```
 
-## Testing
+## Test Coverage
 
-Test suite covers:
-- ✅ Health endpoint
-- ✅ DICOM upload and parsing
-- ✅ Local file storage
-- ✅ Patient upsert
-- ✅ Study upsert
-- ✅ Instance creation
+The test suite covers the following areas:
 
-Uses SQLite in-memory database for test isolation.
+- Health endpoint
+- DICOM upload and parsing
+- Local file storage
+- Patient upsert
+- Study upsert
+- Instance creation
+
+Tests use an SQLite in-memory database for isolation.
 
 ## Backward Compatibility
 
-✅ **API Contract Unchanged**
-- Input: multipart/form-data with DICOM file
-- Output: Same JSON response structure
-- Clients require no modifications
-- v1.0 consumers work with v2.0 without changes
+The API contract is fully unchanged between v1.0 and v2.0:
+
+- **Input**: `multipart/form-data` with a DICOM file (unchanged).
+- **Output**: Same JSON response structure (unchanged).
+- **Client changes required**: None. All v1.0 consumers work with v2.0 without modification.
 
 ## Deployment Checklist
 
 - [ ] PostgreSQL database created (`createdb meddicom_db`)
 - [ ] `.env` configured with `DATABASE_URL`
 - [ ] Dependencies installed (`pip install -r requirements.txt`)
-- [ ] Storage directory writable (`./storage`)
+- [ ] Storage directory is writable (`./storage`)
 - [ ] Server started (`uvicorn main:app`)
 - [ ] Health check passes (`curl http://localhost:8000/health`)
 - [ ] Test DICOM upload succeeds
-- [ ] PostgreSQL contains patient/study/instance records
+- [ ] PostgreSQL contains patient, study, and instance records
 - [ ] Files exist in `./storage/{patient_id}/{study_uid}/`
 
 ## Future Extensions
 
-The schema supports:
-- Multiple series per study (via series table)
-- Series-level metadata (extensible)
-- Soft deletes (add `deleted_at` timestamps)
-- Audit logs (add transaction history table)
-- File metadata (add file hash, size, timestamp to instances)
+The current schema is designed to support the following future capabilities:
+
+- Multiple series per study (via the existing `series` table).
+- Series-level metadata (extensible schema).
+- Soft deletes (add `deleted_at` timestamps to tables).
+- Audit logs (add a transaction history table).
+- File metadata (add file hash, file size, and timestamp fields to the `instances` table).
