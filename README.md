@@ -21,15 +21,24 @@ FastAPI backend for DICOM file upload, parsing, and persistent storage with Post
 
 ```text
 MedPACS Intelligence Platform/
-├── main.py                 # FastAPI application with /upload endpoint
-├── models.py               # SQLAlchemy ORM models (Patient, Study, Instance)
-├── db.py                   # Database connection and session management
-├── db_service.py           # Database CRUD operations
-├── storage.py              # Local file storage service
-├── test_dicom_service.py   # Test suite
-├── requirements.txt        # Python dependencies
-├── .env.example            # Environment variables template
-└── storage/                # Local DICOM file storage (auto-created)
+├── main.py                # FastAPI entrypoint / API router
+├── config.py              # System configuration and environment loader
+├── db.py                  # Database connection/session management
+├── db_service.py          # CRUD operations for DICOM metadata
+├── models.py              # SQLAlchemy ORM models (Study/Series/Instance)
+├── storage.py             # Storage abstraction layer (interface)
+├── storage_backend.py     # Local storage implementation (extensible to S3)
+├── test_dicom_service.py  # Service-level tests for DICOM processing
+├── test_query_api.py      # API endpoint tests for query operations
+├── requirements.txt       # Python dependencies
+├── storage/               # Physical file storage directory (DICOM files)
+├── validation/            # DICOM validation utilities / rules
+├── test_dicom_files/      # Sample DICOM files for testing
+├── .env.example           # Environment variable template
+├── IMPLEMENTATION.md      # System architecture and technical design
+├── QUICKSTART.md          # 5-minute setup guide
+├── README.md              # Project overview and usage documentation
+└── STORAGE_BACKEND.md     # Storage backend design and extension guide
 ```
 
 ## Setup
