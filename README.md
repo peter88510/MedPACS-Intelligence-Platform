@@ -1,17 +1,25 @@
+---
+docspec: "2.0"
+type: API_REFERENCE
+title: "MedDICOMParseAPI v2.0"
+version: "2.0.0"
+status: "approved"
+---
+
 # MedDICOMParseAPI v2.0
 
 FastAPI backend for DICOM file upload, parsing, and persistent storage with PostgreSQL.
 
 ## Features
 
-- ✅ DICOM file upload and parsing
-- ✅ Local file storage (hierarchical by PatientID → StudyInstanceUID)
-- ✅ PostgreSQL persistence layer
-- ✅ Backward-compatible API (v1 contract unchanged)
+- DICOM file upload and parsing
+- Local file storage (hierarchical by PatientID → StudyInstanceUID)
+- PostgreSQL persistence layer
+- Backward-compatible API (v1 contract unchanged)
 
 ## Project Structure
 
-```
+```text
 MedPACS Intelligence Platform/
 ├── main.py                 # FastAPI application with /upload endpoint
 ├── models.py               # SQLAlchemy ORM models (Patient, Study, Instance)
@@ -26,15 +34,35 @@ MedPACS Intelligence Platform/
 
 ## Setup
 
-### 1. Install Dependencies
+### Step 1: Install Dependencies
+
+_Linux/macOS:_
 
 ```bash
 pip install -r requirements.txt
 ```
 
-### 2. Configure Environment
+_Windows:_
 
-#### Windows (PowerShell)
+```powershell
+pip install -r requirements.txt
+```
+
+### Step 2: Configure Environment
+
+_Linux/macOS:_
+
+```bash
+cp .env.example .env
+
+# Edit .env
+nano .env
+# or
+vim .env
+```
+
+_Windows (PowerShell):_
+
 ```powershell
 # Create .env.example if not exists
 @"
@@ -52,7 +80,8 @@ Copy-Item .env.example .env
 notepad .env
 ```
 
-#### Windows (CMD)
+_Windows (CMD):_
+
 ```cmd
 REM Create .env.example
 echo # PostgreSQL Configuration > .env.example
@@ -67,76 +96,98 @@ REM Edit .env
 notepad .env
 ```
 
-#### Linux/macOS
-```bash
-cp .env.example .env
-
-# Edit .env
-nano .env
-# or
-vim .env
-```
-
 #### Configure Credentials
 
 Edit `.env` and update with your actual PostgreSQL password:
-```
+
+```text
 DATABASE_URL=postgresql://postgres:your_password@localhost:5432/meddicom_db
 UPLOAD_STORAGE_PATH=./storage
 ```
 
-### 3. Create PostgreSQL Database
+### Step 3: Create PostgreSQL Database
 
-#### Windows (PowerShell/CMD)
-```cmd
-createdb -U postgres -h 127.0.0.1 meddicom_db
-```
+_Linux/macOS:_
 
-#### Linux/macOS
 ```bash
 createdb -U postgres -h localhost meddicom_db
 ```
 
+_Windows:_
+
+```cmd
+createdb -U postgres -h 127.0.0.1 meddicom_db
+```
+
 #### Verify Database Creation
 
+_Linux/macOS:_
+
 ```bash
-# List all databases
 psql -U postgres -h 127.0.0.1 -c "\l"
 ```
 
-Expected output: `meddicom_db` should appear in the list ✅
+_Windows:_
 
-**Alternative: Using psql (All Platforms)**
+```powershell
+psql -U postgres -h 127.0.0.1 -c "\l"
+```
+
+Expected output: `meddicom_db` should appear in the list.
+
+#### Alternative: Create Database via psql
+
+Connect to PostgreSQL on any platform:
+
+_Linux/macOS:_
+
 ```bash
-# Connect to PostgreSQL and create database
+psql -U postgres -h 127.0.0.1
+```
+
+_Windows:_
+
+```powershell
 psql -U postgres -h 127.0.0.1
 ```
 
 Then execute:
+
 ```sql
 CREATE DATABASE meddicom_db;
 ```
 
-### 4. Run Application
+### Step 4: Run Application
+
+_Linux/macOS:_
 
 ```bash
 uvicorn main:app --reload
 ```
 
-Server runs at `http://localhost:8000`
+_Windows:_
+
+```powershell
+uvicorn main:app --reload
+```
+
+Server runs at `http://localhost:8000`.
 
 ## API Endpoints
 
 ### POST /upload
+
 Upload and process a DICOM file.
 
 **Request:**
-```
+
+```text
 Content-Type: multipart/form-data
 Body: file (binary DICOM)
 ```
 
 **Response (200 OK):**
+
 ```json
 {
   "filename": "patient_001.dcm",
@@ -148,9 +199,11 @@ Body: file (binary DICOM)
 ```
 
 ### GET /health
+
 Health check endpoint.
 
 **Response (200 OK):**
+
 ```json
 {
   "status": "ok",
@@ -158,150 +211,188 @@ Health check endpoint.
 }
 ```
 
-
 ### GET /studies
+
 Returns all studies stored in the database, ordered by most recently ingested.
 
-**Response `200`**
+**Response (200 OK):**
+
 ```json
 {
   "studies": [
-    { "id": 1, "study_instance_uid": "1.2.840.10008..." },
-    ...
+    { "id": 1, "study_instance_uid": "1.2.840.10008..." }
   ]
 }
 ```
 
----
-
 ### GET /series/{id}
+
 Returns a single series record by its database ID.
 
 | Parameter | Type | Description |
-|-----------|------|-------------|
+|---|---|---|
 | `id` | integer | Database primary key of the series |
 
-**Response `200`** — series object  
-**Response `404`**
+**Response (200 OK):** Series object.
+
+**Response (404 Not Found):**
+
 ```json
 { "detail": "Series with id 99 not found" }
 ```
 
----
-
 ### GET /instances/{id}
+
 Returns a single instance record by its database ID.
 
 | Parameter | Type | Description |
-|-----------|------|-------------|
+|---|---|---|
 | `id` | integer | Database primary key of the instance |
 
-**Response `200`** — instance object  
-**Response `404`**
+**Response (200 OK):** Instance object.
+
+**Response (404 Not Found):**
+
 ```json
 { "detail": "Instance with id 99 not found" }
 ```
----
 
 ### GET /instances/{id}/file
-串流回傳 DICOM 原始檔案。
+
+Streams the raw DICOM file for the specified instance.
 
 | Parameter | Type | Description |
-|-----------|------|-------------|
-| `id` | integer | Instance 的資料庫 primary key |
+|---|---|---|
+| `id` | integer | Database primary key of the instance |
 
-**Response `200`** — `application/dicom` 檔案串流  
-**Response `404`** — instance 不存在，或檔案不在磁碟上
+**Response (200 OK):** `application/dicom` file stream.
 
----
+**Response (404 Not Found):** Returned when the instance does not exist, or when the file is not present on disk.
+
 ### GET /instances/{id}/metadata
-回傳 instance 的所有 metadata 欄位。
 
-**Response `200`**
+Returns all metadata fields for the specified instance.
+
+| Parameter | Type | Description |
+|---|---|---|
+| `id` | integer | Database primary key of the instance |
+
+**Response (200 OK):**
+
 ```json
-{ "id": 1, "sop_instance_uid": "1.2.840...", "series_id": 10, ... }
+{ "id": 1, "sop_instance_uid": "1.2.840...", "series_id": 10 }
 ```
-**Response `404`**
+
+**Response (404 Not Found):**
+
 ```json
 { "detail": "Instance with id 99 not found" }
 ```
----
 
 ## AI Endpoints (Stub)
 
 ### POST /ai/segment/{id}
-對指定 instance 觸發 AI 分割（目前為 stub）。
 
-**Response `200`**
+Triggers AI segmentation for the specified instance. Currently implemented as a stub.
+
+| Parameter | Type | Description |
+|---|---|---|
+| `id` | integer | Database primary key of the instance |
+
+**Response (200 OK):**
+
 ```json
 { "instance_id": 1, "status": "queued", "message": "Segmentation job accepted (stub)" }
 ```
-**Response `404`**
+
+**Response (404 Not Found):**
+
 ```json
 { "detail": "Instance with id 99 not found" }
 ```
----
 
 ### GET /ai/result/{id}
-取得指定 instance 的 AI 分割結果（目前為 stub）。
 
-**Response `200`**
+Returns the AI segmentation result for the specified instance. Currently implemented as a stub.
+
+| Parameter | Type | Description |
+|---|---|---|
+| `id` | integer | Database primary key of the instance |
+
+**Response (200 OK):**
+
 ```json
 { "instance_id": 1, "status": "completed", "result": { "mask": "stub_mask_data", "confidence": 0.95 } }
 ```
-**Response `404`**
+
+**Response (404 Not Found):**
+
 ```json
 { "detail": "Instance with id 99 not found" }
 ```
----
 
 ## Database Schema
 
 ### patients
-- `id` (PK, Integer)
-- `patient_id` (String, Unique, FK reference in studies)
-- `created_at` (DateTime)
+
+| Column | Type | Constraints |
+|---|---|---|
+| `id` | Integer | Primary key |
+| `patient_id` | String | Unique; referenced as FK in studies |
+| `created_at` | DateTime | Auto-set on insert |
 
 ### studies
-- `id` (PK, Integer)
-- `study_instance_uid` (String, Unique, FK reference in instances)
-- `patient_id` (String, FK → patients.patient_id)
-- `modality` (String, nullable)
-- `created_at` (DateTime)
+
+| Column | Type | Constraints |
+|---|---|---|
+| `id` | Integer | Primary key |
+| `study_instance_uid` | String | Unique; referenced as FK in instances |
+| `patient_id` | String | FK → `patients.patient_id` |
+| `modality` | String | Nullable |
+| `created_at` | DateTime | Auto-set on insert |
 
 ### series
-- `id` (PK, Integer)
-- `series_instance_uid` (String, nullable)
-- `study_instance_uid` (String, FK → studies.study_instance_uid)
-- `created_at` (DateTime)
+
+| Column | Type | Constraints |
+|---|---|---|
+| `id` | Integer | Primary key |
+| `series_instance_uid` | String | Nullable |
+| `study_instance_uid` | String | FK → `studies.study_instance_uid` |
+| `created_at` | DateTime | Auto-set on insert |
 
 ### instances
-- `id` (PK, Integer)
-- `sop_instance_uid` (String, nullable, unique)
-- `file_path` (String, relative path to stored file)
-- `study_instance_uid` (String, FK → studies.study_instance_uid)
-- `created_at` (DateTime)
+
+| Column | Type | Constraints |
+|---|---|---|
+| `id` | Integer | Primary key |
+| `sop_instance_uid` | String | Nullable; unique |
+| `file_path` | String | Relative path to stored file |
+| `study_instance_uid` | String | FK → `studies.study_instance_uid` |
+| `created_at` | DateTime | Auto-set on insert |
 
 ## Storage Structure
 
-Files are stored locally in hierarchical structure:
-```
+Files are stored locally in a hierarchical directory structure:
+
+```text
 storage/
 └── {patient_id}/
     └── {study_instance_uid}/
         └── {filename}.dcm
 ```
 
-Example:
-```
+Example with known metadata:
+
+```text
 storage/
 └── P12345/
     └── 1.2.3.4.5.6.7/
         └── patient_001.dcm
 ```
 
-If PatientID or StudyInstanceUID is missing:
-```
+Example with missing PatientID or StudyInstanceUID:
+
+```text
 storage/
 └── unknown_patient/
     └── unknown_study/
@@ -310,45 +401,65 @@ storage/
 
 ## Testing
 
-Run tests with pytest:
+Run the core test suite:
+
+_Linux/macOS:_
 
 ```bash
 pytest test_dicom_service.py -v
 ```
 
+_Windows:_
+
+```powershell
+pytest test_dicom_service.py -v
+```
+
 Tests cover:
+
 - Health endpoint
 - DICOM upload and parsing
 - Local file storage
-- Database operations (upsert patient, study, create instance)
+- Database operations (upsert patient, upsert study, create instance)
 
 ## Integration Notes
 
-- **API Contract:** The `/upload` response is identical to v1.0. Clients need no changes.
-- **Internal Changes:** File storage and database persistence are transparent to API consumers.
-- **Database:** On first run, tables are created automatically via `init_db()` at startup.
-- **Storage:** The `./storage` directory is created automatically if it doesn't exist.
+- **API Contract**: The `/upload` response is identical to v1.0. Clients require no changes.
+- **Internal Changes**: File storage and database persistence are transparent to API consumers.
+- **Database Initialization**: On first run, all tables are created automatically via `init_db()` at startup.
+- **Storage Directory**: The `./storage` directory is created automatically if it does not exist.
 
 ## Troubleshooting
 
-### "Database connection refused"
-- Ensure PostgreSQL is running
-- Verify `DATABASE_URL` in `.env` is correct
-- Check database exists: `createdb meddicom_db`
+### Database Connection Refused
 
-### "No such table"
-- Database tables are created automatically on first startup
-- If manual creation needed:
-  ```python
-  from db import init_db
-  init_db()
-  ```
+- Ensure PostgreSQL is running.
+- Verify `DATABASE_URL` in `.env` is correct.
+- Check that the database exists: `createdb meddicom_db`.
 
-### "Permission denied: ./storage"
-- Ensure write permissions in project directory
-- Check `UPLOAD_STORAGE_PATH` is correct in `.env`
+### No Such Table
+
+Database tables are created automatically on first startup. If manual creation is required:
+
+```python
+from db import init_db
+init_db()
+```
+
+### Permission Denied on ./storage
+
+- Ensure write permissions exist in the project directory.
+- Verify `UPLOAD_STORAGE_PATH` is correctly set in `.env`.
+
+_Linux/macOS:_
+
+```bash
+chmod 755 .
+```
 
 ## Version History
 
-- **v2.0** (Current) - Added PostgreSQL persistence and local file storage
-- **v1.0** - Initial DICOM parsing and upload
+| Version | Status | Notes |
+|---|---|---|
+| v2.0 | Current | Added PostgreSQL persistence and local file storage |
+| v1.0 | Superseded | Initial DICOM parsing and upload |
