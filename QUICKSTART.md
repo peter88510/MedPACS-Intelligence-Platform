@@ -502,13 +502,13 @@ Invoke-WebRequest -Uri http://localhost:8000/studies | Select-Object -ExpandProp
 _Linux/macOS:_
 
 ```bash
-psql meddicom_db
+psql -U postgres -d meddicom_db
 ```
 
 _Windows:_
 
 ```powershell
-psql meddicom_db
+psql -U postgres -d meddicom_db
 ```
 
 Once connected, run the following queries:
