@@ -552,13 +552,13 @@ storage/
 _Linux/macOS:_
 
 ```bash
-pytest test_dicom_service.py -v
+pytest tests/test_dicom_service.py -v
 ```
 
 _Windows:_
 
 ```powershell
-pytest test_dicom_service.py -v
+pytest tests/test_dicom_service.py -v
 ```
 
 Expected output:
@@ -581,19 +581,19 @@ Run individual test classes:
 _Linux/macOS:_
 
 ```bash
-pytest test_query_api.py::TestGetInstanceFile -v
-pytest test_query_api.py::TestGetInstanceMetadata -v
-pytest test_query_api.py::TestAiSegment -v
-pytest test_query_api.py::TestAiResult -v
+pytest tests/test_query_api.py::TestGetInstanceFile -v
+pytest tests/test_query_api.py::TestGetInstanceMetadata -v
+pytest tests/test_query_api.py::TestAiSegment -v
+pytest tests/test_query_api.py::TestAiResult -v
 ```
 
 _Windows:_
 
 ```powershell
-pytest test_query_api.py::TestGetInstanceFile -v
-pytest test_query_api.py::TestGetInstanceMetadata -v
-pytest test_query_api.py::TestAiSegment -v
-pytest test_query_api.py::TestAiResult -v
+pytest tests/test_query_api.py::TestGetInstanceFile -v
+pytest tests/test_query_api.py::TestGetInstanceMetadata -v
+pytest tests/test_query_api.py::TestAiSegment -v
+pytest tests/test_query_api.py::TestAiResult -v
 ```
 
 Or run all query API tests together:
@@ -601,13 +601,13 @@ Or run all query API tests together:
 _Linux/macOS:_
 
 ```bash
-pytest test_query_api.py -v
+pytest tests/test_query_api.py -v
 ```
 
 _Windows:_
 
 ```powershell
-pytest test_query_api.py -v
+pytest tests/test_query_api.py -v
 ```
 
 Expected output:
