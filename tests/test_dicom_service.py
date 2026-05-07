@@ -11,6 +11,7 @@ from db_service import DatabaseService
 
 from unittest.mock import patch, MagicMock
 from validation.exceptions import ValidationError
+from conftest import make_mock_ds
 
 # Use in-memory SQLite for tests
 SQLALCHEMY_TEST_DATABASE_URL = "sqlite:///./test.db"
@@ -200,14 +201,6 @@ def test_database_create_instance():
 
 
 # ── Validation Layer Tests ──────────────────────────────────
-
-def make_mock_ds(patient_id="P001", study_uid="1.2.3", modality="US"):
-    """Helper: build a fake pydicom dataset for validation tests."""
-    ds = MagicMock()
-    ds.PatientID = patient_id
-    ds.StudyInstanceUID = study_uid
-    ds.Modality = modality
-    return ds
 
 
 def test_valid_us_dicom_passes():

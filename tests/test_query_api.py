@@ -7,35 +7,9 @@ import pytest
 from fastapi.testclient import TestClient
 from unittest.mock import patch, MagicMock
 from main import app
-from types import SimpleNamespace
+from conftest import make_study, make_series, make_instance
 
 client = TestClient(app)
-
-
-# ---------------------------------------------------------------------------
-# Helpers / shared fixtures
-# ---------------------------------------------------------------------------
-class _FakeRow:
-    pass
-
-
-def make_study(id=1, study_instance_uid="1.2.3"):
-    obj = _FakeRow()
-    obj.__dict__ = {"id": id, "study_instance_uid": study_instance_uid}
-    return obj
-
-
-def make_series(id=10, study_id=1, series_instance_uid="1.2.3.4"):
-    obj = _FakeRow()
-    obj.__dict__ = {"id": id, "study_id": study_id, "series_instance_uid": series_instance_uid}
-    return obj
-
-
-def make_instance(id=100, series_id=10, sop_instance_uid="1.2.3.4.5"):
-    obj = _FakeRow()
-    obj.__dict__ = {"id": id, "series_id": series_id, "sop_instance_uid": sop_instance_uid}
-    return obj
-
 
 # ---------------------------------------------------------------------------
 # GET /studies
