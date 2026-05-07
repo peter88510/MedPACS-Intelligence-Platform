@@ -9,8 +9,65 @@ tests/conftest.py
 - 新增 model 對應的工廠函式時，統一加在本檔案「ORM 工廠函式」區塊
 - make_mock_*() 系列（MagicMock 物件）同樣集中在這裡
 """
-
+import pytest
+from fastapi.testclient import TestClient
+from main import app, get_db
 from unittest.mock import MagicMock
+
+# --- 遷移自 test_dicom_service.py ---
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+from models import Base
+
+# Use in-memory SQLite for tests
+SQLALCHEMY_TEST_DATABASE_URL = "sqlite:///./test.db"
+
+engine = create_engine(
+    SQLALCHEMY_TEST_DATABASE_URL,
+    connect_args={"check_same_thread": False},
+)
+TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
+Base.metadata.create_all(bind=engine)
+
+
+def override_get_db():
+    try:
+        db = TestingSessionLocal()
+        yield db
+    finally:
+        db.close()
+
+
+@pytest.fixture(autouse=True)
+def reset_db():
+    Base.metadata.create_all(bind=engine)
+    yield
+    Base.metadata.drop_all(bind=engine)
+
+
+@pytest.fixture
+def db_client():
+    """每個測試獨立的 TestClient，fixture 結束後自動清理 dependency_overrides。"""
+    app.dependency_overrides[get_db] = override_get_db
+    with TestClient(app) as client:
+        yield client
+    app.dependency_overrides.clear()
+
+
+@pytest.fixture
+def db():
+    db = TestingSessionLocal()
+    yield db
+    db.close()
+
+
+# query_api 測試專用：無需 DB override，純 mock 測試
+
+@pytest.fixture
+def api_client():
+    with TestClient(app) as client:
+        yield client
 
 
 # ---------------------------------------------------------------------------

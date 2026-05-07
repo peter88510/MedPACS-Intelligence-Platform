@@ -640,6 +640,35 @@ test_query_api.py::TestAiResult::test_id_passed_correctly PASSED
 =============================== 21 passed in 0.XXs ===============================
 ```
 
+## Run the Validator Test Suite
+
+_Linux/macOS:_
+
+```bash
+pytest tests/test_validators.py -v
+```
+
+_Windows:_
+
+```powershell
+pytest tests/test_validators.py -v
+```
+
+Expected output:
+
+```text
+collected 6 items
+
+tests/test_validators.py::test_valid_us_dicom_passes PASSED                                                                                                                                                                  [ 16%]
+tests/test_validators.py::test_missing_patient_id_rejected PASSED                                                                                                                                                            [ 33%]
+tests/test_validators.py::test_missing_study_uid_rejected PASSED                                                                                                                                                             
+tests/test_validators.py::test_missing_modality_rejected PASSED                                                                                                                                                              
+tests/test_validators.py::test_non_us_modality_rejected PASSED                                                                                                                                                               
+tests/test_validators.py::test_upload_rejects_invalid_dicom PASSED                 
+
+=============================== 6 passed in 0.XXs ===============================
+```
+
 ## What's New in v2.0
 
 | Feature | v1.0 | v2.0 |
