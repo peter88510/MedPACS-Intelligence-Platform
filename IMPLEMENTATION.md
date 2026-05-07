@@ -2,8 +2,8 @@
 docspec: "2.0"
 type: ARCHITECTURE
 title: "MedDICOMParseAPI v2.0 Implementation Summary"
-version: "2.0.0"
-status: "approved"
+version: "2.1.0"
+status: "updated"
 ---
 
 # MedDICOMParseAPI v2.0 Implementation Summary
@@ -18,15 +18,20 @@ The following files were added or modified in v2.0:
 
 ```text
 MedDICOMParseAPI/
-├── models.py           (NEW) SQLAlchemy ORM models
-├── db.py               (NEW) Database connection/session management
-├── db_service.py       (NEW) CRUD operations for DICOM metadata
-├── storage.py          (NEW) Local file storage service
-├── main.py             (UPDATED) /upload endpoint with persistence
-├── requirements.txt    (UPDATED) Added PostgreSQL + SQLAlchemy
-├── .env.example        (NEW) Environment configuration template
-├── README.md           (NEW) Full documentation
-└── QUICKSTART.md       (NEW) 5-minute setup guide
+├── main.py                  (UPDATED) 
+├── models.py                (UPDATED)
+├── db.py                    (UPDATED)
+├── db_service.py            (UPDATED)
+├── storage.py               (UPDATED)
+├── requirements.txt         (UPDATED)
+├── pytest.ini               (NEW) testpaths + pythonpath 設定
+├── .env.example             (UPDATED)
+├── README.md                (UPDATED)
+├── QUICKSTART.md            (UPDATED) 測試指令改為 pytest tests/ -v
+└── tests/                   (NEW) 測試目錄
+    ├── conftest.py          (NEW) 共用工廠函式 _FakeRow / make_*()
+    ├── test_dicom_service.py (MOVED) 從根目錄移入
+    └── test_query_api.py    (MOVED) 從根目錄移入，移除本地 make_*() 改用 import
 ```
 
 ## System Architecture
