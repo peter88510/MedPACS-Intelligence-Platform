@@ -1,6 +1,10 @@
 # Python
 __pycache__/
 *.pyc
+*.pyo
+*.egg-info/
+build/
+dist/
 
 # IDE
 .idea/
@@ -12,7 +16,24 @@ Thumbs.db
 
 # env
 .env
+.env.local
+.env.*.local
 venv/
 .venv/
+env/
+*.pem
+*.key
 
+# 測試與快取
+.pytest_cache/
+.coverage
+htmlcov/
+
+# 醫療資料 🔴 (本專案專屬，絕不可進 git)
+storage/
+*.dcm
 test_dicom_files/
+
+# Log
+*.log
+logs/
