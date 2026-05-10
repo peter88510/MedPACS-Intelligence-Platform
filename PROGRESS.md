@@ -63,6 +63,7 @@
 - [x] QUICKSTART.md — 5 分鐘 API 操作範例
 - [x] STORAGE_BACKEND.md — 儲存後端設計與 S3 遷移指南
 - [x] CLAUDE.md — AI 操作規範
+- [x] PLAN.md — MVP 開發規劃（scope / architecture / API / roadmap / non-goals）
 
 ---
 
@@ -124,8 +125,29 @@
 
 ## 5. 下一步（短期、已排程）
 
-> 詳見 **PLAN.md**（規劃中）。
-> 待 PLAN.md 完成後，本區塊將同步具體任務項目與優先序。
+> 完整規劃見 [PLAN.md](./PLAN.md)。本區塊摘要當前需推進的具體任務，依 PLAN.md Phase 排序。
+
+### Phase 1 收尾（剩餘）
+- [ ] 補齊驗證層：`SeriesInstanceUID` / `SOPInstanceUID` / `PixelData` 必填檢查（PLAN §7.1）
+- [ ] CORS middleware（dev 環境，allow `http://localhost:5173`）（PLAN §8.6）
+- [ ] **Alembic 導入 + baseline migration**（PLAN §5、§9.3；解除 §6.2 缺口）
+
+### Phase 2：Frontend Viewer（PLAN §10、§12）
+- [ ] React + Vite + TypeScript 專案初始化
+- [ ] CornerstoneJS v3 整合（`@cornerstonejs/core` + `dicom-image-loader` + `tools`）
+- [ ] `DicomViewer` / `MetadataPanel` / `StudyList` 元件
+- [ ] Stub AI endpoint 接通 + `AIPanel` 元件
+
+### Phase 3：AI 整合（PLAN §9、§12）
+- [ ] `AIResult` model + Alembic migration
+- [ ] `ai_service.py` + PyTorch 模型載入（pretrained / mock fallback 路徑見 PLAN §9.4）
+- [ ] `/ai/segment/{id}` 同步實作（覆蓋現有 stub）
+- [ ] `/ai/result/{id}` + `/ai/result/{id}/mask` 實作（覆蓋現有 stub）
+- [ ] 前端 mask overlay 渲染
+
+### Phase 4：收尾（PLAN §12、§13）
+- [ ] Sample anonymized DICOM 測試資料準備
+- [ ] End-to-end demo workflow 演練（5 分鐘內完成 PLAN §13 流程）
 
 ---
 
@@ -139,6 +161,8 @@
 - **相依**：分割模型、結果 schema 設計、任務佇列（Celery / RQ）的選型
 
 ### 6.2 Database Migration 框架（基礎設施）
+> ✅ **已排程於 §5 Phase 1 收尾**（2026-05-10）。完成後本條將從本節移除。
+
 - **缺什麼**：未導入 Alembic，目前依賴 `init_db()` 自動建表
 - **什麼時候會痛**：第一次需要對 production DB 做 schema 變更時。目前任何欄位變動都需要手動 SQL，無版控、無 rollback
 - **相依**：CLAUDE.md 已明確要求「任何 schema 變更都必須透過 migration script」，此項是該規範的前置條件
@@ -223,6 +247,7 @@ MedPACS Intelligence Platform/
 ├── QUICKSTART.md                    # 5 分鐘快速開始
 ├── STORAGE_BACKEND.md               # 儲存後端設計與遷移指南
 ├── CLAUDE.md                        # AI 操作規範（行為約束）
+├── PLAN.md                          # MVP 開發規劃（scope / architecture / roadmap）
 ├── PROGRESS.md                      # 本檔（專案現況）
 │
 ├── .git/                            # Git 版控

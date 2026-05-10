@@ -293,6 +293,15 @@ db.query(Patient).filter(Patient.patient_id == patient_id).first()
 
 ## 10. AI 行為控制規範
 
+### Session 開始時的行為
+
+- **每次 session 開始**，AI 必須先閱讀 [`SESSION_HISTORY.md`](./SESSION_HISTORY.md)，以此作為工作記憶的起點，**不需要工程師重新交代背景**
+- **更新時機**：工程師說「更新歷史」時，或每次 session 結束前由工程師觸發
+- **更新規則**：
+  - 只更新有變動的區塊，不重寫整檔
+  - 不記錄對話流水帳
+  - 只記錄狀態與結論（系統現況、進行中任務、已完成里程碑、待決定事項、結尾狀態）
+
 ### 不確定時的行為
 
 ```
@@ -461,14 +470,27 @@ except Exception:
 # 例如：review-only agent vs. code-writing agent 的不同約束
 ```
 
-### 15.2 Dev Workflow Rules（保留）
+### 15.2 Dev Workflow Rules
 
-```
-# TODO: 未來可在此定義：
-# - Branch naming convention
-# - PR review checklist for AI-generated code
-# - How to verify AI-generated migrations before applying
-```
+> 本系統由單人維護，infra（Docker、部署、環境）與應用程式碼由同一人負責。
+> AI agent 在執行 infra 相關操作時必須遵守以下規則。
+
+#### Infra 操作規範
+
+- **docker-compose 變更**：必須說明影響的服務與 port（列出 before / after）
+- **Production DB volume**：禁止修改 production DB volume 設定而不警告。任何 volume 路徑、driver、mount option 變動 → 必須標註 `⚠️ Production data risk` 並請工程師確認
+- **環境變數**：
+  - `.env` 不進 git（已在 `.gitignore`）
+  - 環境變數名稱新增 / 異動 / 刪除 → 必須同步更新 `README.md` 與 `.env.example`
+- **docker-compose down**：必須明確說明 volume 是否保留（`docker-compose down` vs `docker-compose down -v`）。預設 **不可** 使用 `-v`
+- **部署操作**：每次部署必須附上對應的 rollback 指令（image tag / git ref / migration downgrade）
+- **DB migration**：每個 migration 必須包含可運作的 `downgrade()`（與本檔 §12 一致）
+
+#### 待補（TODO）
+
+- Branch naming convention
+- PR review checklist for AI-generated code
+- How to verify AI-generated migrations before applying
 
 ### 15.3 Domain-Specific Rules（保留）
 
