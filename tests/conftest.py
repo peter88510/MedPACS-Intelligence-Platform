@@ -17,14 +17,18 @@ from unittest.mock import MagicMock
 # --- 遷移自 test_dicom_service.py ---
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
+from sqlalchemy.pool import StaticPool
 from models import Base
 
-# Use in-memory SQLite for tests
-SQLALCHEMY_TEST_DATABASE_URL = "sqlite:///./test.db"
+# In-memory SQLite for tests — avoids cross-test pollution and file artifacts.
+# StaticPool 強制整個 engine 共用一條 connection；否則每條新 connection
+# 都會綁到獨立的 :memory: DB，跨 session 看不到對方的 schema/data。
+SQLALCHEMY_TEST_DATABASE_URL = "sqlite:///:memory:"
 
 engine = create_engine(
     SQLALCHEMY_TEST_DATABASE_URL,
     connect_args={"check_same_thread": False},
+    poolclass=StaticPool,
 )
 TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
