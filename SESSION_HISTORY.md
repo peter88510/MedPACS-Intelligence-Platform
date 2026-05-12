@@ -29,11 +29,12 @@
 - **測試**：36 個測試（單元 9 / 整合 6 / API 21），用 in-memory SQLite + StaticPool 隔離
 - **儲存**：本地檔案系統（`storage/{patient}/{study}/{filename}.dcm`），已透過 `StorageBackend` 抽象預留 S3 接口
 - **DB Migration 工具**：✅ Alembic 已導入（2026-05-12），baseline migration 涵蓋四表
+- **AI 操作規範**：CLAUDE.md **v1.1**（2026-05-12）— 加入 §10「任務完成前的最後檢查」與 §8「README.md 評估補充規範」
 
 ### 進行中的任務
 
 - 無 in-flight 程式碼修改
-- 本 session 變更尚未 commit（見「上次 session 結尾狀態」）
+- origin/master 已含 commit 1–5（含 `ada5828 docs(claude): v1.1`）；本次 SESSION_HISTORY 更新（commit 6）為唯一待 push
 - 下一個預計起手項目：Phase 2 起手 — React + Vite + TypeScript 專案初始化 + CornerstoneJS 整合（PLAN §10）
 
 ### 已完成里程碑
@@ -48,6 +49,7 @@
 - **M6 — 文件套件就位**：README / IMPLEMENTATION / QUICKSTART / STORAGE_BACKEND / CLAUDE / PROGRESS / PLAN
 - **M7 — Alembic 導入 + baseline migration**（2026-05-12）：alembic.ini + env.py 接通 `config.settings`、baseline migration 涵蓋 patients/studies/series/instances 四表、upgrade/downgrade 雙向驗證通過、33 個測試無 regression
 - **M8 — Phase 1 收尾完成**（2026-05-12）：CORS middleware（dev allow `http://localhost:5173`）+ 驗證層補齊（SeriesInstanceUID / SOPInstanceUID / PixelData 必填）+ test fixture 同步補齊。36 / 36 測試通過
+- **M9 — CLAUDE.md v1.1 + 文件同步反思**（2026-05-12）：因 CORS commit 漏更新 README / PROGRESS §6.8 / PLAN §8.6 觸發反思。R1（PROGRESS §5 ↔ §6 互斥檢查）寫入 §10「任務完成前的最後檢查」；R2（README 評估必寫進 §8 風險區塊）寫入 §8。版本號升至 v1.1
 
 ### 待決定事項
 
@@ -56,25 +58,29 @@
 | 1 | AI 分割模型來源 | PLAN §9.4：① pretrained ultrasound checkpoint ② 最小 U-Net + 隨機 weight ③ Otsu mock | 工程師是否已有手邊的 ultrasound checkpoint 可用？沒有的話走 ③ |
 | 2 | Sample DICOM 來源 | PLAN §14：① pydicom-data ② TCIA ③ 自製 synthetic | Phase 4 demo 之前要決定 |
 | 3 | README env var 稽核 | 是否需要在 §15.2 新規範生效後做一次補登 | 待工程師確認是否有遺漏的 env var |
-| 4 | CLAUDE.md 版本號升級 | 本 session 已修改 §10、§15.2，建議 v1.0 → v1.1 | 工程師決定要不要正式升版 |
 
 ### 上次 session 結尾狀態
 
-- **日期**：2026-05-12（Alembic 部分已 commit + push，CORS / 驗證層補齊本次 session 完成尚未 commit）
-- **本次 session 完成（Phase 1 收尾）**：
+- **日期**：2026-05-12（Phase 1 收尾全部完成 + CLAUDE.md 升至 v1.1）
+- **本次 session 完成（Phase 1 收尾 + 反思）**：
   1. **CORS middleware**：`main.py` 加入 `CORSMiddleware`，allow `http://localhost:5173`、`allow_credentials=False`、methods/headers 全開
   2. **驗證層補齊**：
      - `validation/dicom_validator.py`：`REQUIRED_FIELDS` 加入 `SeriesInstanceUID` / `SOPInstanceUID`；新增 `_check_pixel_data()` 用 `hasattr` 檢查 PixelData tag
      - `tests/conftest.py:make_mock_ds()`：加入 `series_uid` / `sop_uid` / `pixel_data` 預設值；`pixel_data=None` 透過 `del ds.PixelData` 模擬缺欄位（MagicMock 行為）
      - `tests/test_validators.py`：新增 3 個 reject 測試（series / sop / pixel）
-     - `tests/test_dicom_service.py`：修正既有 2 個 integration fixture（`test_upload_with_valid_dicom` / `test_upload_stores_file_locally`），補上 SeriesInstanceUID / SOPInstanceUID + 最小 image metadata（Rows/Columns/BitsAllocated/... + PixelData）
-  3. 文件同步：`validation/VALIDATION.md`（active rules 表 + 移除已實作的範例段落）、`PLAN.md §7.1`（標記已實作）、`PROGRESS.md`（§1 必填欄位 / §3 測試數 33→36 / §5 Phase 1 全部勾選）
-  4. pytest：**36 / 36 通過**（原 33 + 新增 3）
-- **未 commit 檔案**（git status 待你執行確認）：
-  - `M  main.py`、`M  PLAN.md`、`M  PROGRESS.md`、`M  SESSION_HISTORY.md`
-  - `M  validation/dicom_validator.py`、`M  validation/VALIDATION.md`
-  - `M  tests/conftest.py`、`M  tests/test_dicom_service.py`、`M  tests/test_validators.py`
+     - `tests/test_dicom_service.py`：修正既有 2 個 integration fixture，補上 Series/SOP UID + 最小 image metadata
+  3. 文件同步：`validation/VALIDATION.md`、`PLAN.md §7.1`、`PROGRESS.md`、`SESSION_HISTORY.md`
+  4. **CORS 文件補強**（commit 4）：PROGRESS §6.8 矛盾修正、PLAN §8.6 加 ✅、README 新增 CORS (Dev) 章節
+  5. **CLAUDE.md 升至 v1.1**（commit 5 / `ada5828`）：§10 新增「任務完成前的最後檢查」、§8 補 README 評估規範
+  6. pytest：36 / 36 通過
+- **Commit 序列**（origin/master 已含 1–5；6 為本次 SESSION_HISTORY 更新）：
+  1. `feat(api): 加入 CORSMiddleware 允許 Vite dev origin`
+  2. `feat(validation): 補齊 SeriesInstanceUID / SOPInstanceUID / PixelData 必填檢查`
+  3. `docs: 同步 VALIDATION / PLAN / PROGRESS / SESSION_HISTORY 反映 Phase 1 收尾`
+  4. `docs(cors): 補齊 CORS middleware 三處遺漏文件`
+  5. `docs(claude): v1.1 加入文件同步檢查規範`
+  6. `docs(history): 同步 Phase 1 收尾 + CLAUDE v1.1 狀態`  ← 本次, unpushed
 - **下個 session 起手建議**：
-  1. 先 commit 本 session 變更（建議拆 3 個 commit：①「feat(api): add CORS middleware for Vite dev origin」②「feat(validation): require SeriesInstanceUID / SOPInstanceUID / PixelData」③「docs: sync VALIDATION/PLAN/PROGRESS/SESSION_HISTORY for Phase 1 closeout」）
+  1. `git push` 把 commit 6 送上 origin
   2. （視優先序）重建 venv 為 Python 3.12
   3. 進入 **Phase 2**：React + Vite + TypeScript 初始化 + CornerstoneJS 整合（PLAN §10）
