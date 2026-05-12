@@ -26,13 +26,13 @@
 - **AI 推論**：尚未實作（Phase 3 任務）
 - **測試**：33 個測試（單元 6 / 整合 6 / API 21），用 in-memory SQLite + monkeypatch 隔離
 - **儲存**：本地檔案系統（`storage/{patient}/{study}/{filename}.dcm`），已透過 `StorageBackend` 抽象預留 S3 接口
-- **DB Migration 工具**：尚未導入（Alembic 已排程於 Phase 1 收尾）
+- **DB Migration 工具**：✅ Alembic 已導入（2026-05-12），baseline migration 涵蓋四表
 
 ### 進行中的任務
 
 - 無 in-flight 程式碼修改
-- 文件層 4 份未 commit 變更（見「上次 session 結尾狀態」）
-- 下一個預計起手項目：**Alembic 導入 + baseline migration**（PLAN.md §12 Phase 1 task 7）
+- 本 session 變更尚未 commit（見「上次 session 結尾狀態」）
+- 下一個預計起手項目：Phase 1 剩餘兩項擇一 — ① 驗證層補齊（SeriesInstanceUID / SOPInstanceUID / PixelData）② CORS middleware（dev allow `http://localhost:5173`）
 
 ### 已完成里程碑
 
@@ -43,7 +43,8 @@
 - **M3 — 驗證層基礎**：必填欄位（PatientID / StudyInstanceUID / Modality）+ Modality 白名單（`US`）
 - **M4 — 四層架構落地**：API → Service → Model → DB（CLAUDE.md §6）
 - **M5 — 測試套件 + 隔離機制**：33 個測試、in-memory SQLite + monkeypatch
-- **M6 — 文件套件就位**：README / IMPLEMENTATION / QUICKSTART / STORAGE_BACKEND / CLAUDE / PROGRESS / **PLAN**（本 session 新增）
+- **M6 — 文件套件就位**：README / IMPLEMENTATION / QUICKSTART / STORAGE_BACKEND / CLAUDE / PROGRESS / PLAN
+- **M7 — Alembic 導入 + baseline migration**（2026-05-12）：alembic.ini + env.py 接通 `config.settings`、baseline migration 涵蓋 patients/studies/series/instances 四表、upgrade/downgrade 雙向驗證通過、33 個測試無 regression
 
 ### 待決定事項
 
@@ -56,17 +57,25 @@
 
 ### 上次 session 結尾狀態
 
-- **日期**：2026-05-10
+- **日期**：2026-05-12
 - **本 session 完成**：
-  1. 建立 `PLAN.md`（含 Alembic 提前到 MVP、Frontend stack 定案 Vite + React + TS、AI inference contract、Non-goals 明列）
-  2. 更新 `PROGRESS.md`：§5 接通 PLAN Phase 2/3 任務、§6.2 標「已排程」、§1 文件清單與 §7 目錄補上 PLAN.md
-  3. 更新 `CLAUDE.md`：§15.2 補 infra 規範（docker-compose / volume / env / rollback / migration downgrade）、§10 補 session 歷史讀取規則
-  4. 建立並 seed 本檔 `SESSION_HISTORY.md`
-- **未 commit 檔案**：
-  - `M  CLAUDE.md`
-  - `M  PROGRESS.md`
-  - `?? PLAN.md`
-  - `?? SESSION_HISTORY.md`
+  1. `requirements.txt` 加入 `alembic==1.13.1` 並安裝
+  2. `alembic init alembic` 產生骨架；改寫 `alembic.ini`（清空 `sqlalchemy.url`）與 `alembic/env.py`（從 `config.settings.DATABASE_URL` 注入、`target_metadata = Base.metadata`）
+  3. 對空 DB 執行 `alembic revision --autogenerate -m "baseline: patients studies series instances"`，產出 baseline migration（revision `20809e26d134`），人工檢視所有 4 表 / index / unique / FK 對應正確
+  4. 雙向驗證：`alembic upgrade head` → `downgrade base` → `upgrade head`，schema 正確重建
+  5. 跑 pytest：33 / 33 通過，無 regression
+  6. 更新 `README.md`（新增 Step 4 Alembic / Database Migration 章節 / Troubleshooting）、`PROGRESS.md`（§1 / §5 / §6.2 / §7）、`SESSION_HISTORY.md`
+  7. 修正 `tests/conftest.py`：從 `sqlite:///./test.db`（file-backed）改為 `sqlite:///:memory:` + `StaticPool`。刪除 `test.db` 檔案。33 / 33 測試通過、執行時間 10.22s → 2.36s（~4× 加速）
+  8. `QUICKSTART.md` 目錄結構移除 `test.db` 條目
+- **Python 版本盤點結果（2026-05-12）**：
+  - 系統有 **Python 3.12.2**（`py -3.12`，工程師確認此為其編譯環境）
+  - 本 repo `.venv` 是用 Anaconda 3.8.8 建立的 → 與工程師意圖不符
+  - 結論：venv 需要用 3.12 重建（獨立任務，未在本 session 執行）
+- **未 commit 檔案**（git status 待你執行確認）：
+  - `M  requirements.txt`、`M  README.md`、`M  PROGRESS.md`、`M  QUICKSTART.md`、`M  SESSION_HISTORY.md`、`M  tests/conftest.py`
+  - `D  test.db`
+  - `?? alembic.ini`、`?? alembic/`
 - **下個 session 起手建議**：
-  1. 先 commit 上述 4 份文件（建議拆成 2 個 commit：①「docs: 新增 PLAN.md 與 SESSION_HISTORY.md」②「docs(claude): 補 infra 規範與 session 歷史機制；docs(progress): 接通 PLAN」）
-  2. 進入 Phase 1 收尾，從 **Alembic 導入 + baseline migration** 起手
+  1. 先 commit 本 session 變更（建議拆 3 個 commit：①「feat(db): introduce Alembic + baseline migration」②「test(conftest): switch to true in-memory SQLite via StaticPool」③「docs: sync README/PROGRESS/QUICKSTART/SESSION_HISTORY」）
+  2. 重建 venv 為 Python 3.12（`py -3.12 -m venv .venv` → 重裝 `requirements.txt`）
+  3. 進入 Phase 1 剩餘兩項：驗證層補齊 + CORS middleware（順序由工程師決定）

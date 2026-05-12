@@ -30,6 +30,10 @@ MedPACS Intelligence Platform/
 ├── storage_backend.py       # Local storage implementation (extensible to S3)
 ├── requirements.txt         # Python dependencies
 ├── pytest.ini               # Test runner config: testpaths=tests, pythonpath=.
+├── alembic.ini              # Alembic config (sqlalchemy.url injected at runtime)
+├── alembic/                 # Alembic migrations directory
+│   ├── env.py               # Loads DATABASE_URL from config.settings
+│   └── versions/            # Migration scripts (baseline + future revisions)
 ├── storage/                 # Physical file storage directory (DICOM files)
 ├── validation/              # DICOM validation utilities / rules
 ├── test_dicom_files/        # Sample DICOM files for testing
@@ -169,7 +173,33 @@ Then execute:
 CREATE DATABASE meddicom_db;
 ```
 
-### Step 4: Run Application
+### Step 4: Initialize Schema (Alembic)
+
+After the database is created (Step 3), apply migrations to build the schema.
+
+**Fresh database (no tables yet):**
+
+```powershell
+alembic upgrade head
+```
+
+**Existing database that already has the schema (e.g., pre-Alembic):**
+
+Mark the DB as already at head — does **not** execute CREATE TABLE:
+
+```powershell
+alembic stamp head
+```
+
+> ⚠️ Choose `stamp head` (not `upgrade head`) when migrating a DB that pre-dates Alembic and already contains the four tables. Running `upgrade head` on a populated DB will fail with "relation already exists".
+
+Verify migration state:
+
+```powershell
+alembic current
+```
+
+### Step 5: Run Application
 
 _Linux/macOS:_
 
@@ -434,11 +464,50 @@ Tests cover:
 - Local file storage
 - Database operations (upsert patient, upsert study, create instance)
 
+## Database Migration (Alembic)
+
+Schema changes are managed via Alembic. **Per CLAUDE.md §12, any schema change must go through a migration script** — direct `Base.metadata.create_all()` calls are reserved for tests only.
+
+### Common commands
+
+```powershell
+# Apply all pending migrations
+alembic upgrade head
+
+# Roll back one migration
+alembic downgrade -1
+
+# Roll back to empty schema
+alembic downgrade base
+
+# Show current revision
+alembic current
+
+# Show migration history
+alembic history
+
+# Generate a new migration after editing models.py
+alembic revision --autogenerate -m "describe change"
+```
+
+### Authoring a new migration
+
+1. Edit `models.py` (add column / table)
+2. Run `alembic revision --autogenerate -m "<short description>"`
+3. **Open the generated script in `alembic/versions/` and review it** — autogenerate is not perfect (it misses CHECK constraints, ENUM changes, server defaults, etc.)
+4. Verify both `upgrade()` and `downgrade()` work on a scratch DB
+5. Commit the script
+
+### Notes
+
+- `alembic.ini` does **not** contain credentials; `alembic/env.py` injects `DATABASE_URL` from `config.settings` (loaded from `.env`).
+- Tests use in-memory SQLite + `Base.metadata.create_all()` (see `tests/conftest.py`) — they bypass Alembic for speed and isolation.
+
 ## Integration Notes
 
 - **API Contract**: The `/upload` response is identical to v1.0. Clients require no changes.
 - **Internal Changes**: File storage and database persistence are transparent to API consumers.
-- **Database Initialization**: On first run, all tables are created automatically via `init_db()` at startup.
+- **Database Initialization**: Schema is built by Alembic (`alembic upgrade head`). The legacy `init_db()` in `db.py` is retained for backwards compatibility but is no longer the canonical path — new schema changes must go through migrations.
 - **Storage Directory**: The `./storage` directory is created automatically if it does not exist.
 
 ## Troubleshooting
@@ -451,12 +520,13 @@ Tests cover:
 
 ### No Such Table
 
-Database tables are created automatically on first startup. If manual creation is required:
+Run Alembic to build the schema:
 
-```python
-from db import init_db
-init_db()
+```powershell
+alembic upgrade head
 ```
+
+If migrations are stuck or out of sync, see the **Database Migration (Alembic)** section above.
 
 ### Permission Denied on ./storage
 

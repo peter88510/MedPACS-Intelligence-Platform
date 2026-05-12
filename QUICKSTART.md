@@ -688,7 +688,6 @@ MedDICOMParseAPI/
 │   └── P12345/
 │       └── 1.2.3.4.5.6.7/
 │           └── patient_001.dcm
-├── test.db                         ← SQLite (for tests only)
 ├── .env                            ← Your environment config
 └── ...
 ```

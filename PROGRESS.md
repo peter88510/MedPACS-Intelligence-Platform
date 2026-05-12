@@ -48,8 +48,9 @@
 - [x] Pydantic v2 Settings 環境配置
 - [x] StorageBackend 抽象層（為未來 S3 遷移預留）
 - [x] LocalStorageBackend 實作
-- [x] 自動 DB 初始化（`init_db()`）
+- [x] 自動 DB 初始化（`init_db()`，已被 Alembic 取代為 canonical 路徑，保留向後相容）
 - [x] 驗證層模組化（`validation/`）
+- [x] **Alembic 導入 + baseline migration**（涵蓋 patients / studies / series / instances 四表，upgrade/downgrade 雙向已驗證）
 
 ### 測試與品質
 - [x] 33 個測試案例（單元 / 整合 / API 三層）
@@ -130,7 +131,7 @@
 ### Phase 1 收尾（剩餘）
 - [ ] 補齊驗證層：`SeriesInstanceUID` / `SOPInstanceUID` / `PixelData` 必填檢查（PLAN §7.1）
 - [ ] CORS middleware（dev 環境，allow `http://localhost:5173`）（PLAN §8.6）
-- [ ] **Alembic 導入 + baseline migration**（PLAN §5、§9.3；解除 §6.2 缺口）
+- [x] **Alembic 導入 + baseline migration**（PLAN §5、§9.3；解除 §6.2 缺口）— ✅ 完成 2026-05-12
 
 ### Phase 2：Frontend Viewer（PLAN §10、§12）
 - [ ] React + Vite + TypeScript 專案初始化
@@ -161,11 +162,7 @@
 - **相依**：分割模型、結果 schema 設計、任務佇列（Celery / RQ）的選型
 
 ### 6.2 Database Migration 框架（基礎設施）
-> ✅ **已排程於 §5 Phase 1 收尾**（2026-05-10）。完成後本條將從本節移除。
-
-- **缺什麼**：未導入 Alembic，目前依賴 `init_db()` 自動建表
-- **什麼時候會痛**：第一次需要對 production DB 做 schema 變更時。目前任何欄位變動都需要手動 SQL，無版控、無 rollback
-- **相依**：CLAUDE.md 已明確要求「任何 schema 變更都必須透過 migration script」，此項是該規範的前置條件
+> ✅ **已完成（2026-05-12）**。Alembic 已導入，baseline migration 涵蓋現有四表，upgrade/downgrade 雙向驗證通過。後續所有 schema 變更走 migration script（CLAUDE.md §12 強制）。本條保留以供歷史追溯。
 
 ### 6.3 Logging 與 Audit Trail（可觀測性 / 合規）
 - **缺什麼**：關鍵操作（DB 寫入、DICOM 解析、檔案儲存）缺少統一 log 記錄；無審計軌跡
@@ -220,6 +217,13 @@ MedPACS Intelligence Platform/
 ├── models.py                        # SQLAlchemy ORM 模型（model layer）
 ├── storage.py                       # 檔案儲存服務介面
 ├── storage_backend.py               # 儲存後端實作（Local / S3 預留）
+│
+├── alembic.ini                      # Alembic 設定（credentials 由 env.py 注入）
+├── alembic/                         # DB migration 目錄
+│   ├── env.py                       # 載入 config.settings.DATABASE_URL
+│   ├── script.py.mako               # Migration 模板
+│   └── versions/                    # Migration scripts
+│       └── 20809e26d134_baseline_*.py  # Baseline: 四表 CREATE
 │
 ├── validation/                      # DICOM 驗證模組
 │   ├── __init__.py
