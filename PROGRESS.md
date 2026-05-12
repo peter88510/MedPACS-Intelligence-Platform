@@ -25,7 +25,7 @@
 ### 核心業務
 - [x] DICOM 上傳 API（POST /upload）
 - [x] DICOM magic bytes 驗證
-- [x] DICOM 必填欄位驗證（PatientID / StudyInstanceUID / Modality）
+- [x] DICOM 必填欄位驗證（PatientID / StudyInstanceUID / SeriesInstanceUID / SOPInstanceUID / Modality / PixelData）
 - [x] Modality 白名單驗證（目前僅允許 `US`）
 - [x] Patient upsert（依 patient_id 唯一性）
 - [x] Study upsert（依 study_instance_uid 唯一性）
@@ -89,7 +89,7 @@
 ## 3. 測試覆蓋簡況
 
 ### 總覽
-- **總測試數**：33 個
+- **總測試數**：36 個
 - **執行方式**：`pytest tests/ -v`
 - **隔離機制**：記憶體 SQLite + monkeypatch 臨時 storage，每個測試獨立
 
@@ -99,7 +99,7 @@
 |---|---|---|---|
 | 整合測試 | `tests/test_dicom_service.py` | 6 | 真實 SQLite 記憶體 DB + 臨時 storage |
 | API 測試 | `tests/test_query_api.py` | 21 | TestClient + mock `db_service` |
-| 單元測試 | `tests/test_validators.py` | 6 | 純邏輯，無 DB / HTTP |
+| 單元測試 | `tests/test_validators.py` | 9 | 純邏輯，無 DB / HTTP |
 
 ### 已覆蓋路徑
 - ✅ DICOM 上傳完整流程（解析 / 儲存 / DB 寫入）
@@ -128,10 +128,12 @@
 
 > 完整規劃見 [PLAN.md](./PLAN.md)。本區塊摘要當前需推進的具體任務，依 PLAN.md Phase 排序。
 
-### Phase 1 收尾（剩餘）
-- [ ] 補齊驗證層：`SeriesInstanceUID` / `SOPInstanceUID` / `PixelData` 必填檢查（PLAN §7.1）
-- [ ] CORS middleware（dev 環境，allow `http://localhost:5173`）（PLAN §8.6）
+### Phase 1 收尾
+- [x] 補齊驗證層：`SeriesInstanceUID` / `SOPInstanceUID` / `PixelData` 必填檢查（PLAN §7.1）— ✅ 完成 2026-05-12
+- [x] CORS middleware（dev 環境，allow `http://localhost:5173`）（PLAN §8.6）— ✅ 完成 2026-05-12
 - [x] **Alembic 導入 + baseline migration**（PLAN §5、§9.3；解除 §6.2 缺口）— ✅ 完成 2026-05-12
+
+**Phase 1 全部完成 — 後續進入 Phase 2（Frontend Viewer）。**
 
 ### Phase 2：Frontend Viewer（PLAN §10、§12）
 - [ ] React + Vite + TypeScript 專案初始化

@@ -190,7 +190,7 @@ ingestion/
 | `Modality` | Modality whitelist 檢查 |
 | `PixelData` | 確認影像可顯示 |
 
-> 目前實作僅檢查 PatientID / StudyInstanceUID / Modality。**SeriesInstanceUID / SOPInstanceUID / PixelData 為已知缺口，列入 MVP**（見 PROGRESS）。
+> ✅ 全部 6 個必填欄位已實作（2026-05-12）。PatientID / StudyInstanceUID / SeriesInstanceUID / SOPInstanceUID / Modality 走 `REQUIRED_FIELDS`，PixelData 走 `_check_pixel_data()`（hasattr 檢查）。
 
 ### 7.2 UID 驗證
 
