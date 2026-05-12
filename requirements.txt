@@ -4,6 +4,7 @@ python-multipart==0.0.6
 pydicom==2.4.4
 sqlalchemy==2.0.23
 psycopg2-binary==2.9.9
+alembic==1.13.1
 python-dotenv==1.0.0
 pydantic==2.5.0
 pytest==8.3.5
