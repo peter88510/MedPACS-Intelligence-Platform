@@ -257,8 +257,10 @@ MVP 僅允許 `US`。其他 modality 回傳 HTTP 400 並標示 `unsupported_moda
 
 ### 8.6 CORS
 
-Dev 環境啟用 `CORSMiddleware`：
-- 允許 origin：`http://localhost:5173`（Vite）
+✅ **已實作（2026-05-12）** — `main.py` 啟用 `CORSMiddleware`：
+- 允許 origin：`http://localhost:5173`（Vite default）
+- `allow_credentials=False`（目前無 cookie auth 需求）
+- `allow_methods=["*"]`、`allow_headers=["*"]`
 - Production CORS 屬部署期決策，不在 MVP 範圍。
 
 ---

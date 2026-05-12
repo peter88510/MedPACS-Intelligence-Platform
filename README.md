@@ -503,11 +503,28 @@ alembic revision --autogenerate -m "describe change"
 - `alembic.ini` does **not** contain credentials; `alembic/env.py` injects `DATABASE_URL` from `config.settings` (loaded from `.env`).
 - Tests use in-memory SQLite + `Base.metadata.create_all()` (see `tests/conftest.py`) — they bypass Alembic for speed and isolation.
 
+## CORS (Dev)
+
+`main.py` enables `CORSMiddleware` for development so the frontend (Phase 2 — React + Vite, default port `5173`) can call this API from a browser.
+
+```python
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5173"],
+    allow_credentials=False,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+```
+
+To allow another origin during development (e.g., `http://localhost:3000`), append it to `allow_origins`. **Production CORS is a deployment decision and is intentionally out of MVP scope** (PLAN §8.6).
+
 ## Integration Notes
 
 - **API Contract**: The `/upload` response is identical to v1.0. Clients require no changes.
 - **Internal Changes**: File storage and database persistence are transparent to API consumers.
 - **Database Initialization**: Schema is built by Alembic (`alembic upgrade head`). The legacy `init_db()` in `db.py` is retained for backwards compatibility but is no longer the canonical path — new schema changes must go through migrations.
+- **CORS**: Dev origin is `http://localhost:5173`. See the **CORS (Dev)** section above to add more.
 - **Storage Directory**: The `./storage` directory is created automatically if it does not exist.
 
 ## Troubleshooting

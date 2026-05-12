@@ -192,9 +192,7 @@
 - **相依**：限制策略（per-IP / per-user）+ 後端（in-memory / Redis）選型
 
 ### 6.8 CORS 設定（前端整合）
-- **缺什麼**：未設定 CORS middleware
-- **什麼時候會痛**：前端跨網域呼叫 API 時
-- **相依**：明確的前端網域清單
+> ✅ **已完成（2026-05-12）**。`main.py` 啟用 `CORSMiddleware`，dev 環境 allow `http://localhost:5173`（Vite default）。Production CORS 屬部署期決策、不在 MVP 範圍（PLAN §8.6）。本條保留以供歷史追溯。
 
 ### 6.9 環境區分（部署）
 - **缺什麼**：dev / staging / production 設定無區分，hardcoded defaults
