@@ -43,6 +43,30 @@ def test_missing_modality_rejected():
         validate_dicom(ds)
 
 
+def test_missing_series_uid_rejected():
+    """Empty SeriesInstanceUID should raise ValidationError."""
+    from validation.dicom_validator import validate_dicom
+    ds = make_mock_ds(series_uid="")
+    with pytest.raises(ValidationError, match="SeriesInstanceUID"):
+        validate_dicom(ds)
+
+
+def test_missing_sop_uid_rejected():
+    """Empty SOPInstanceUID should raise ValidationError."""
+    from validation.dicom_validator import validate_dicom
+    ds = make_mock_ds(sop_uid="")
+    with pytest.raises(ValidationError, match="SOPInstanceUID"):
+        validate_dicom(ds)
+
+
+def test_missing_pixel_data_rejected():
+    """Missing PixelData tag should raise ValidationError."""
+    from validation.dicom_validator import validate_dicom
+    ds = make_mock_ds(pixel_data=None)
+    with pytest.raises(ValidationError, match="PixelData"):
+        validate_dicom(ds)
+
+
 def test_non_us_modality_rejected():
     """Modality CT should be rejected."""
     from validation.dicom_validator import validate_dicom

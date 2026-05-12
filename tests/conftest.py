@@ -170,7 +170,14 @@ def make_instance(id=100, series_id=10, sop_instance_uid="1.2.3.4.5"):
 # 用於模擬外部 library 物件（pydicom 等），不適用 _FakeRow
 # ---------------------------------------------------------------------------
 
-def make_mock_ds(patient_id="P001", study_uid="1.2.3", modality="US"):
+def make_mock_ds(
+    patient_id="P001",
+    study_uid="1.2.3",
+    series_uid="1.2.3.4",
+    sop_uid="1.2.3.4.5",
+    modality="US",
+    pixel_data=b"\x00\x00",
+):
     """
     建立假 pydicom FileDataset MagicMock 物件。
 
@@ -178,18 +185,33 @@ def make_mock_ds(patient_id="P001", study_uid="1.2.3", modality="US"):
       - 測試 DICOM validation 邏輯
       - 測試 /upload endpoint 的 dcmread 行為（搭配 patch）
 
-    預設值：
-      patient_id = "P001"
-      study_uid  = "1.2.3"
-      modality   = "US"   （預設為允許的 modality）
+    預設值（合法的 US DICOM）：
+      patient_id  = "P001"
+      study_uid   = "1.2.3"
+      series_uid  = "1.2.3.4"
+      sop_uid     = "1.2.3.4.5"
+      modality    = "US"
+      pixel_data  = b"\\x00\\x00"   （非 None 即視為存在）
+
+    特殊行為：
+      pixel_data=None → 不設定 ds.PixelData 屬性，模擬 DICOM 缺 PixelData tag。
+                        對應 _check_pixel_data() 用 hasattr() 判斷。
 
     範例：
       make_mock_ds()                         → 合法的 US DICOM
       make_mock_ds(modality="CT")            → 應被 validator 拒絕的 modality
       make_mock_ds(patient_id="")            → 應被 validator 拒絕的空 PatientID
+      make_mock_ds(pixel_data=None)          → 應被 validator 拒絕的缺 PixelData
     """
     ds = MagicMock()
     ds.PatientID = patient_id
     ds.StudyInstanceUID = study_uid
+    ds.SeriesInstanceUID = series_uid
+    ds.SOPInstanceUID = sop_uid
     ds.Modality = modality
+    if pixel_data is None:
+        # MagicMock auto-creates attributes; del makes hasattr() return False.
+        del ds.PixelData
+    else:
+        ds.PixelData = pixel_data
     return ds

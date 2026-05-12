@@ -39,9 +39,20 @@ def test_upload_with_valid_dicom(tmp_path, db_client):
 
     ds.PatientID = "TEST_PATIENT_001"
     ds.StudyInstanceUID = "1.2.3.4.5.6.7"
+    ds.SeriesInstanceUID = "1.2.3.4.5.6.7.1"
     ds.SOPInstanceUID = "1.2.3.4.5.6.7.8"
     ds.Modality = "US"
     ds.PatientName = "Test^Patient"
+    # Minimum image metadata to satisfy validator + pydicom save_as.
+    ds.Rows = 1
+    ds.Columns = 1
+    ds.BitsAllocated = 8
+    ds.BitsStored = 8
+    ds.HighBit = 7
+    ds.PixelRepresentation = 0
+    ds.SamplesPerPixel = 1
+    ds.PhotometricInterpretation = "MONOCHROME2"
+    ds.PixelData = b"\x00"
 
     test_file_path = tmp_path / "test.dcm"
     ds.save_as(test_file_path)
@@ -84,7 +95,19 @@ def test_upload_stores_file_locally(tmp_path, monkeypatch, db_client):
 
     ds.PatientID = "STORAGE_TEST"
     ds.StudyInstanceUID = "1.2.3.4.5.6.8"
+    ds.SeriesInstanceUID = "1.2.3.4.5.6.8.1"
+    ds.SOPInstanceUID = "1.2.3.4.5.6.8.1.1"
     ds.Modality = "US"
+    # Minimum image metadata to satisfy validator + pydicom save_as.
+    ds.Rows = 1
+    ds.Columns = 1
+    ds.BitsAllocated = 8
+    ds.BitsStored = 8
+    ds.HighBit = 7
+    ds.PixelRepresentation = 0
+    ds.SamplesPerPixel = 1
+    ds.PhotometricInterpretation = "MONOCHROME2"
+    ds.PixelData = b"\x00"
 
     test_file_path = tmp_path / "test2.dcm"
     ds.save_as(test_file_path)

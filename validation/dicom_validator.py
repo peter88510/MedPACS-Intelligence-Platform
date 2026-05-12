@@ -1,7 +1,14 @@
 from validation.exceptions import ValidationError
 
-# Tags that must be present and non-empty
-REQUIRED_FIELDS = ["PatientID", "StudyInstanceUID", "Modality"]
+# String-valued tags that must be present and non-empty.
+# PixelData is binary, checked separately by _check_pixel_data().
+REQUIRED_FIELDS = [
+    "PatientID",
+    "StudyInstanceUID",
+    "SeriesInstanceUID",
+    "SOPInstanceUID",
+    "Modality",
+]
 
 # Only this modality is accepted
 ALLOWED_MODALITIES = {"US"}
@@ -13,10 +20,12 @@ def validate_dicom(ds) -> None:
 
     Raises:
         ValidationError: if any required field is missing/empty,
-                         or if Modality is not in ALLOWED_MODALITIES.
+                         if Modality is not in ALLOWED_MODALITIES,
+                         or if PixelData is absent.
     """
     _check_required_fields(ds)
     _check_modality(ds)
+    _check_pixel_data(ds)
 
 
 # ---------------------------------------------------------------------------
@@ -41,3 +50,9 @@ def _check_modality(ds) -> None:
             f"Modality '{modality}' is not accepted. "
             f"Allowed: {', '.join(sorted(ALLOWED_MODALITIES))}"
         )
+
+
+def _check_pixel_data(ds) -> None:
+    """Reject if PixelData tag is absent — image cannot be rendered without it."""
+    if not hasattr(ds, "PixelData"):
+        raise ValidationError("Missing required DICOM field: PixelData")
