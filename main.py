@@ -3,6 +3,7 @@ import os
 from fastapi import FastAPI, File, UploadFile, Depends
 from fastapi.responses import JSONResponse
 from fastapi.responses import FileResponse
+from fastapi.middleware.cors import CORSMiddleware
 
 from sqlalchemy.orm import Session
 import pydicom
@@ -22,6 +23,17 @@ from config import settings
 load_dotenv()
 
 app = FastAPI(title="MedDICOMParseAPI", version="2.0")
+
+# CORS — dev only. Allow Vite default origin so the React frontend (Phase 2)
+# can call the API from http://localhost:5173. Production CORS is a deployment
+# decision and is intentionally out of MVP scope (PLAN §8.6).
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5173"],
+    allow_credentials=False,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # Initialize storage service
 STORAGE_PATH = os.getenv("UPLOAD_STORAGE_PATH", "./storage")
