@@ -1,51 +1,74 @@
 ---
 docspec: "2.0"
-type: API_REFERENCE
-title: "MedDICOMParseAPI v2.0"
-version: "2.1.0"
+type: PROJECT_OVERVIEW
+title: "MedPACS Intelligence Platform v2.0"
+version: "2.2.0"
 status: "update"
 ---
 
-# MedDICOMParseAPI v2.0
+# MedPACS Intelligence Platform
 
-FastAPI backend for DICOM file upload, parsing, and persistent storage with PostgreSQL.
+A two-tier system for ultrasound DICOM workflow:
+
+- **Backend** — FastAPI + PostgreSQL + SQLAlchemy + pydicom. DICOM upload, parsing, validation, persistence, and stub AI inference endpoints.
+- **Frontend** — React 19 + Vite + TypeScript + CornerstoneJS. Single-page DICOM viewer with metadata panel and AI overlay.
+
+> See [`PLAN.md`](./PLAN.md) for MVP scope and roadmap, [`PROGRESS.md`](./PROGRESS.md) for current status.
 
 ## Features
 
+### Backend
 - DICOM file upload and parsing
-- Local file storage (hierarchical by PatientID → StudyInstanceUID)
-- PostgreSQL persistence layer
-- Backward-compatible API (v1 contract unchanged)
+- 6-field DICOM validation (PatientID / StudyInstanceUID / SeriesInstanceUID / SOPInstanceUID / Modality / PixelData)
+- Modality whitelist (`US` only)
+- Local file storage (hierarchical by `PatientID` → `StudyInstanceUID`)
+- PostgreSQL persistence with Alembic migrations
+- Stub AI segmentation endpoints (real inference is Phase 3)
+- CORS middleware for `http://localhost:5173` dev origin
+
+### Frontend (Phase 2, in progress)
+- React + Vite + TypeScript scaffolding (Cornerstone3D deps installed)
+- Planned: 4 components (StudyList / DicomViewer / MetadataPanel / AIPanel)
+- Planned: CornerstoneJS DICOM rendering with AI mask overlay
 
 ## Project Structure
 
 ```text
 MedPACS Intelligence Platform/
 ├── main.py                  # FastAPI entrypoint / API router
-├── config.py                # System configuration and environment loader
-├── db.py                    # Database connection/session management
-├── db_service.py            # CRUD operations for DICOM metadata
-├── models.py                # SQLAlchemy ORM models (Study/Series/Instance)
-├── storage.py               # Storage abstraction layer (interface)
-├── storage_backend.py       # Local storage implementation (extensible to S3)
-├── requirements.txt         # Python dependencies
-├── pytest.ini               # Test runner config: testpaths=tests, pythonpath=.
+├── config.py                # Pydantic Settings (env loader)
+├── db.py                    # SQLAlchemy engine + session
+├── db_service.py            # DB CRUD (service layer)
+├── models.py                # SQLAlchemy ORM (Patient/Study/Series/Instance)
+├── storage.py               # Storage service interface
+├── storage_backend.py       # Local storage impl (S3 extensible)
+├── requirements.txt         # Python deps
+├── pytest.ini               # pytest config
 ├── alembic.ini              # Alembic config (sqlalchemy.url injected at runtime)
-├── alembic/                 # Alembic migrations directory
+├── alembic/                 # DB migration scripts
 │   ├── env.py               # Loads DATABASE_URL from config.settings
-│   └── versions/            # Migration scripts (baseline + future revisions)
-├── storage/                 # Physical file storage directory (DICOM files)
-├── validation/              # DICOM validation utilities / rules
-├── test_dicom_files/        # Sample DICOM files for testing
+│   └── versions/            # Migration revisions (baseline + future)
+├── storage/                 # Physical DICOM storage (runtime-created)
+├── validation/              # DICOM validation rules + VALIDATION.md
+├── tests/                   # Backend test suite (pytest, 36 tests)
+├── test_dicom_files/        # Sample DICOM files for tests
+│
+├── frontend/                # Frontend (Phase 2)
+│   ├── README.md            # Frontend dev guide (新手向中文)
+│   ├── IMPLEMENTATION.md    # Frontend architecture (components, Context, API client, Cornerstone)
+│   ├── package.json
+│   ├── vite.config.ts
+│   └── src/                 # App source (components/ / context/ / api/ / cornerstone/)
+│
 ├── .env.example             # Environment variable template
-├── IMPLEMENTATION.md        # System architecture and technical design
-├── QUICKSTART.md            # 5-minute setup guide
-├── README.md                # Project overview and usage documentation
-├── STORAGE_BACKEND.md       # Storage backend design and extension guide
-└── tests/                   # All test files and shared test utilities
-    ├── conftest.py          # Shared factory functions: _FakeRow / make_*()
-    ├── test_dicom_service.py # Service-level tests for DICOM processing
-    └── test_query_api.py    # API endpoint tests for query operations
+├── README.md                # This file (project overview)
+├── PLAN.md                  # MVP scope + roadmap + non-goals
+├── PROGRESS.md              # Current project status
+├── IMPLEMENTATION.md        # System architecture (backend internals + frontend overview)
+├── QUICKSTART.md            # 5-minute setup (both sides)
+├── STORAGE_BACKEND.md       # Storage backend design
+├── SESSION_HISTORY.md       # AI session working memory
+└── CLAUDE.md                # AI operating contract
 ```
 
 ## Setup
@@ -214,6 +237,33 @@ uvicorn main:app --reload
 ```
 
 Server runs at `http://localhost:8000`.
+
+### Step 6: Start Frontend (Optional, Phase 2)
+
+Skip this if you only need the backend API. In a **new terminal** (keep backend running):
+
+```powershell
+cd frontend
+npm install        # first time, or after pulling new deps
+npm run dev
+```
+
+Opens at `http://localhost:5173`. The backend's CORS middleware already allows this origin.
+
+> Frontend developer guide: [`frontend/README.md`](./frontend/README.md)
+> Frontend architecture: [`frontend/IMPLEMENTATION.md`](./frontend/IMPLEMENTATION.md)
+
+## Frontend Overview
+
+The frontend is a single-page application (SPA) under `frontend/`:
+
+- **Stack**: React 19 + TypeScript 6 + Vite 8 + CornerstoneJS 4.22 (Cornerstone3D family)
+- **State management**: React Context (5 fields) — no Redux/Zustand
+- **Components**: 4 business (`StudyList` / `DicomViewer` / `MetadataPanel` / `AIPanel`) + 4 structural = 8 total
+- **Styling**: CSS Modules, no UI framework
+- **Backend coupling**: hard-coded `API_BASE = 'http://localhost:8000'` during MVP (env var later)
+
+See [`frontend/IMPLEMENTATION.md`](./frontend/IMPLEMENTATION.md) for component design, Context shape, API client structure, and CornerstoneJS integration plan.
 
 ## API Endpoints
 

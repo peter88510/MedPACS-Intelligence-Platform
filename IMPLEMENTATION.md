@@ -223,7 +223,7 @@ The API contract is fully unchanged between v1.0 and v2.0:
 - **Output**: Same JSON response structure (unchanged).
 - **Client changes required**: None. All v1.0 consumers work with v2.0 without modification.
 
-## Deployment Checklist
+## Deployment Checklist (Backend)
 
 - [ ] PostgreSQL database created (`createdb meddicom_db`)
 - [ ] `.env` configured with `DATABASE_URL`
@@ -234,6 +234,68 @@ The API contract is fully unchanged between v1.0 and v2.0:
 - [ ] Test DICOM upload succeeds
 - [ ] PostgreSQL contains patient, study, and instance records
 - [ ] Files exist in `./storage/{patient_id}/{study_uid}/`
+
+---
+
+## Frontend Architecture (Overview)
+
+> Phase 2 工作目錄。完整詳述見 [`frontend/IMPLEMENTATION.md`](./frontend/IMPLEMENTATION.md)。
+
+### Layout
+
+Single-page application (SPA) — one URL, no router. CSS Grid three-column layout:
+
+```
+┌────────────────────────────────────────────────────────────┐
+│ TopBar                                                      │
+├──────────────┬─────────────────────────┬───────────────────┤
+│              │                         │ MetadataPanel     │
+│ StudyList    │     DicomViewer         │ ──────────────    │
+│              │   (CornerstoneJS)       │ AIPanel           │
+└──────────────┴─────────────────────────┴───────────────────┘
+```
+
+### Stack
+
+- **React 19** + **TypeScript 6** + **Vite 8** (dev server + bundler)
+- **CornerstoneJS 4.22** (Cornerstone3D family) for DICOM rendering
+- **CSS Modules** for styling — no UI framework
+- **React Context** for state — no Redux/Zustand/TanStack Query (5 fields, simple)
+
+### Components
+
+| Component | Responsibility | Backend endpoint |
+|---|---|---|
+| `<StudyList>` | List studies, click to switch | `GET /studies` |
+| `<DicomViewer>` | Render DICOM + optional AI mask overlay | `GET /instances/{id}/file`, `GET /ai/result/{id}/mask` |
+| `<MetadataPanel>` | Show current instance metadata | `GET /instances/{id}/metadata` |
+| `<AIPanel>` | Run AI button + result display | `POST /ai/segment/{id}`, `GET /ai/result/{id}` |
+
+Plus structural components: `<App>` / `<TopBar>` / `<Layout>` / `<AppContextProvider>` — **8 .tsx files total**, ~500–800 lines of TS/TSX.
+
+### CORS Coupling
+
+Backend `main.py` registers `CORSMiddleware` allowing `http://localhost:5173` (Vite default). The frontend hard-codes `API_BASE = 'http://localhost:8000'` during MVP — will move to `VITE_API_BASE_URL` env var for non-dev deploy.
+
+### Integration Status
+
+- ✅ Scaffolding (React + Vite + TS) — commit `2d055de`
+- ✅ CornerstoneJS dependencies installed — commit `83b8c9a`
+- ⚪ CornerstoneJS init (Stage B) — planned
+- ⚪ DICOM rendering (Stage C) — planned
+- ⚪ Four business components — planned
+
+### Deployment Checklist (Frontend, planned)
+
+- [ ] Node.js 22+ installed
+- [ ] `cd frontend && npm install` succeeds
+- [ ] `npm run dev` starts at `http://localhost:5173`
+- [ ] Backend reachable at `http://localhost:8000` with CORS allowing 5173
+- [ ] StudyList renders study count from `/studies`
+- [ ] DicomViewer renders a DICOM image
+- [ ] Run AI button receives stub response
+
+---
 
 ## Future Extensions
 

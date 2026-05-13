@@ -232,32 +232,54 @@ MedPACS Intelligence Platform/
 │   ├── main_patch.py               # 驗證層整合修補檔
 │   └── VALIDATION.md               # 驗證層設計說明
 │
-├── tests/                           # 測試套件
+├── tests/                           # 測試套件（Backend）
 │   ├── conftest.py                  # 共用 fixtures、工廠函式、TestClient
 │   ├── test_dicom_service.py        # 整合測試（6 個）
 │   ├── test_query_api.py            # API 端點測試（21 個）
-│   └── test_validators.py           # 驗證單元測試（6 個）
+│   └── test_validators.py           # 驗證單元測試（9 個）
 │
 ├── storage/                         # 本地 DICOM 檔案儲存（runtime 自動建立）
 │   └── {patient_id}/{study_uid}/{filename}.dcm
+│
+├── frontend/                        # Frontend (React + Vite + TypeScript)
+│   ├── README.md                    # 前端啟動 + 開發者新手向指南
+│   ├── IMPLEMENTATION.md            # 前端架構詳述（元件樹 / Context / API / Cornerstone）
+│   ├── package.json                 # npm 依賴清單
+│   ├── package-lock.json            # 鎖定版本（git tracked）
+│   ├── vite.config.ts               # Vite 設定
+│   ├── tsconfig.*.json              # TypeScript 設定（主 / app / node）
+│   ├── eslint.config.js             # ESLint 規則
+│   ├── index.html                   # 瀏覽器入口
+│   ├── public/                      # 靜態資源（不經 build 處理）
+│   ├── src/                         # 應用程式碼
+│   │   ├── main.tsx                 # 程式入口
+│   │   ├── App.tsx                  # 最外層元件
+│   │   ├── components/              # UI 元件（規劃中）
+│   │   ├── context/                 # React Context（規劃中）
+│   │   ├── api/                     # Backend API client（規劃中）
+│   │   ├── cornerstone/             # CornerstoneJS 整合（規劃中）
+│   │   └── assets/                  # 靜態素材
+│   └── node_modules/                # npm 套件（git ignored）
 │
 ├── pytest.ini                       # pytest 配置（testpaths / pythonpath）
 ├── requirements.txt                 # Python 依賴清單
 ├── .env.example                     # 環境變數範本
 ├── .env                             # 實際環境配置（git ignored）
 │
-├── README.md                        # 專案概覽與設置指南
-├── IMPLEMENTATION.md                # 系統架構與模組責任
-├── QUICKSTART.md                    # 5 分鐘快速開始
+├── README.md                        # 項目概覽與雙端啟動指引
+├── IMPLEMENTATION.md                # 系統架構（含 backend 內部 + frontend 摘要）
+├── QUICKSTART.md                    # 5 分鐘雙端啟動
 ├── STORAGE_BACKEND.md               # 儲存後端設計與遷移指南
 ├── CLAUDE.md                        # AI 操作規範（行為約束）
 ├── PLAN.md                          # MVP 開發規劃（scope / architecture / roadmap）
 ├── PROGRESS.md                      # 本檔（專案現況）
+├── SESSION_HISTORY.md               # AI session 工作記憶
 │
 ├── .git/                            # Git 版控
 ├── .venv/                           # Python 虛擬環境（git ignored）
-└── .claude/                         # Claude Code 本地設置
-    └── settings.local.json
+├── .claude/                         # Claude Code 本地設置（git ignored）
+│   └── settings.local.json
+└── learning/                        # 個人學習筆記（git ignored）
 ```
 
 ---

@@ -15,6 +15,7 @@ Get up and running in 5 minutes.
 - Python 3.8+
 - PostgreSQL installed and running
 - pip
+- **Node.js 22 LTS+** and **npm 10+**（Phase 2 frontend，[nodejs.org](https://nodejs.org/) 安裝）
 
 ## Installation and Setup
 
@@ -134,6 +135,33 @@ Expected output:
 INFO:     Uvicorn running on http://127.0.0.1:8000
 ✓ Database tables initialized
 ```
+
+### Step 7: Setup Frontend (Phase 2)
+
+> If you only need the backend API, skip this step.
+
+In a **new terminal** (keep the backend running):
+
+_Windows:_
+
+```powershell
+cd "MedPACS Intelligence Platform\frontend"
+npm install            # 第一次或拉到新 commit 後執行
+npm run dev
+```
+
+Expected output:
+
+```text
+  VITE v8.0.12  ready in ~450 ms
+  ➜  Local:   http://localhost:5173/
+```
+
+Open `http://localhost:5173` in browser → Vite + React welcome page should render. The backend's `CORSMiddleware` already allows this origin.
+
+**Stop**: press `Ctrl+C` in the terminal.
+
+> Frontend dev guide and component details: see [`frontend/README.md`](./frontend/README.md) and [`frontend/IMPLEMENTATION.md`](./frontend/IMPLEMENTATION.md).
 
 ## Quick Tests
 

@@ -314,36 +314,66 @@ class AIResult(Base):
 
 ## 10. Frontend 規劃
 
-### 10.1 專案結構（建議）
+> 詳細的元件設計、狀態管理、API client、Cornerstone 整合計畫見 [`frontend/IMPLEMENTATION.md`](./frontend/IMPLEMENTATION.md)。本節為策略層摘要。
+
+### 10.1 四個業務元件 × API 對應
+
+| 元件 | 職責 | 主要 API endpoint |
+|---|---|---|
+| `<StudyList>` | 左欄列出所有 study、點擊切換 | `GET /studies` |
+| `<DicomViewer>` | 中央 CornerstoneJS canvas 渲染 DICOM + mask overlay | `GET /instances/{id}/file`、`GET /ai/result/{id}/mask` |
+| `<MetadataPanel>` | 右上顯示目前 instance metadata | `GET /instances/{id}/metadata` |
+| `<AIPanel>` | 右下「Run AI」按鈕 + 狀態 + mask toggle | `POST /ai/segment/{id}`、`GET /ai/result/{id}` |
+
+加上 `<App>` 容器、`<TopBar>`、`<Layout>`、`<AppContextProvider>`，**總計 8 個 .tsx 檔**。預估 ~500–800 行 TS/TSX。
+
+### 10.2 專案結構（建議）
 
 ```
 frontend/
 ├── src/
-│   ├── api/                    # FastAPI client（fetch wrapper）
+│   ├── main.tsx                # 入口（含 Cornerstone init）
+│   ├── App.tsx                 # 包 Provider + Layout
 │   ├── components/
+│   │   ├── TopBar.tsx
+│   │   ├── Layout.tsx          # CSS Grid 三欄
+│   │   ├── StudyList.tsx
 │   │   ├── DicomViewer.tsx     # CornerstoneJS canvas
-│   │   ├── MetadataPanel.tsx   # /instances/{id}/metadata
-│   │   ├── StudyList.tsx       # /studies
-│   │   └── AIPanel.tsx         # Run AI + mask overlay
-│   ├── hooks/
-│   ├── App.tsx
-│   └── main.tsx
+│   │   ├── MetadataPanel.tsx
+│   │   └── AIPanel.tsx
+│   ├── context/                # 全域 React Context（5 個欄位）
+│   ├── api/                    # FastAPI client（fetch wrapper）
+│   └── cornerstone/            # CornerstoneJS init / setup
 ├── package.json
-└── vite.config.ts
+├── vite.config.ts
+├── README.md                   # 啟動 + 新手指引
+└── IMPLEMENTATION.md           # 架構詳述
 ```
 
-### 10.2 CornerstoneJS 整合要點
+### 10.3 狀態管理
 
-- 套件：`@cornerstonejs/core`、`@cornerstonejs/dicom-image-loader`、`@cornerstonejs/tools`（v3.x）
+`React Context` 一個檔即可，5 個欄位：
+
+```
+studies / currentStudyId / currentSeriesId / currentInstanceId / aiResult
+```
+
+**不引入 Redux / Zustand / TanStack Query**（資料量小、邏輯簡單）。
+
+### 10.4 CornerstoneJS 整合要點
+
+- 套件：`@cornerstonejs/core`、`@cornerstonejs/dicom-image-loader`、`@cornerstonejs/tools`（Cornerstone3D 家族，目前 v4.22.6）
 - 載入 scheme：`wadouri:` 指向 `/instances/{id}/file`
 - Mask overlay：取 `/ai/result/{id}/mask` PNG → 半透明 image layer 疊加
+- 整合分三 Stage：A 安裝、B init 設定、C 第一次渲染（見 `frontend/IMPLEMENTATION.md` §7）
 
-### 10.3 UX 範圍
+### 10.5 UX 範圍
 
-- 上傳 → 跳到該 study viewer
-- Viewer 旁顯示 metadata
+- 啟動 → 自動載入 study list、預選第一個 study
+- 點擊 study → 自動切換中央 viewer + metadata
 - "Run AI" 按鈕 → loading state → 顯示 mask overlay
 - 失敗 → 簡單 error toast（不做 retry UI）
+- 上傳介面 **不做** — MVP 用 curl/Postman 上傳，frontend 只 view
 
 ---
 
