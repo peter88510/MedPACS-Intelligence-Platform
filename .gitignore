@@ -38,3 +38,6 @@ test_dicom_files/
 # Log
 *.log
 logs/
+
+# 個人學習筆記（非專案規範，不進 git）
+learning/
