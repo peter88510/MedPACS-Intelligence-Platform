@@ -58,6 +58,11 @@
 - [x] pytest 配置（`pytest.ini`）
 - [x] 測試隔離機制（記憶體 SQLite + monkeypatch）
 
+### Frontend（Phase 2 進行中）
+- [x] React 19 + Vite 8 + TypeScript 6 專案骨架（2026-05-13、commit `2d055de`）
+- [x] Cornerstone3D v4.22 套件安裝（`@cornerstonejs/core` + `dicom-image-loader` + `tools` + `dicom-parser`）（Stage A、2026-05-13、commit `83b8c9a`）
+- [x] CornerstoneJS 初始化設定（`src/cornerstone/setup.ts` idempotent `initCornerstone()` + `main.tsx` async bootstrap）（Stage B、2026-05-14、commit `8cd61f3`）
+
 ### 文件
 - [x] README.md — 功能概覽與設置指南
 - [x] IMPLEMENTATION.md — 架構與模組責任
@@ -136,10 +141,11 @@
 **Phase 1 全部完成 — 後續進入 Phase 2（Frontend Viewer）。**
 
 ### Phase 2：Frontend Viewer（PLAN §10、§12）
-- [ ] React + Vite + TypeScript 專案初始化
-- [ ] CornerstoneJS v3 整合（`@cornerstonejs/core` + `dicom-image-loader` + `tools`）
-- [ ] `DicomViewer` / `MetadataPanel` / `StudyList` 元件
-- [ ] Stub AI endpoint 接通 + `AIPanel` 元件
+- [x] React + Vite + TypeScript 專案初始化（2026-05-13、commit `2d055de`）
+- [x] CornerstoneJS v4.22 整合（Stage A 套件安裝 `83b8c9a` + Stage B 初始化 `8cd61f3`）
+- [ ] **Stage C：第一張 DICOM 渲染**（純 viewer、hardcoded instance ID、wadouri scheme）— **2026-05-14 dispatching 中**
+- [ ] `<MetadataPanel />` / `<StudyList />` / `<AIPanel />` 元件 + API client + AppContext（Phase 2 task #9，Stage C 完成後派發）
+- [ ] Stub AI endpoint 接通 + `<AIPanel />` mask overlay（依賴 Phase 3 真實 AI）
 
 ### Phase 3：AI 整合（PLAN §9、§12）
 - [ ] `AIResult` model + Alembic migration
