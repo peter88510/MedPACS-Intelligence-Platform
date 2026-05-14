@@ -1,7 +1,7 @@
 # PROGRESS.md — 專案現況 (Project Status)
 
 > **文件定位**：本檔僅記錄「狀態與進度」。
-> 架構說明請見 [IMPLEMENTATION.md](./IMPLEMENTATION.md)、操作教學請見 [docs/archive/QUICKSTART.md](./docs/archive/QUICKSTART.md)、AI 行為約束請見 [CLAUDE.md](./CLAUDE.md)。
+> 架構說明請見 [docs/IMPLEMENTATION.md](./docs/IMPLEMENTATION.md)、操作教學請見 [docs/archive/QUICKSTART.md](./docs/archive/QUICKSTART.md)、AI 行為約束請見 [CLAUDE.md](./CLAUDE.md)。
 >
 > **更新規則**：每完成一項任務、變更狀態、或調整下一步時，同步更新本檔。
 
@@ -126,7 +126,7 @@
 
 ## 5. 下一步（短期、已排程）
 
-> 完整規劃見 [PLAN.md](./PLAN.md)。本區塊摘要當前需推進的具體任務，依 PLAN.md Phase 排序。
+> 完整規劃見 [docs/PLAN.md](./docs/PLAN.md)。本區塊摘要當前需推進的具體任務，依 PLAN Phase 排序。
 
 ### Phase 1 收尾
 - [x] 補齊驗證層：`SeriesInstanceUID` / `SOPInstanceUID` / `PixelData` 必填檢查（PLAN §7.1）— ✅ 完成 2026-05-12
@@ -242,41 +242,52 @@ MedPACS Intelligence Platform/
 │   └── {patient_id}/{study_uid}/{filename}.dcm
 │
 ├── frontend/                        # Frontend (React + Vite + TypeScript)
-│   ├── README.md                    # 前端啟動 + 開發者新手向指南
-│   ├── IMPLEMENTATION.md            # 前端架構詳述（元件樹 / Context / API / Cornerstone）
-│   ├── package.json                 # npm 依賴清單
-│   ├── package-lock.json            # 鎖定版本（git tracked）
-│   ├── vite.config.ts               # Vite 設定
-│   ├── tsconfig.*.json              # TypeScript 設定（主 / app / node）
-│   ├── eslint.config.js             # ESLint 規則
-│   ├── index.html                   # 瀏覽器入口
-│   ├── public/                      # 靜態資源（不經 build 處理）
-│   ├── src/                         # 應用程式碼
-│   │   ├── main.tsx                 # 程式入口
-│   │   ├── App.tsx                  # 最外層元件
+│   ├── CLAUDE.md                    # 前端 Agent 操作規範
+│   ├── HANDOFF.md                   # 後端狀態鏡像（主 Agent 維護）
+│   ├── DISPATCH.md                  # 當前任務交付（主 Agent 覆寫式）
+│   ├── PROGRESS.md                  # 前端工作進度（5 區塊）
+│   ├── SESSION_HISTORY.md           # 前端 Agent 工作記憶（A/B 兩段）
+│   ├── IMPLEMENTATION.md            # 前端架構詳述（按需查閱）
+│   ├── README.md                    # 前端啟動指南（按需查閱）
+│   ├── archive/                     # 前端歸檔（PROGRESS 超量切過來）
+│   │   └── README.md
+│   ├── package.json / package-lock.json
+│   ├── vite.config.ts
+│   ├── tsconfig.*.json
+│   ├── eslint.config.js
+│   ├── index.html
+│   ├── public/
+│   ├── src/
+│   │   ├── main.tsx                 # 程式入口（含 initCornerstone）
+│   │   ├── App.tsx
+│   │   ├── App.css / index.css
+│   │   ├── cornerstone/             # Cornerstone 整合（Stage B 已建）
+│   │   │   └── setup.ts
 │   │   ├── components/              # UI 元件（規劃中）
 │   │   ├── context/                 # React Context（規劃中）
 │   │   ├── api/                     # Backend API client（規劃中）
-│   │   ├── cornerstone/             # CornerstoneJS 整合（規劃中）
-│   │   └── assets/                  # 靜態素材
+│   │   └── assets/
 │   └── node_modules/                # npm 套件（git ignored）
 │
-├── pytest.ini                       # pytest 配置（testpaths / pythonpath）
+├── context/                         # 主 Agent context（小、必讀）
+│   └── SESSION_HISTORY.md           # 主 Agent 工作記憶（A/B 兩段）
+│
+├── docs/                            # 詳細文件（按需查閱、非啟動必讀）
+│   ├── PLAN.md                      # MVP 開發規劃
+│   ├── IMPLEMENTATION.md            # 系統架構（backend 內部 + frontend 摘要）
+│   └── archive/                     # 歸檔文件（低頻使用）
+│       ├── QUICKSTART.md            # 5 分鐘雙端啟動
+│       ├── STORAGE_BACKEND.md       # 儲存後端設計
+│       └── COMMIT_GUIDE.md          # Commit 流程（已由系統 prompt 接手）
+│
+├── pytest.ini                       # pytest 配置
 ├── requirements.txt                 # Python 依賴清單
 ├── .env.example                     # 環境變數範本
 ├── .env                             # 實際環境配置（git ignored）
 │
 ├── README.md                        # 項目概覽與雙端啟動指引
-├── IMPLEMENTATION.md                # 系統架構（含 backend 內部 + frontend 摘要）
-├── docs/                            # 詳細文件（按需查閱、非啟動必讀）
-│   └── archive/                     # 歸檔文件（低頻使用）
-│       ├── QUICKSTART.md            # 5 分鐘雙端啟動
-│       ├── STORAGE_BACKEND.md       # 儲存後端設計與遷移指南
-│       └── COMMIT_GUIDE.md          # Commit 流程規範（已由系統 prompt 接手）
-├── CLAUDE.md                        # AI 操作規範（行為約束）
-├── PLAN.md                          # MVP 開發規劃（scope / architecture / roadmap）
+├── CLAUDE.md                        # AI 操作規範
 ├── PROGRESS.md                      # 本檔（專案現況）
-├── SESSION_HISTORY.md               # AI session 工作記憶
 │
 ├── .git/                            # Git 版控
 ├── .venv/                           # Python 虛擬環境（git ignored）

@@ -301,7 +301,7 @@ db.query(Patient).filter(Patient.patient_id == patient_id).first()
 
 ### Session 開始時的行為
 
-- **每次 session 開始**，AI 必須先閱讀 [`SESSION_HISTORY.md`](./SESSION_HISTORY.md)，以此作為工作記憶的起點，**不需要工程師重新交代背景**
+- **每次 session 開始**，AI 必須先閱讀 [`context/SESSION_HISTORY.md`](./context/SESSION_HISTORY.md)，以此作為工作記憶的起點，**不需要工程師重新交代背景**
 - **更新時機**：工程師說「更新歷史」時，或每次 session 結束前由工程師觸發
 - **更新規則**：
   - 只更新有變動的區塊，不重寫整檔

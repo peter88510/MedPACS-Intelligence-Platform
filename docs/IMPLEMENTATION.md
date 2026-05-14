@@ -239,7 +239,7 @@ The API contract is fully unchanged between v1.0 and v2.0:
 
 ## Frontend Architecture (Overview)
 
-> Phase 2 工作目錄。完整詳述見 [`frontend/IMPLEMENTATION.md`](./frontend/IMPLEMENTATION.md)。
+> Phase 2 工作目錄。完整詳述見 [`frontend/IMPLEMENTATION.md`](../frontend/IMPLEMENTATION.md)。
 
 ### Layout
 

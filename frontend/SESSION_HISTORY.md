@@ -4,13 +4,19 @@
 >
 > 與 `PROGRESS.md` 互補：PROGRESS 是進度追蹤（事實清單）、本檔是當下脈絡記憶（前端視角的 mental state）。
 >
-> **誰維護**：前端 Agent。主 Agent 可讀不可寫（除非緊急修正過時資訊，需在 commit message 說明）。
+> **誰維護**：前端 Agent。主 Agent 可讀不可寫（除非緊急修正過時資訊或結構性重組，需在 commit message 說明）。
 >
 > **更新規則**：見 `frontend/CLAUDE.md` §9。
+>
+> **結構說明（2026-05-14 起）**：
+> - **A 段（系統現況快照）**：當前狀態、in-flight 任務、待決定事項 — 每次 session 必讀
+> - **B 段（工作脈絡）**：里程碑歷史、上次 session 結尾狀態 — 按需查閱、需要回顧時才讀
 
 ---
 
-## 系統現況（2026-05-14）
+## A. 系統現況快照（必讀，每次 session 啟動）
+
+### 系統現況（2026-05-14）
 
 - **架構**：React 19.2 + Vite 8.0 + TypeScript 6.0；單頁 SPA。
 - **目錄結構**：
@@ -27,25 +33,11 @@
 - **已裝套件**：`@cornerstonejs/core@4.22.6`、`@cornerstonejs/dicom-image-loader@4.22.6`、`@cornerstonejs/tools@4.22.6`、`dicom-parser@1.8.21`、React 19.2、TypeScript 6.0。
 - **目前可做到的事**：dev server 啟動、Cornerstone 已 init（但尚未掛 viewport，因為沒元件需要）。
 
----
-
-## 進行中的任務
+### 進行中的任務
 
 > **無進行中任務**。Stage B 已實作完，等待工程師瀏覽器 DevTools console 驗證後 commit；commit hash 將回填 PROGRESS.md。
 
----
-
-## 已完成里程碑
-
-> 精選大事（非全部完成項目；全表參見 `PROGRESS.md` §1）。
-
-- **Phase 2 task #7（2026-05-13, `2d055de`）** — React + Vite + TS 專案骨架
-- **Phase 2 task #8 Stage A（2026-05-13, `83b8c9a`）** — 安裝 4 個 Cornerstone 套件、Vite pre-bundle 驗證
-- **Phase 2 task #8 Stage B（2026-05-14, `8cd61f3`）** — `setup.ts` + `main.tsx` 改造完成，dev server 端驗證乾淨
-
----
-
-## 待決定事項
+### 待決定事項
 
 - **`<DicomViewer />` Stage C 起手點**：要直接寫 `<DicomViewer />` 元件、還是先做 API client + AppContext 把資料流打通？IMPLEMENTATION.md §10「開發順序建議」傾向後者（先資料流、後 viewer），等下次 dispatch 確認。
 - **CSS Modules vs. plain CSS**：IMPLEMENTATION.md §9 預期使用 CSS Modules（`*.module.css`），但 `CLAUDE.md` §11 標 UI 規範未定。Stage C 起步時若要寫第一個元件樣式，先回報主 Agent。
@@ -53,7 +45,17 @@
 
 ---
 
-## 上次 session 結尾狀態（2026-05-14）
+## B. 工作脈絡（按需查閱）
+
+### 已完成里程碑
+
+> 精選大事（非全部完成項目；全表參見 `PROGRESS.md` §1）。
+
+- **Phase 2 task #7（2026-05-13, `2d055de`）** — React + Vite + TS 專案骨架
+- **Phase 2 task #8 Stage A（2026-05-13, `83b8c9a`）** — 安裝 4 個 Cornerstone 套件、Vite pre-bundle 驗證
+- **Phase 2 task #8 Stage B（2026-05-14, `8cd61f3`）** — `setup.ts` + `main.tsx` 改造完成，dev server 端驗證乾淨
+
+### 上次 session 結尾狀態（2026-05-14）
 
 - **改了什麼**：
   - 新增 `frontend/src/cornerstone/setup.ts`（25 行）
@@ -75,8 +77,8 @@
 
 | 項目 | 說明 |
 |---|---|
-| 文件版本 | v1.0（首版） |
-| 建立日期 | 2026-05-14 |
-| 維護者 | 前端 Agent |
+| 文件版本 | v1.1（2026-05-14 由主 Agent 做結構性重組為 A/B 兩段，內容未動） |
+| 建立日期 | 2026-05-14（v1.0 由前端 Agent 寫於 Stage B 收尾） |
+| 維護者 | 前端 Agent（內容）；主 Agent 在結構升級時例外動 |
 | 更新時機 | 每次 session 結尾、完成 dispatch 任務後 |
-| 主 Agent 行為 | 可讀、原則上不寫 |
+| 主 Agent 行為 | 可讀；原則上不寫；例外：結構性重組 / 緊急修正過時資訊，需在 commit message 說明 |

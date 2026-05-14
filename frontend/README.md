@@ -2,7 +2,7 @@
 
 MedPACS Intelligence Platform 的前端 viewer（React + Vite + TypeScript）。
 
-> Phase 2 工作目錄。完整設計見 [`../PLAN.md`](../PLAN.md) §10。
+> Phase 2 工作目錄。完整設計見 [`../docs/PLAN.md`](../docs/PLAN.md) §10。
 
 ---
 

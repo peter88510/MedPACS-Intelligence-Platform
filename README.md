@@ -13,7 +13,7 @@ A two-tier system for ultrasound DICOM workflow:
 - **Backend** — FastAPI + PostgreSQL + SQLAlchemy + pydicom. DICOM upload, parsing, validation, persistence, and stub AI inference endpoints.
 - **Frontend** — React 19 + Vite + TypeScript + CornerstoneJS. Single-page DICOM viewer with metadata panel and AI overlay.
 
-> See [`PLAN.md`](./PLAN.md) for MVP scope and roadmap, [`PROGRESS.md`](./PROGRESS.md) for current status.
+> See [`docs/PLAN.md`](./docs/PLAN.md) for MVP scope and roadmap, [`PROGRESS.md`](./PROGRESS.md) for current status.
 
 ## Features
 

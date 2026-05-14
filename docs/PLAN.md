@@ -3,9 +3,9 @@
 > **文件定位**：本檔記錄 **長期規劃** — Scope / Architecture / API / Validation / Roadmap / Non-goals。
 >
 > **責任邊界（避免與其他文件重複）**：
-> - 「已完成什麼 / 進度狀態」 → [PROGRESS.md](./PROGRESS.md)
-> - 「AI 行為規範 / Coding 約束」 → [CLAUDE.md](./CLAUDE.md)
-> - 「快速啟動 / API 操作範例」 → [docs/archive/QUICKSTART.md](./docs/archive/QUICKSTART.md)
+> - 「已完成什麼 / 進度狀態」 → [PROGRESS.md](../PROGRESS.md)
+> - 「AI 行為規範 / Coding 約束」 → [CLAUDE.md](../CLAUDE.md)
+> - 「快速啟動 / API 操作範例」 → [QUICKSTART.md](./archive/QUICKSTART.md)
 > - 「系統架構詳細實作」 → [IMPLEMENTATION.md](./IMPLEMENTATION.md)
 >
 > **更新觸發條件**：MVP scope 變動 / 新模組規劃 / API 設計變更 / Non-goal 重新評估。
@@ -74,7 +74,7 @@
 
 ### 2.2 進度狀態
 
-進度追蹤統一於 [PROGRESS.md](./PROGRESS.md)。本檔不重複列舉「已完成 / 進行中」。
+進度追蹤統一於 [PROGRESS.md](../PROGRESS.md)。本檔不重複列舉「已完成 / 進行中」。
 
 ---
 
@@ -133,7 +133,7 @@
    └─────────────┘   └──────────────────┘
 ```
 
-**分層規範以 [CLAUDE.md §6](./CLAUDE.md) 為準，不可破壞跨層責任**。
+**分層規範以 [CLAUDE.md §6](../CLAUDE.md) 為準，不可破壞跨層責任**。
 
 ---
 
@@ -314,7 +314,7 @@ class AIResult(Base):
 
 ## 10. Frontend 規劃
 
-> 詳細的元件設計、狀態管理、API client、Cornerstone 整合計畫見 [`frontend/IMPLEMENTATION.md`](./frontend/IMPLEMENTATION.md)。本節為策略層摘要。
+> 詳細的元件設計、狀態管理、API client、Cornerstone 整合計畫見 [`frontend/IMPLEMENTATION.md`](../frontend/IMPLEMENTATION.md)。本節為策略層摘要。
 
 ### 10.1 四個業務元件 × API 對應
 
@@ -395,7 +395,7 @@ storage/
 
 ## 12. Development Roadmap
 
-> **進度追蹤** → [PROGRESS.md](./PROGRESS.md)。本區塊只描述「應做什麼」與「成功標準」。
+> **進度追蹤** → [PROGRESS.md](../PROGRESS.md)。本區塊只描述「應做什麼」與「成功標準」。
 
 ### Phase 1：Backend 基礎（Day 1–7）
 

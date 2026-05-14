@@ -1,21 +1,25 @@
 # SESSION_HISTORY.md — 工作記憶 (Working Memory)
 
-> **文件定位**：本檔為 AI agent 的 **session 級工作記憶**。
-> 每次 session 開始時 AI 必須先讀本檔（CLAUDE.md §10）。
+> **文件定位**：本檔為主 Agent 的 **session 級工作記憶**。
+> 每次 session 開始時 AI 必須先讀本檔的 **A 段（系統現況快照）**；B 段為按需查閱（CLAUDE.md §10）。
 >
 > **與其他文件的差異**：
-> - 不是長期規劃 → 見 [PLAN.md](./PLAN.md)
-> - 不是進度追蹤 → 見 [PROGRESS.md](./PROGRESS.md)
-> - 不是行為規範 → 見 [CLAUDE.md](./CLAUDE.md)
+> - 不是長期規劃 → 見 [PLAN.md](../docs/PLAN.md)
+> - 不是進度追蹤 → 見 [PROGRESS.md](../PROGRESS.md)
+> - 不是行為規範 → 見 [CLAUDE.md](../CLAUDE.md)
 >
 > **更新規則（CLAUDE.md §10）**：
 > - 工程師說「更新歷史」時，或每次 session 結束前工程師觸發
 > - 只更新有變動的區塊，不重寫整檔
 > - 不記錄對話流水帳，只記錄狀態與結論
+>
+> **結構說明（2026-05-14 起）**：
+> - **A 段（系統現況快照）**：當前狀態、in-flight 任務、待決定事項 — 每次 session 必讀
+> - **B 段（工作脈絡）**：里程碑歷史、上次 session 結尾狀態 — 按需查閱、需要回顧時才讀
 
 ---
 
-## 工作記憶
+## A. 系統現況快照（必讀，每次 session 啟動）
 
 ### 系統現況
 
@@ -40,9 +44,24 @@
 - **Stage B 已派發給前端 Agent**：`frontend/DISPATCH.md` 裝載 CornerstoneJS init 設定任務（task_id: `phase-2-task-8-stage-b`），等待前端 Agent 新 session 起手執行
 - 下一個主 Agent 任務（Stage B 完成後）：依前端 Agent 回報之缺口 / 後端需求，評估是否補後端 endpoint（如 `/studies/{id}/series` 或真實 AI mask）；或直接派 Stage C dispatch（DICOM 渲染）
 
+### 待決定事項
+
+| # | 議題 | 預設方向 / 選項 | 卡在哪 |
+|---|---|---|---|
+| 1 | AI 分割模型來源 | PLAN §9.4：① pretrained ultrasound checkpoint ② 最小 U-Net + 隨機 weight ③ Otsu mock | 工程師是否已有手邊的 ultrasound checkpoint 可用？沒有的話走 ③ |
+| 2 | Sample DICOM 來源 | PLAN §14：① pydicom-data ② TCIA ③ 自製 synthetic | Phase 4 demo 之前要決定 |
+| 3 | README env var 稽核 | 是否需要在 §15.2 新規範生效後做一次補登 | 待工程師確認是否有遺漏的 env var |
+| 4 | 前端 UI/UX / 瀏覽器相容 / 效能 / 無障礙規範 | 列於 `frontend/CLAUDE.md` §11 待補清單 | 等前端真正開始寫元件、需要做這些決策時才補；現在補只是空談 |
+| 5 | venv Python 版本 | 目前 3.8.8（Anaconda），系統有 3.12.2；用戶將其降為低優先 | 不阻擋；等真的踩到 3.8 限制再重建 |
+| 6 | 後端 endpoint 補完計畫 | `/studies/{id}/series` 與 `/series/{id}/instances` 是前端高機率會需要的；真實 AI mask 也是 | 等前端 Stage C 開始整合時 confirmed 再排程 |
+
+---
+
+## B. 工作脈絡（按需查閱）
+
 ### 已完成里程碑
 
-> 詳細清單與 API 狀態見 [PROGRESS.md](./PROGRESS.md)。本節只列關鍵里程碑。
+> 詳細清單與 API 狀態見 [PROGRESS.md](../PROGRESS.md)。本節只列關鍵里程碑。
 
 - **M1 — DICOM 上傳完整 pipeline**：Parse → Validate → 本地儲存 → DB upsert（patient/study/series/instance）
 - **M2 — 查詢 API 完整實作**：`/studies`、`/series/{id}`、`/instances/{id}`、`/instances/{id}/file`、`/instances/{id}/metadata`
@@ -71,17 +90,6 @@
   - `frontend/PROGRESS.md`（5 區塊：已完成/進行中/待辦/已知缺口/後端需求清單）
   - `frontend/SESSION_HISTORY.md`（規劃中，前端 Agent 第一次 dispatch 收尾自寫）
   - 任務生命週期：DISPATCH 覆寫 → 前端 Agent 萃取摘要進 PROGRESS 進行中 → 完成移到已完成（含 commit hash）
-
-### 待決定事項
-
-| # | 議題 | 預設方向 / 選項 | 卡在哪 |
-|---|---|---|---|
-| 1 | AI 分割模型來源 | PLAN §9.4：① pretrained ultrasound checkpoint ② 最小 U-Net + 隨機 weight ③ Otsu mock | 工程師是否已有手邊的 ultrasound checkpoint 可用？沒有的話走 ③ |
-| 2 | Sample DICOM 來源 | PLAN §14：① pydicom-data ② TCIA ③ 自製 synthetic | Phase 4 demo 之前要決定 |
-| 3 | README env var 稽核 | 是否需要在 §15.2 新規範生效後做一次補登 | 待工程師確認是否有遺漏的 env var |
-| 4 | 前端 UI/UX / 瀏覽器相容 / 效能 / 無障礙規範 | 列於 `frontend/CLAUDE.md` §11 待補清單 | 等前端真正開始寫元件、需要做這些決策時才補；現在補只是空談 |
-| 5 | venv Python 版本 | 目前 3.8.8（Anaconda），系統有 3.12.2；用戶將其降為低優先 | 不阻擋；等真的踩到 3.8 限制再重建 |
-| 6 | 後端 endpoint 補完計畫 | `/studies/{id}/series` 與 `/series/{id}/instances` 是前端高機率會需要的；真實 AI mask 也是 | 等前端 Stage C 開始整合時 confirmed 再排程 |
 
 ### 上次 session 結尾狀態
 
