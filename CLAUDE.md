@@ -24,6 +24,7 @@
 14. [錯誤處理與 Logging 規範](#14-錯誤處理與-logging-規範)
 15. [擴充區塊（保留）](#15-擴充區塊保留)
     - [15.5 前後端分工機制](#155-前後端分工機制)
+    - [15.6 PROGRESS 觸發式 Archive（v1.2）](#156-progress-觸發式-archivev12-起)
 
 ---
 
@@ -247,16 +248,20 @@
 （使用 diff 格式，patch-first）
 
 ## ⚠️ 風險說明
-- 對 API contract 的影響：無 / 有（說明）
-- 對 DB schema 的影響：無 / 有（說明）
-- 對現有測試的影響：無 / 有（說明）
-- 需要 migration 嗎？是 / 否
-- 建議驗證步驟：... 
-  
- **README.md 評估（補充規範)**： 當任務新增使用者可見功能（新 endpoint、
-   middleware、env var、CLI 操作指令）時，「⚠️ 風險說明」必須明示是否更新
-   README.md。 即使結論為「不需要」也要寫出評估結果，避免「小改動 = 不寫 
-   文件」的偏見（reference: 2026-05-12 CORS 漏更新 README 事件）。
+
+| 評估項 | 答 |
+|---|---|
+| 對 API contract 的影響 | 無 / 有（說明） |
+| 對 DB schema 的影響 | 無 / 有（說明） |
+| 對現有測試的影響 | 無 / 有（說明） |
+| 需要 migration 嗎？ | 是 / 否 |
+| 是否更新 `README.md`？ | 是 / 否（理由） |
+| 建議驗證步驟 | ... |
+
+> **README.md 評估規範（v1.1 起）**：當任務新增使用者可見功能（新 endpoint、
+> middleware、env var、CLI 操作指令）時，本表必須明示是否更新 `README.md`。
+> 即使結論為「不需要」也要寫出評估結果，避免「小改動 = 不寫文件」的偏見
+> （reference: 2026-05-12 CORS 漏更新 README 事件）。
 
 ## 💡 建議（可選）
 （不在本次任務範圍內，但值得注意的改進點）
@@ -310,18 +315,61 @@ db.query(Patient).filter(Patient.patient_id == patient_id).first()
 
 ### 任務完成前的最後檢查
 
-- 在宣告「文件同步完成」或進入 commit 階段前，AI 必須執行以下檢查：
+在宣告「文件同步完成」或進入 commit 階段前，AI 必須執行以下檢查：
 
-  #### PROGRESS.md 跨節一致性
+#### R1 — PROGRESS.md 跨節一致性（v1.1 起）
 
-  PROGRESS.md §5「下一步」與 §6「已知缺口」對同一項目必須互斥：
-  - 將項目從 §5 標為完成時，**必須**檢查 §6 是否有對應條目，並同步處理
-    （改為「已完成」註記、或從缺口移出）
-  - 反之，新增 §6 缺口時，**必須**檢查 §5 是否同條目已標完成
-  - 違反此條會造成文件自相矛盾（例：§5 已完成 CORS / §6.8 CORS 未設定）
+PROGRESS.md §5「下一步」與 §6「已知缺口」對同一項目必須互斥：
+- 將項目從 §5 標為完成時，**必須**檢查 §6 是否有對應條目，並同步處理
+  （改為「已完成」註記、或從缺口移出）
+- 反之，新增 §6 缺口時，**必須**檢查 §5 是否同條目已標完成
+- 違反此條會造成文件自相矛盾（例：§5 已完成 CORS / §6.8 CORS 未設定）
 
-  實作建議：以功能關鍵字（如 `CORS`、`Alembic`、`SeriesInstanceUID`）grep
-  全部 .md 文件、逐筆比對是否一致。
+實作建議：以功能關鍵字（如 `CORS`、`Alembic`、`SeriesInstanceUID`）grep
+全部 .md 文件、逐筆比對是否一致。
+
+#### R3 — Doc Impact 自動檢測（v1.2 起）
+
+每次提交前，AI 須執行以下檢測：
+
+1. **API route 變動**（修改 `main.py` 路由 / handler signature / docstring）：
+   - `pre-commit` hook 會自動 regenerate `docs/generated/api_spec.md`（Phase 3 機制）
+   - 但 `frontend/context/HANDOFF.md §3` 的「補充說明」段（Response 推導機制、error 兩種格式、stub 限制等）可能需更新
+   - 主 Agent 須評估必要性、提醒、必要時動手更新
+
+2. **DB schema 變動**（修改 `models.py` 或新增 alembic migration）：
+   - hook 自動 regenerate `docs/generated/db_schema.md`
+   - 但 `frontend/context/HANDOFF.md §4` 補充說明（DB id vs UID 語義、alembic_version 表）可能需更新
+   - 主 Agent 須評估
+
+3. **環境變數變動**（修改 `config.py:Settings` 或 `.env.example`）：
+   - generator 不涵蓋此項；下列文件**人工同步**：
+     - `README.md`（雙端啟動指引）
+     - `frontend/context/HANDOFF.md §2`
+     - `docs/PLAN.md`（若有 env var 列舉）
+
+4. **No-full-repo-scan policy**：不可在任務開頭跑 `find . -type f` 或讀超過 §1 必讀清單外的 3 份未明文指向之文件
+
+#### R4 — Stale Doc Warning（v1.2 起）
+
+讀取下列**重要文件**前，AI 必須執行：
+
+```bash
+git log -1 --format=%cd --date=short -- <file_path>
+```
+
+若 last commit 距今 > **30 天** → 在工作開始前**標註警告**並建議 verify。
+
+**重要文件清單**：
+- `CLAUDE.md`、`frontend/CLAUDE.md`
+- `context/SESSION_HISTORY.md`、`frontend/context/SESSION_HISTORY.md`
+- `frontend/context/HANDOFF.md`、`frontend/context/DISPATCH.md`
+- `PROGRESS.md`、`frontend/PROGRESS.md`
+- `docs/PLAN.md`
+
+> Phase 早期變動快、檢測頻繁，閾值維持 30 天；Phase 收尾後可調整為 60 天。
+
+> 註：R2 為 §8「⚠️ 風險說明」內的 README 評估規範（v1.1 起）— 因屬輸出格式規範而非「最後檢查」性質，故置於 §8 而非本節。
 
 ### 不確定時的行為
 
@@ -605,14 +653,37 @@ status: active
 
 若 `frontend/CLAUDE.md` 與本檔規則衝突，**以本檔為準**。前端 Agent 發現衝突時應立即回報主 Agent。
 
+### 15.6 PROGRESS 觸發式 Archive（v1.2 起）
+
+`PROGRESS.md`（root 與 frontend）的「已完成任務」段會持續成長。為防 token 浪費、載入過慢，採觸發式 archive。
+
+#### 觸發條件（任一成立即執行）
+
+1. 「已完成任務」段累積超過 **150 行**
+2. 季末日（**3/31、6/30、9/30、12/31**）若該季有任何完成項 → **強制兜底**
+
+#### 執行方式
+
+| PROGRESS 來源 | Archive 目的地 | 執行者 |
+|---|---|---|
+| Root `PROGRESS.md` | `docs/archive/PROGRESS_YYYY_QN.md` | 主 Agent |
+| `frontend/PROGRESS.md` | `frontend/docs/archive/PROGRESS_YYYY_QN.md` | 前端 Agent |
+
+- 主檔保留**最後 ~30 行** + 連結指向 archive
+- archive commit message：`docs: archive PROGRESS for YYYY-QN`（root）或 `docs(frontend): archive PROGRESS for YYYY-QN`
+
+#### 與 §15.5 跨層文件對照表對應
+
+`frontend/PROGRESS.md` 由前端 Agent 維護 → 觸發 archive 也由前端 Agent 自行執行。詳見 [`frontend/CLAUDE.md`](./frontend/CLAUDE.md) §6.5。
+
 ---
 
 ## 文件維護
 
 | 項目 | 說明                                 |
 |---|------------------------------------|
-| 文件版本 | v1.1                               |
-| 建立日期 | 2026-05-07（v1.1 修訂於 2026-05-12） |
+| 文件版本 | v1.2                               |
+| 建立日期 | 2026-05-07（v1.1 修訂於 2026-05-12、v1.2 於 2026-05-14） |
 | 適用對象 | 所有 AI coding agents 與參與此 repo 的工程師 |
 | 更新觸發條件 | 架構變更、新增關鍵模組、規範調整                   |
 | 更新方式 | PR + 工程師 review，不可由 AI 自行修改本文件     |

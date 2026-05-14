@@ -245,6 +245,16 @@ PROGRESS.md「已完成」← 加入（含 commit hash 與簡短結果）；從�
 3. 若 dispatch 過程中發現新缺口或後端需求，分別寫進「已知缺口」與「後端需求清單」
 4. **不修改 DISPATCH.md**（即使任務完成）— DISPATCH 由主 Agent 維護，下次新任務時覆寫
 
+### 6.5 觸發式 Archive（v1.2 起，對稱 CLAUDE.md §15.6）
+
+當 `frontend/PROGRESS.md`「已完成任務」段累積超過 **150 行**，或季末日（**3/31、6/30、9/30、12/31**）若該季有完成項：
+
+1. 切割超量段到 `frontend/docs/archive/PROGRESS_YYYY_QN.md`
+2. 主檔保留**最後 ~30 行** + 連結指向 archive
+3. commit message：`docs(frontend): archive PROGRESS for YYYY-QN`
+
+詳細規則見根 [`CLAUDE.md`](../CLAUDE.md) §15.6。
+
 ---
 
 ## 7. HANDOFF.md 機制
@@ -353,6 +363,20 @@ PROGRESS.md「已完成」← 加入（含 commit hash 與簡短結果）；從�
 
 **前端 Agent 第一次收到 dispatch 收尾時自己寫**。主 Agent 不預先 seed。
 
+### 9.7 Stale Warning（v1.2 起，對稱 CLAUDE.md §10 R4）
+
+前端 Agent 啟動讀本檔（`frontend/context/SESSION_HISTORY.md`）前，須執行：
+
+```bash
+git log -1 --format=%cd --date=short -- frontend/context/SESSION_HISTORY.md
+```
+
+若 last commit 距今 > **30 天** → 標註警告並建議重新 verify「A. 系統現況快照」段內容是否仍正確。
+
+同規則適用於 `frontend/context/HANDOFF.md` 與 `frontend/context/DISPATCH.md`。
+
+承襲根 [`CLAUDE.md`](../CLAUDE.md) §10 R4。
+
 ---
 
 ## 10. 與根 CLAUDE.md 的關係
@@ -402,8 +426,8 @@ PROGRESS.md「已完成」← 加入（含 commit hash 與簡短結果）；從�
 
 | 項目 | 說明 |
 |---|---|
-| 文件版本 | v1.0 |
-| 建立日期 | 2026-05-13 |
+| 文件版本 | v1.1 |
+| 建立日期 | 2026-05-13（v1.1 修訂於 2026-05-14：對應根 CLAUDE.md v1.2 升級，加入 §6.5 觸發式 Archive 與 §9.7 Stale Warning） |
 | 適用對象 | 所有 AI coding agent 在 `frontend/` 內工作的 session |
 | 更新觸發條件 | 前後端分工機制變更、待補充規範定案、新增前端關鍵約束 |
 | 更新方式 | 工程師發起 + review，AI 不可自行修改 |
