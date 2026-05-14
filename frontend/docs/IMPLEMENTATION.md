@@ -10,10 +10,10 @@ status: "design"
 
 > **文件定位**：本檔記錄前端的**架構與實作細節**。
 >
-> - 想知道「**怎麼啟動跑起來**」 → 看 [`README.md`](./README.md)
-> - 想知道「**整體 MVP 規劃**」 → 看 [`../docs/PLAN.md`](../docs/PLAN.md) §10
-> - 想知道「**後端架構**」 → 看 [`../docs/IMPLEMENTATION.md`](../docs/IMPLEMENTATION.md)
-> - 想知道「**目前進度**」 → 看 [`../PROGRESS.md`](../PROGRESS.md)
+> - 想知道「**怎麼啟動跑起來**」 → 看 [`../README.md`](../README.md)
+> - 想知道「**整體 MVP 規劃**」 → 看 [`../../docs/PLAN.md`](../../docs/PLAN.md) §10
+> - 想知道「**後端架構**」 → 看 [`../../docs/IMPLEMENTATION.md`](../../docs/IMPLEMENTATION.md)
+> - 想知道「**目前進度**」 → 看 [`../../PROGRESS.md`](../../PROGRESS.md)
 >
 > **狀態標記**：⚪ Planned / 🟡 In progress / ✅ Done
 

@@ -34,14 +34,14 @@
 - **儲存**：本地檔案系統（`storage/{patient}/{study}/{filename}.dcm`），已透過 `StorageBackend` 抽象預留 S3 接口
 - **DB Migration 工具**：✅ Alembic 已導入（2026-05-12），baseline migration 涵蓋四表
 - **AI 操作規範**：CLAUDE.md **v1.1**（2026-05-12）— 加入 §10「任務完成前的最後檢查」與 §8「README.md 評估補充規範」；2026-05-13 加入 §15.5「前後端分工機制」
-- **前後端分工**：建立完整檔案機制（2026-05-13 / 14）— `frontend/CLAUDE.md`（前端 Agent 規範）、`frontend/HANDOFF.md`（後端狀態鏡像，主 Agent 維護）、`frontend/DISPATCH.md`（當前任務交付，覆寫式）、`frontend/PROGRESS.md`（前端進度）、`frontend/SESSION_HISTORY.md`（規劃中，前端 Agent 第一版自寫）
+- **前後端分工**：建立完整檔案機制（2026-05-13 / 14）— `frontend/CLAUDE.md`（前端 Agent 規範）、`frontend/context/HANDOFF.md`（後端狀態鏡像，主 Agent 維護）、`frontend/context/DISPATCH.md`（當前任務交付，覆寫式）、`frontend/PROGRESS.md`（前端進度）、`frontend/context/SESSION_HISTORY.md`（前端 Agent 維護）
 - **文件結構**：採 Hybrid — 根目錄文件為跨專案；frontend/ 內為前端開發者深入文件
 - **個人學習筆記**：`learning/` 資料夾（gitignored）— 主 Agent 解釋技術後可存檔
 
 ### 進行中的任務
 
 - 無 in-flight 程式碼修改（主 Agent 端）
-- **Stage B 已派發給前端 Agent**：`frontend/DISPATCH.md` 裝載 CornerstoneJS init 設定任務（task_id: `phase-2-task-8-stage-b`），等待前端 Agent 新 session 起手執行
+- **Stage B 已完成**（commit `8cd61f3`、`acd2ced`）。`frontend/context/DISPATCH.md` 仍裝載 Stage B 內容（status: active 但實際完工）、待主 Agent 派 Stage C 時覆寫
 - 下一個主 Agent 任務（Stage B 完成後）：依前端 Agent 回報之缺口 / 後端需求，評估是否補後端 endpoint（如 `/studies/{id}/series` 或真實 AI mask）；或直接派 Stage C dispatch（DICOM 渲染）
 
 ### 待決定事項

@@ -243,14 +243,16 @@ MedPACS Intelligence Platform/
 │
 ├── frontend/                        # Frontend (React + Vite + TypeScript)
 │   ├── CLAUDE.md                    # 前端 Agent 操作規範
-│   ├── HANDOFF.md                   # 後端狀態鏡像（主 Agent 維護）
-│   ├── DISPATCH.md                  # 當前任務交付（主 Agent 覆寫式）
-│   ├── PROGRESS.md                  # 前端工作進度（5 區塊）
-│   ├── SESSION_HISTORY.md           # 前端 Agent 工作記憶（A/B 兩段）
-│   ├── IMPLEMENTATION.md            # 前端架構詳述（按需查閱）
 │   ├── README.md                    # 前端啟動指南（按需查閱）
-│   ├── archive/                     # 前端歸檔（PROGRESS 超量切過來）
-│   │   └── README.md
+│   ├── PROGRESS.md                  # 前端工作進度（5 區塊）
+│   ├── context/                     # 前端 state 檔（必讀小檔，對稱主 context/）
+│   │   ├── HANDOFF.md               # 後端狀態鏡像（主 Agent 維護）
+│   │   ├── DISPATCH.md              # 當前任務交付（主 Agent 覆寫式）
+│   │   └── SESSION_HISTORY.md       # 前端 Agent 工作記憶（A/B 兩段）
+│   ├── docs/                        # 前端詳細文件（按需查閱，對稱主 docs/）
+│   │   ├── IMPLEMENTATION.md        # 前端架構詳述
+│   │   └── archive/                 # 前端歸檔家（PROGRESS 超量切過來）
+│   │       └── README.md
 │   ├── package.json / package-lock.json
 │   ├── vite.config.ts
 │   ├── tsconfig.*.json
@@ -264,7 +266,7 @@ MedPACS Intelligence Platform/
 │   │   ├── cornerstone/             # Cornerstone 整合（Stage B 已建）
 │   │   │   └── setup.ts
 │   │   ├── components/              # UI 元件（規劃中）
-│   │   ├── context/                 # React Context（規劃中）
+│   │   ├── context/                 # React Context（規劃中，src 子目錄；不要與 frontend/context/ 混淆）
 │   │   ├── api/                     # Backend API client（規劃中）
 │   │   └── assets/
 │   └── node_modules/                # npm 套件（git ignored）

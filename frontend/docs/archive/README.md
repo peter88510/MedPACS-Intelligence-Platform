@@ -1,4 +1,4 @@
-# frontend/archive/
+# frontend/docs/archive/
 
 前端 archive 目錄。當 `frontend/PROGRESS.md`「已完成任務」段累積超過 ~150 行時，由前端 Agent 切到此處保存。
 

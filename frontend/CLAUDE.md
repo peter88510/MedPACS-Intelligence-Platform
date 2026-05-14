@@ -32,10 +32,10 @@
 | # | 文件 | 用途 |
 |---|---|---|
 | 1 | `frontend/CLAUDE.md`（本檔） | 行為規範與角色定位 |
-| 2 | `frontend/HANDOFF.md`（主 Agent 維護） | **持續更新**的後端狀態文件，每次啟動讀最新版 |
-| 3 | `frontend/DISPATCH.md`（主 Agent 維護） | **當前任務交付**；每次新任務會整檔覆蓋 |
+| 2 | `frontend/context/HANDOFF.md`（主 Agent 維護） | **持續更新**的後端狀態文件，每次啟動讀最新版 |
+| 3 | `frontend/context/DISPATCH.md`（主 Agent 維護） | **當前任務交付**；每次新任務會整檔覆蓋 |
 | 4 | `frontend/PROGRESS.md` | 前端工作進度（含已知缺口、後端需求清單） |
-| 5 | `frontend/SESSION_HISTORY.md` | 跨 session 工作記憶（前端 Agent 自己維護） |
+| 5 | `frontend/context/SESSION_HISTORY.md` | 跨 session 工作記憶（前端 Agent 自己維護） |
 
 讀完後，依 `DISPATCH.md` 的當前任務開始工作。
 
@@ -45,7 +45,7 @@
 
 | 文件 | 何時讀 |
 |---|---|
-| `frontend/IMPLEMENTATION.md` | 任務涉及元件設計、Context 設計、API client、CornerstoneJS 整合計畫等架構層 |
+| `frontend/docs/IMPLEMENTATION.md` | 任務涉及元件設計、Context 設計、API client、CornerstoneJS 整合計畫等架構層 |
 | `frontend/README.md` | 任務涉及啟動流程、環境設定、新依賴安裝等工程環境層 |
 
 > **理由**：兩份檔合計 ~895 行（~8K tokens），多數 dispatch 只需要其中一小段。改為按需查閱可降啟動 token 消耗約 40%（從 ~18K 降到 ~11K）。
@@ -228,7 +228,7 @@ PROGRESS.md「已完成」← 加入（含 commit hash 與簡短結果）；從�
   - <bullet 2>
   - <bullet 3-5>
 - **重要禁忌**：<不可動 backend / 不可動 5173 / 不可寫超出 scope 的元件 等>
-- **參考文件**：<frontend/IMPLEMENTATION.md §X、HANDOFF.md §X 等>
+- **參考文件**：<frontend/docs/IMPLEMENTATION.md §X、frontend/context/HANDOFF.md §X 等>
 ```
 
 #### 為何不把完整 DISPATCH 內容複製進 PROGRESS？
@@ -236,7 +236,7 @@ PROGRESS.md「已完成」← 加入（含 commit hash 與簡短結果）；從�
 - DISPATCH 本身已是當前任務的單一入口，前端 Agent 隨時可讀
 - 完整內容進 PROGRESS 會讓檔案肥胖、且 DISPATCH ↔ PROGRESS 兩處有內容、可能不同步
 - 「進行中」段的摘要足夠讓未來閱讀者（含跨 session 的自己）掌握當下脈絡
-- 若需回溯歷史完整 DISPATCH，靠 `git log frontend/DISPATCH.md`
+- 若需回溯歷史完整 DISPATCH，靠 `git log frontend/context/DISPATCH.md`
 
 #### 完成後的處理
 

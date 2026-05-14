@@ -1,4 +1,4 @@
-# frontend/SESSION_HISTORY.md — 前端 Agent 工作記憶
+# frontend/context/SESSION_HISTORY.md — 前端 Agent 工作記憶
 
 > **文件定位**：本檔是**前端 Agent 自己**維護的跨 session 工作記憶。讓「下次 session 起手能無縫接續」。
 >

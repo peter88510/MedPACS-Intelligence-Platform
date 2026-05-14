@@ -1,10 +1,10 @@
-# frontend/HANDOFF.md — 後端狀態鏡像
+# frontend/context/HANDOFF.md — 後端狀態鏡像
 
 > **文件定位**：本檔反映**當下後端狀態**，供前端 Agent 啟動時讀取以了解可用 API、DB Schema、CORS、env var 等資訊。
 >
 > **持續更新**：每次主 Agent 派發前端任務前，必須先更新此檔到最新狀態。前端 Agent **每次 session 啟動都要重讀**，不可假設仍是上次內容。
 >
-> **誰維護**：主 Agent（依根 [`CLAUDE.md`](./CLAUDE.md) §15.5 規定）。**前端 Agent 只讀不寫**。
+> **誰維護**：主 Agent（依根 [`CLAUDE.md`](../../CLAUDE.md) §15.5 規定）。**前端 Agent 只讀不寫**。
 
 ---
 
@@ -87,7 +87,7 @@
 ```
 **Response 500**（後端 / 儲存錯誤）：標準 FastAPI `HTTPException` 格式
 
-> ⚠️ **MVP 期間前端不實作 upload UI**（見 `PLAN.md` §10.5、`frontend/IMPLEMENTATION.md` §11）。Upload 流程仰賴 curl / Postman / 其他工具。
+> ⚠️ **MVP 期間前端不實作 upload UI**（見 `docs/PLAN.md` §10.5、`frontend/docs/IMPLEMENTATION.md` §11）。Upload 流程仰賴 curl / Postman / 其他工具。
 
 ### 3.3 查詢
 

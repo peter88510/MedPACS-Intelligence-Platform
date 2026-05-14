@@ -85,7 +85,7 @@ Stage C（下一階段）才會用 `wadouri:` scheme 呼叫 `GET /instances/{id}
 - ❌ 撈任何 DICOM 並渲染（那是 Stage C）
 - ❌ 寫 `<DicomViewer />` 元件實作（那是 Stage C）
 - ❌ 在 `setup.ts` 內 fetch backend API
-- ❌ 修改 `frontend/DISPATCH.md`（本檔由主 Agent 維護）
+- ❌ 修改 `frontend/context/DISPATCH.md`（本檔由主 Agent 維護）
 
 ---
 

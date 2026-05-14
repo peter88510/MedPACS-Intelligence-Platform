@@ -314,7 +314,7 @@ class AIResult(Base):
 
 ## 10. Frontend 規劃
 
-> 詳細的元件設計、狀態管理、API client、Cornerstone 整合計畫見 [`frontend/IMPLEMENTATION.md`](../frontend/IMPLEMENTATION.md)。本節為策略層摘要。
+> 詳細的元件設計、狀態管理、API client、Cornerstone 整合計畫見 [`frontend/docs/IMPLEMENTATION.md`](../frontend/docs/IMPLEMENTATION.md)。本節為策略層摘要。
 
 ### 10.1 四個業務元件 × API 對應
 
@@ -365,7 +365,7 @@ studies / currentStudyId / currentSeriesId / currentInstanceId / aiResult
 - 套件：`@cornerstonejs/core`、`@cornerstonejs/dicom-image-loader`、`@cornerstonejs/tools`（Cornerstone3D 家族，目前 v4.22.6）
 - 載入 scheme：`wadouri:` 指向 `/instances/{id}/file`
 - Mask overlay：取 `/ai/result/{id}/mask` PNG → 半透明 image layer 疊加
-- 整合分三 Stage：A 安裝、B init 設定、C 第一次渲染（見 `frontend/IMPLEMENTATION.md` §7）
+- 整合分三 Stage：A 安裝、B init 設定、C 第一次渲染（見 `frontend/docs/IMPLEMENTATION.md` §7）
 
 ### 10.5 UX 範圍
 

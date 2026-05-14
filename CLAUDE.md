@@ -535,9 +535,9 @@ except Exception:
 #### 主 Agent 的責任邊界
 
 1. **主 Agent 不干預 `frontend/` 內的開發任務** — 任何 `frontend/` 內的程式碼修改應交由前端 Agent 處理；主 Agent 僅在前端 Agent 回報後端需求時介入後端調整
-2. **分配前端任務前，必須先更新 `frontend/HANDOFF.md`** — 反映最新後端狀態（API 清單、DB schema、env var、CORS 設定等）
-3. **`frontend/HANDOFF.md` 是持續更新的後端狀態文件**，不是一次性交接文件。每次前端任務分配前必須反映當下後端狀態；前端 Agent 每次 session 啟動都會重讀
-4. **遇到前端任務時，主 Agent 整檔覆寫 `frontend/DISPATCH.md`**（不累積歷史；歷史靠 `frontend/PROGRESS.md` 與 git log 追溯）。內容必須含：
+2. **分配前端任務前，必須先更新 `frontend/context/HANDOFF.md`** — 反映最新後端狀態（API 清單、DB schema、env var、CORS 設定等）
+3. **`frontend/context/HANDOFF.md` 是持續更新的後端狀態文件**，不是一次性交接文件。每次前端任務分配前必須反映當下後端狀態；前端 Agent 每次 session 啟動都會重讀
+4. **遇到前端任務時，主 Agent 整檔覆寫 `frontend/context/DISPATCH.md`**（不累積歷史；歷史靠 `frontend/PROGRESS.md` 與 git log 追溯）。內容必須含：
 
 ```markdown
 ---
@@ -553,10 +553,10 @@ status: active
 [目標、具體工作]
 
 ## 相關 API
-[指向 frontend/HANDOFF.md 對應段]
+[指向 frontend/context/HANDOFF.md 對應段]
 
 ## 相關深入文件
-[若任務需要查閱 frontend/IMPLEMENTATION.md / frontend/README.md，
+[若任務需要查閱 frontend/docs/IMPLEMENTATION.md / frontend/README.md，
  在此明確指出章節 / 主題。若不需要，標註「無，本任務以 DISPATCH 自含
  資訊為主」。此欄與 frontend/CLAUDE.md §1.2 按需查閱機制配合 ——
  沒被指向的大檔就不應為此任務載入]
@@ -574,8 +574,8 @@ status: active
    - 更新主專案 `PROGRESS.md`
    - 協調前後端分工、判斷哪些任務交給前端 Agent
    - 定期檢查 `frontend/PROGRESS.md`，並將前端進度同步回主專案 `PROGRESS.md`
-   - 接收前端 Agent 的「後端需求清單」回報，處理後更新 `frontend/HANDOFF.md`
-   - **不寫 `frontend/SESSION_HISTORY.md`**（由前端 Agent 自己維護）；僅可讀以理解前端 mental state
+   - 接收前端 Agent 的「後端需求清單」回報，處理後更新 `frontend/context/HANDOFF.md`
+   - **不寫 `frontend/context/SESSION_HISTORY.md`**（由前端 Agent 自己維護）；僅可讀以理解前端 mental state
 
 #### 前端 Agent 的責任邊界
 
@@ -596,10 +596,10 @@ status: active
 | `frontend/CLAUDE.md` | 工程師 | 偶 | 前端 Agent 規範 |
 | `PROGRESS.md`（根目錄） | 主 Agent | 重大里程碑時 | 跨專案進度 |
 | `SESSION_HISTORY.md`（根目錄） | 主 Agent | 每 session 結尾 | 主 Agent 工作記憶 |
-| `frontend/HANDOFF.md` | 主 Agent | 後端變動 + 派任務前 | 後端狀態鏡像（前端 Agent 只讀） |
-| `frontend/DISPATCH.md` | 主 Agent | 每次派任務（覆寫） | 當前任務交付單 |
+| `frontend/context/HANDOFF.md` | 主 Agent | 後端變動 + 派任務前 | 後端狀態鏡像（前端 Agent 只讀） |
+| `frontend/context/DISPATCH.md` | 主 Agent | 每次派任務（覆寫） | 當前任務交付單 |
 | `frontend/PROGRESS.md` | 前端 Agent | 每次任務完成 | 前端任務進度 + 後端需求清單 |
-| `frontend/SESSION_HISTORY.md` | 前端 Agent | 每 session 結尾 | 前端 Agent 工作記憶 |
+| `frontend/context/SESSION_HISTORY.md` | 前端 Agent | 每 session 結尾 | 前端 Agent 工作記憶 |
 
 #### 衝突處理
 

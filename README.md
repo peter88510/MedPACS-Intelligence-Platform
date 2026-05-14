@@ -254,7 +254,7 @@ npm run dev
 Opens at `http://localhost:5173`. The backend's CORS middleware already allows this origin.
 
 > Frontend developer guide: [`frontend/README.md`](./frontend/README.md)
-> Frontend architecture: [`frontend/IMPLEMENTATION.md`](./frontend/IMPLEMENTATION.md)
+> Frontend architecture: [`frontend/docs/IMPLEMENTATION.md`](./frontend/docs/IMPLEMENTATION.md)
 
 ## Frontend Overview
 
@@ -266,7 +266,7 @@ The frontend is a single-page application (SPA) under `frontend/`:
 - **Styling**: CSS Modules, no UI framework
 - **Backend coupling**: hard-coded `API_BASE = 'http://localhost:8000'` during MVP (env var later)
 
-See [`frontend/IMPLEMENTATION.md`](./frontend/IMPLEMENTATION.md) for component design, Context shape, API client structure, and CornerstoneJS integration plan.
+See [`frontend/docs/IMPLEMENTATION.md`](./frontend/docs/IMPLEMENTATION.md) for component design, Context shape, API client structure, and CornerstoneJS integration plan.
 
 ## API Endpoints
 
