@@ -37,6 +37,12 @@
   - `dicom-parser@1.8.21`
   - Vite pre-bundle 驗證通過、App.tsx smoke test 撤回
   - 已知：6 個 moderate vulnerabilities（transitive deps，需 Cornerstone 上游升級才能消除）
+- [x] **Phase 2 task #8 Stage B：CornerstoneJS 初始化設定**（2026-05-14，commit `<pending>`）
+  - 新增 `src/cornerstone/setup.ts` — export idempotent `initCornerstone()`；以 `initialized` flag + 並發保護的 `initPromise` 確保多次呼叫只實際 init 一次
+  - 修改 `src/main.tsx` — 新增 `bootstrap()` async 函數，render 前 `await initCornerstone()`；包 `.catch()` 防止 unhandled promise rejection
+  - `vite.config.ts` **未動**（Vite pre-bundle 自動處理 `@cornerstonejs/dicom-image-loader`，無 esbuild 衝突）
+  - 驗證：`npm run dev` 啟動 329ms，無 error / warning；curl /、/src/main.tsx、/src/cornerstone/setup.ts 皆回 HTTP 200；Vite log 顯示 dicom-image-loader 成功 optimize
+  - 瀏覽器 DevTools console 驗證**待工程師於瀏覽器確認**（Agent 無法存取瀏覽器）
 
 ### 文件
 
@@ -49,7 +55,7 @@
 
 ## 2. 進行中
 
-> **目前無進行中項目。**
+> **目前無進行中項目。** Stage B 已完成（等待瀏覽器 console 驗證後 commit）。
 
 ---
 
@@ -59,11 +65,6 @@
 
 ### Phase 2 task #8 — CornerstoneJS 整合（接續）
 
-- [ ] **Stage B — Cornerstone init 設定**
-  - 新增 `src/cornerstone/setup.ts`，提供 `initCornerstone()`
-  - `main.tsx` 啟動時呼叫一次
-  - 視需要調整 `vite.config.ts`（worker / wasm / optimizeDeps）
-  - 驗證 dev server 啟動無 error / warning
 - [ ] **Stage C — 第一個 DICOM 渲染**
   - 完成 `<DicomViewer />` 實作
   - 透過 `wadouri:` scheme 從 `/instances/{id}/file` 載入並渲染
