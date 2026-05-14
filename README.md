@@ -33,45 +33,56 @@ A two-tier system for ultrasound DICOM workflow:
 
 ## Project Structure
 
+> Reorganized 2026-05-14 (Phase 1 + 2 doc重組): root-level deep docs moved into `docs/`; cross-session working memory moved into `context/`; frontend mirrors the same `context/` + `docs/` layout. The authoritative full tree lives in [`PROGRESS.md`](./PROGRESS.md) §7.
+
 ```text
 MedPACS Intelligence Platform/
-├── main.py                  # FastAPI entrypoint / API router
-├── config.py                # Pydantic Settings (env loader)
-├── db.py                    # SQLAlchemy engine + session
-├── db_service.py            # DB CRUD (service layer)
-├── models.py                # SQLAlchemy ORM (Patient/Study/Series/Instance)
-├── storage.py               # Storage service interface
-├── storage_backend.py       # Local storage impl (S3 extensible)
-├── requirements.txt         # Python deps
-├── pytest.ini               # pytest config
-├── alembic.ini              # Alembic config (sqlalchemy.url injected at runtime)
-├── alembic/                 # DB migration scripts
-│   ├── env.py               # Loads DATABASE_URL from config.settings
-│   └── versions/            # Migration revisions (baseline + future)
-├── storage/                 # Physical DICOM storage (runtime-created)
-├── validation/              # DICOM validation rules + VALIDATION.md
-├── tests/                   # Backend test suite (pytest, 36 tests)
-├── test_dicom_files/        # Sample DICOM files for tests
+├── main.py / config.py / db.py / db_service.py / models.py
+├── storage.py / storage_backend.py
+├── requirements.txt / pytest.ini / alembic.ini
+├── alembic/                          # DB migration scripts (env.py + versions/)
+├── storage/                          # Physical DICOM storage (runtime-created)
+├── validation/                       # DICOM validation rules
+├── tests/                            # Backend pytest suite (36 tests)
+├── test_dicom_files/                 # Sample DICOM fixtures
 │
-├── frontend/                # Frontend (Phase 2)
-│   ├── README.md            # Frontend dev guide (新手向中文)
-│   ├── IMPLEMENTATION.md    # Frontend architecture (components, Context, API client, Cornerstone)
-│   ├── package.json
-│   ├── vite.config.ts
-│   └── src/                 # App source (components/ / context/ / api/ / cornerstone/)
+├── frontend/                         # Phase 2 frontend (React + Vite + TS + Cornerstone3D)
+│   ├── CLAUDE.md / README.md / PROGRESS.md
+│   ├── context/                      # Small must-read state files
+│   │   ├── HANDOFF.md                # Backend-state mirror (main-Agent maintained)
+│   │   ├── DISPATCH.md               # Current task (overwritten per dispatch)
+│   │   └── SESSION_HISTORY.md        # Frontend-Agent working memory
+│   ├── docs/                         # Detail docs (read on demand)
+│   │   ├── IMPLEMENTATION.md         # Frontend architecture
+│   │   └── archive/                  # Frontend-side archive
+│   ├── package.json / vite.config.ts / tsconfig.*.json
+│   └── src/                          # main.tsx / App.tsx / cornerstone/setup.ts / components/
 │
-├── .env.example             # Environment variable template
-├── README.md                # This file (project overview)
-├── PLAN.md                  # MVP scope + roadmap + non-goals
-├── PROGRESS.md              # Current project status
-├── IMPLEMENTATION.md        # System architecture (backend internals + frontend overview)
-├── docs/                    # Detail docs (read on demand)
-│   └── archive/             # Archived docs (low traffic)
-│       ├── QUICKSTART.md
-│       ├── STORAGE_BACKEND.md
-│       └── COMMIT_GUIDE.md
-├── SESSION_HISTORY.md       # AI session working memory
-└── CLAUDE.md                # AI operating contract
+├── context/                          # Main-Agent small must-read state
+│   └── SESSION_HISTORY.md            # AI session working memory (A/B sections)
+│
+├── docs/                             # Detail docs (read on demand)
+│   ├── PLAN.md                       # MVP scope + roadmap + non-goals
+│   ├── IMPLEMENTATION.md             # System architecture (backend internals + frontend overview)
+│   ├── generated/                    # 🤖 auto-generated (do not hand-edit)
+│   │   ├── api_spec.md               # FastAPI routes (from main.py)
+│   │   └── db_schema.md              # DB schema (from models.py + alembic)
+│   └── archive/                      # Low-traffic archived docs
+│       ├── QUICKSTART.md             # 5-min API walkthrough
+│       ├── STORAGE_BACKEND.md        # Storage backend design
+│       └── COMMIT_GUIDE.md           # Commit flow (superseded by system prompt)
+│
+├── scripts/                          # Tooling
+│   ├── gen_api_spec.py               # → docs/generated/api_spec.md
+│   ├── gen_db_schema.py              # → docs/generated/db_schema.md
+│   └── hooks/pre-commit              # git hook: source change → auto regen
+│
+├── .env.example                      # Env var template (DATABASE_URL / UPLOAD_STORAGE_PATH)
+├── .env                              # Real env config (git ignored)
+├── README.md                         # This file (project overview)
+├── PROGRESS.md                       # Current project status
+├── CLAUDE.md                         # AI operating contract
+└── .venv/                            # Python virtualenv (git ignored)
 ```
 
 ## Setup
