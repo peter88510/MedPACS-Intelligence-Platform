@@ -15,9 +15,11 @@
 5. [後端需求清單格式](#5-後端需求清單格式)
 6. [PROGRESS.md 更新規則](#6-progressmd-更新規則)
 7. [HANDOFF.md 機制](#7-handoffmd-機制)
-8. [與根 CLAUDE.md 的關係](#8-與根-claudemd-的關係)
-9. [待補充規範（TODO）](#9-待補充規範todo)
-10. [文件維護](#10-文件維護)
+8. [DISPATCH.md 機制](#8-dispatchmd-機制)
+9. [SESSION_HISTORY.md 規則](#9-session_historymd-規則)
+10. [與根 CLAUDE.md 的關係](#10-與根-claudemd-的關係)
+11. [待補充規範（TODO）](#11-待補充規範todo)
+12. [文件維護](#12-文件維護)
 
 ---
 
@@ -28,12 +30,14 @@
 | # | 文件 | 用途 |
 |---|---|---|
 | 1 | `frontend/CLAUDE.md`（本檔） | 行為規範與角色定位 |
-| 2 | `HANDOFF.md`（本目錄，主 Agent 維護） | **持續更新**的後端狀態文件，每次啟動都要讀最新版 |
-| 3 | `frontend/PROGRESS.md` | 前端工作進度（含已知缺口、後端需求清單） |
-| 4 | `frontend/IMPLEMENTATION.md` | 前端架構詳述（元件樹、Context、API、CornerstoneJS 計畫） |
-| 5 | `frontend/README.md` | 啟動指令與開發者向新手指引 |
+| 2 | `frontend/HANDOFF.md`（主 Agent 維護） | **持續更新**的後端狀態文件，每次啟動都要讀最新版 |
+| 3 | `frontend/DISPATCH.md`（主 Agent 維護） | **當前任務交付**；每次新任務會整檔覆蓋。前端 Agent 啟動先讀此檔知道要做什麼 |
+| 4 | `frontend/PROGRESS.md` | 前端工作進度（含已知缺口、後端需求清單） |
+| 5 | `frontend/SESSION_HISTORY.md` | 跨 session 工作記憶（前端 Agent 自己維護） |
+| 6 | `frontend/IMPLEMENTATION.md` | 前端架構詳述（元件樹、Context、API、CornerstoneJS 計畫） |
+| 7 | `frontend/README.md` | 啟動指令與開發者向新手指引 |
 
-讀完上述五份文件後，再依主 Agent 交付的任務開始工作。
+讀完上述 7 份文件後，依 `DISPATCH.md` 的當前任務開始工作。
 
 ---
 
@@ -185,23 +189,25 @@
 
 ### 6.4 任務生命週期（待辦 → 進行中 → 已完成）
 
-主 Agent 派發的「【前端任務交付】」prompt 為**一次性訊息**，**不存檔**。前端 Agent 收到後必須把任務的精簡常駐版本寫進 `PROGRESS.md`「進行中」段，作為當下工作狀態的單一真實源。
+主 Agent 派發任務的方式：**整檔覆寫 `DISPATCH.md`**（機制見 §8）。前端 Agent 啟動讀到新版 DISPATCH 後，必須把任務的精簡常駐版本寫進 `PROGRESS.md`「進行中」段，作為當下工作狀態的單一真實源。
 
 #### 工作流
 
 ```
+DISPATCH.md（主 Agent 覆寫） ← 當前任務
+    ↓ 前端 Agent 讀
 PROGRESS.md「待辦」  ← 想做但尚未開工的事
-    ↓ 收到主 Agent dispatch
+    ↓
 PROGRESS.md「進行中」← 加入該任務的精簡摘要（見下方格式）；從「待辦」移除對應項
     ↓ 前端 Agent 完成
 PROGRESS.md「已完成」← 加入（含 commit hash 與簡短結果）；從「進行中」移除
 ```
 
-#### 進行中段格式（從 dispatch 萃取，不是原文複製）
+#### 進行中段格式（從 DISPATCH 萃取，不是原文複製）
 
 ```markdown
 ### <任務名稱>
-- **任務來源**：<YYYY-MM-DD 主 Agent dispatch>
+- **任務來源**：<YYYY-MM-DD DISPATCH.md（task_id: xxx）>
 - **核心工作**：
   - <bullet 1>
   - <bullet 2>
@@ -214,17 +220,19 @@ PROGRESS.md「已完成」← 加入（含 commit hash 與簡短結果）；從�
 - **參考文件**：<frontend/IMPLEMENTATION.md §X、HANDOFF.md §X 等>
 ```
 
-#### 為何不存完整 dispatch？
+#### 為何不把完整 DISPATCH 內容複製進 PROGRESS？
 
-- 完整 dispatch 進 PROGRESS 會讓檔案肥胖、且與 prompt 重複
-- 完整 prompt 可由 commit log + 對話紀錄回溯（commit message 引用任務名稱即可）
-- 「進行中」段的摘要已足夠讓前端 Agent / 後續閱讀者掌握當下脈絡
+- DISPATCH 本身已是當前任務的單一入口，前端 Agent 隨時可讀
+- 完整內容進 PROGRESS 會讓檔案肥胖、且 DISPATCH ↔ PROGRESS 兩處有內容、可能不同步
+- 「進行中」段的摘要足夠讓未來閱讀者（含跨 session 的自己）掌握當下脈絡
+- 若需回溯歷史完整 DISPATCH，靠 `git log frontend/DISPATCH.md`
 
 #### 完成後的處理
 
 1. 從「進行中」搬到「已完成任務」
 2. 加上 commit hash 與一句話結果敘述
 3. 若 dispatch 過程中發現新缺口或後端需求，分別寫進「已知缺口」與「後端需求清單」
+4. **不修改 DISPATCH.md**（即使任務完成）— DISPATCH 由主 Agent 維護，下次新任務時覆寫
 
 ---
 
@@ -251,9 +259,84 @@ PROGRESS.md「已完成」← 加入（含 commit hash 與簡短結果）；從�
 
 ---
 
-## 8. 與根 CLAUDE.md 的關係
+## 8. DISPATCH.md 機制
 
-### 8.1 繼承關係
+### 8.1 性質
+
+- **當前任務交付的單一入口** — 主 Agent 派發新任務時**整檔覆寫**，不累積歷史
+- 前端 Agent 每次啟動必讀（與 HANDOFF 同層級必要性）
+- 完成的舊任務歷史**不留**在 DISPATCH，而是流動到 `PROGRESS.md`「已完成任務」段
+
+### 8.2 預期內容（由主 Agent 維護）
+
+- frontmatter：`issued` / `issued_by` / `task_id` / `status`
+- 任務目標與具體工作
+- 相關 API（指向 HANDOFF.md 的對應段）
+- 注意事項（含禁忌、scope 邊界）
+- 完成標準（checklist）
+- 驗證步驟
+- 回報格式
+
+### 8.3 前端 Agent 對此檔的行為
+
+- ✅ 讀取、依其內容開始工作
+- ✅ 完成後在 `PROGRESS.md` commit 寫上引用（commit hash / task_id）
+- ❌ **不修改 DISPATCH.md**，即使任務完成、即使想加註解
+- ❌ **不依賴 DISPATCH 歷史版本** — 若主 Agent 新覆寫一份，舊任務在 PROGRESS「已完成」應已完成記錄
+
+### 8.4 如何辨識「最新版 DISPATCH」
+
+- 看 frontmatter 的 `issued` 日期
+- 看 frontmatter 的 `status`（`active` / `completed` / `superseded`）
+- 對照 `PROGRESS.md`「進行中」段是否引用同一個 `task_id`
+- 不確定時：問主 Agent
+
+---
+
+## 9. SESSION_HISTORY.md 規則
+
+### 9.1 性質
+
+- **跨 session 工作記憶** — 讓「下次 session 起手能無縫接續」
+- 由**前端 Agent 自己維護**（與主 Agent 維護的 SESSION_HISTORY（根目錄）對稱）
+- 與 `PROGRESS.md` 互補：PROGRESS 是進度追蹤、SESSION_HISTORY 是當下脈絡記憶
+
+### 9.2 結構（建議區塊）
+
+```markdown
+## 系統現況         ← 一段話，前端目前狀態（檔案結構、套件版本、目前能做到的事）
+## 進行中的任務     ← 與 PROGRESS 進行中段對應，但偏 session 視角（什麼正在 in-flight）
+## 已完成里程碑     ← 精選大事，不是所有完成項目（避免與 PROGRESS 「已完成任務」重複）
+## 待決定事項       ← 前端視角的懸而未決（PROGRESS 不一定記）
+## 上次 session 結尾狀態  ← 改了什麼、commit 狀態、下次起手建議
+```
+
+### 9.3 更新時機
+
+- **每次 session 結束前**（推薦），或
+- 完成一個 dispatch 任務後
+
+### 9.4 更新原則
+
+- 只更新有變動的區塊，不重寫整檔
+- 不記錄對話流水帳，只記錄狀態與結論
+- 系統現況應隨重大變動同步（如新套件、新元件、新阻擋）
+- 「結尾狀態」段每次必更新
+
+### 9.5 主 Agent 對此檔的行為
+
+- ✅ 可讀（理解前端目前 mental state、規劃下次 dispatch）
+- ❌ **不寫**（除非緊急修正過時資訊，且需在 commit message 說明）
+
+### 9.6 第一版誰寫？
+
+**前端 Agent 第一次收到 dispatch 收尾時自己寫**。主 Agent 不預先 seed。
+
+---
+
+## 10. 與根 CLAUDE.md 的關係
+
+### 10.1 繼承關係
 
 本檔**繼承**根 [`../CLAUDE.md`](../CLAUDE.md) 的所有通用規則，包含但不限於：
 
@@ -266,19 +349,19 @@ PROGRESS.md「已完成」← 加入（含 commit hash 與簡短結果）；從�
 | §9 安全性與穩定性 | ✅ Input validation 概念在前端也適用（如 URL 參數、user input） |
 | §10 AI 行為控制規範（含 v1.1 新增的「任務完成前的最後檢查」） | ✅ 全部適用 |
 
-### 8.2 本檔補充 / 限縮的部分
+### 10.2 本檔補充 / 限縮的部分
 
 - §1-§3 限縮：適用範圍縮小到 `frontend/`
-- §4-§7 補充：前端特有的協作流程
-- §9 補充：列出待主 Agent 決定的前端規範
+- §4-§9 補充：前端特有的協作流程與檔案機制
+- §11 補充：列出待主 Agent 決定的前端規範
 
-### 8.3 衝突處理
+### 10.3 衝突處理
 
 當本檔規則與根 CLAUDE.md 不一致時，**以根 CLAUDE.md 為準**。發現此情況時應**立即回報主 Agent**，由工程師裁示是否修訂本檔。
 
 ---
 
-## 9. 待補充規範（TODO）
+## 11. 待補充規範（TODO）
 
 以下為**目前未定案**的前端規範。前端 Agent 遇到相關決策時，**必須回報主 Agent 判斷，不可自行決定**。
 
@@ -294,7 +377,7 @@ PROGRESS.md「已完成」← 加入（含 commit hash 與簡短結果）；從�
 
 ---
 
-## 10. 文件維護
+## 12. 文件維護
 
 | 項目 | 說明 |
 |---|---|
