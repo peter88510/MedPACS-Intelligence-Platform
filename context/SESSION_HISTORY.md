@@ -21,6 +21,20 @@
 
 ## A. 系統現況快照（必讀，每次 session 啟動）
 
+### 🔴 下次 session 啟動強制動作（在進入任何任務前先跑）
+
+> 工程師於 2026-05-14 指示：CLAUDE.md v1.2 新規則必須先自我驗證一次再開工。本區塊一旦執行完畢即可刪除。
+
+1. **R4 Stale Warning 自我驗證**（CLAUDE.md §10 R4）— 對下列 Tier 1 文件逐一執行 `git log -1 --format=%cd --date=short -- <path>`，距今 > 30 天則於工作開始前明確 warn 工程師：
+   - `CLAUDE.md`、`frontend/CLAUDE.md`
+   - `context/SESSION_HISTORY.md`、`frontend/context/SESSION_HISTORY.md`
+   - `frontend/context/HANDOFF.md`、`frontend/context/DISPATCH.md`
+   - `PROGRESS.md`、`frontend/PROGRESS.md`
+   - `docs/PLAN.md`
+2. **PROGRESS 觸發式 archive 評估**（CLAUDE.md §15.6）— `wc -l PROGRESS.md frontend/PROGRESS.md`，若任一已 > 150 行 → 立即執行第一次 archive 至 `docs/archive/PROGRESS_2026_Q2.md`（root 由主 Agent 執行；frontend 由前端 Agent 執行，主 Agent 只記錄需求）。未達門檻則記錄當下行數於本檔，下次再評估。
+
+> 完成後在 §B「下次 session 起手建議」標註執行結果（warn 了哪些檔 / archive 是否觸發 / 留待下次），並從 A 段移除本區塊。
+
 ### 系統現況
 
 - **定位**：AI-ready Ultrasound DICOM 平台 MVP（非完整 PACS 替代）
