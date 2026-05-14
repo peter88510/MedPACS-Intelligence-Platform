@@ -64,6 +64,8 @@
 
 含意：DB schema 變動時，response 欄位自動 reflect（無需改 handler）。前端應假設「欄位 ≈ DB 欄位」並參考 `docs/generated/db_schema.md`。
 
+`POST /upload` 例外：response 為 handler 內手組 dict（非 `_row()`），包含 `instance_id`（int，新建 instance 的 DB pk）+ `filename` / `patient_id` / `study_instance_uid` / `modality` / `message`。**`instance_id` 是後續 `/instances/{id}/file` 等 endpoint 的入口參數**（2026-05-14 加入）。
+
 ### 3.2 Error response 兩種格式
 
 | 觸發情境 | 來源 | 格式 |
@@ -167,6 +169,7 @@ Alembic 在 DB 多建一張 `alembic_version`（單欄、單列、記錄目前 m
 | 2026-05-13 | 文件重組（後端 + 前端拆 hybrid 架構）| `IMPLEMENTATION.md` 加 Frontend Overview、`README.md` 拓寬為雙端視角 |
 | 2026-05-13 | 建立前後端分工機制（CLAUDE.md §15.5、`frontend/CLAUDE.md`、本檔）| 前端 Agent 啟動流程改變：必讀本檔最新版 |
 | 2026-05-14 | API spec / DB schema 改為 auto-generated（`docs/generated/`） | 前端應從 generated 檔讀完整 spec；本檔 §3 / §4 退化為「補充說明」，不再 duplicate spec |
+| 2026-05-14 | `POST /upload` response 加 `instance_id`（int、新建 instance 的 DB pk）| 前端任務 #9 的 upload UI（若日後實作）+ MVP 期間工程師驗收都能單一 round-trip 拿到 id，不用繞 psql |
 
 > ⏸ **目前無 in-flight 後端變更**。下次更新時機：當主 Agent 在派發新前端任務前發現有新的 API、schema、env var、CORS 異動時（spec 變動會自動進 `docs/generated/`，本檔 §3.x / §4.x 只在「補充說明」需新增 / 修正時動）。
 

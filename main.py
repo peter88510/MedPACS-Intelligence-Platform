@@ -104,15 +104,16 @@ async def upload(file: UploadFile = File(...), db: Session = Depends(get_db)):
         )
 
         # Create instance record
-        DatabaseService.create_instance(
+        instance = DatabaseService.create_instance(
             db,
             file_path=relative_file_path,
             study_instance_uid=study_instance_uid,
             sop_instance_uid=sop_instance_uid
         )
 
-        # Step 3: Return same response as before (API contract preserved)
+        # Step 3: Return response (instance_id added 2026-05-14 for client drill-down)
         return {
+            "instance_id": instance.id,
             "filename": file.filename,
             "patient_id": patient_id,
             "study_instance_uid": study_instance_uid,

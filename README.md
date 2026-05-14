@@ -296,6 +296,7 @@ Body: file (binary DICOM)
 
 ```json
 {
+  "instance_id": 1,
   "filename": "patient_001.dcm",
   "patient_id": "P12345",
   "study_instance_uid": "1.2.3.4.5.6.7",
@@ -303,6 +304,14 @@ Body: file (binary DICOM)
   "message": "DICOM file uploaded and processed successfully"
 }
 ```
+
+| Field | Type | Notes |
+|---|---|---|
+| `instance_id` | integer | DB primary key of the newly-created instance. Use this to drill down via `GET /instances/{id}` / `/instances/{id}/file` / `/instances/{id}/metadata`. Added 2026-05-14. |
+| `filename` | string | Echoed from upload |
+| `patient_id` | string | DICOM `PatientID` tag value (not the DB primary key) |
+| `study_instance_uid` | string | DICOM `StudyInstanceUID` tag value |
+| `modality` | string | DICOM `Modality` tag value |
 
 ### GET /health
 

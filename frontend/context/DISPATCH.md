@@ -134,7 +134,10 @@ Stage C — **以 hardcoded instance ID + wadouri scheme，從 `GET /instances/{
    ```powershell
    curl.exe -X POST http://localhost:8000/upload -F "file=@<path-to-sample.dcm>"
    ```
-   Response 內取 `id` 欄位（**DB id，整數，不是 SOPInstanceUID**；見 HANDOFF §4.1）
+   Response 內取 **`instance_id`** 欄位（int、DB 主鍵；2026-05-14 加入此欄位、解除「需 psql 繞路」窘境）。範例：
+   ```json
+   { "instance_id": 1, "filename": "...", "patient_id": "...", ... }
+   ```
 
 2. 將該 ID 替換 `App.tsx` 內的 hardcoded 常數
 

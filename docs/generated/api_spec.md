@@ -1,7 +1,7 @@
 <!-- AUTO-GENERATED — DO NOT EDIT -->
 <!-- Source: main.py -->
 <!-- Generator: scripts/gen_api_spec.py -->
-<!-- Last regenerated against git HEAD: f086072 -->
+<!-- Last regenerated against git HEAD: 93f274c -->
 
 # API Spec (Generated)
 
@@ -14,49 +14,49 @@
 
 ## `GET /ai/result/{id}`
 
-**Handler**: `main.py:ai_result` (line 204)
+**Handler**: `main.py:ai_result` (line 205)
 
 _(no docstring)_
 
 ## `POST /ai/segment/{id}`
 
-**Handler**: `main.py:ai_segment` (line 191)
+**Handler**: `main.py:ai_segment` (line 192)
 
 _(no docstring)_
 
 ## `GET /health`
 
-**Handler**: `main.py:health_check` (line 129)
+**Handler**: `main.py:health_check` (line 130)
 
 Health check endpoint.
 
 ## `GET /instances/{id}`
 
-**Handler**: `main.py:get_instance` (line 157)
+**Handler**: `main.py:get_instance` (line 158)
 
 _(no docstring)_
 
 ## `GET /instances/{id}/file`
 
-**Handler**: `main.py:download_instance_file` (line 169)
+**Handler**: `main.py:download_instance_file` (line 170)
 
 _(no docstring)_
 
 ## `GET /instances/{id}/metadata`
 
-**Handler**: `main.py:get_instance_meta` (line 183)
+**Handler**: `main.py:get_instance_meta` (line 184)
 
 _(no docstring)_
 
 ## `GET /series/{id}`
 
-**Handler**: `main.py:get_series` (line 149)
+**Handler**: `main.py:get_series` (line 150)
 
 _(no docstring)_
 
 ## `GET /studies`
 
-**Handler**: `main.py:list_studies` (line 143)
+**Handler**: `main.py:list_studies` (line 144)
 
 _(no docstring)_
 

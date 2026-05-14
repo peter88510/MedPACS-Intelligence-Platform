@@ -69,6 +69,7 @@ def test_upload_with_valid_dicom(tmp_path, db_client):
     assert data["patient_id"] == "TEST_PATIENT_001"
     assert data["study_instance_uid"] == "1.2.3.4.5.6.7"
     assert data["modality"] == "US"
+    assert isinstance(data["instance_id"], int) and data["instance_id"] > 0
 
 
 def test_upload_stores_file_locally(tmp_path, monkeypatch, db_client):
