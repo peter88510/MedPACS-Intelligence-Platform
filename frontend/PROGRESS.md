@@ -37,7 +37,7 @@
   - `dicom-parser@1.8.21`
   - Vite pre-bundle 驗證通過、App.tsx smoke test 撤回
   - 已知：6 個 moderate vulnerabilities（transitive deps，需 Cornerstone 上游升級才能消除）
-- [x] **Phase 2 task #8 Stage B：CornerstoneJS 初始化設定**（2026-05-14，commit `<pending>`）
+- [x] **Phase 2 task #8 Stage B：CornerstoneJS 初始化設定**（2026-05-14，commit `8cd61f3`）
   - 新增 `src/cornerstone/setup.ts` — export idempotent `initCornerstone()`；以 `initialized` flag + 並發保護的 `initPromise` 確保多次呼叫只實際 init 一次
   - 修改 `src/main.tsx` — 新增 `bootstrap()` async 函數，render 前 `await initCornerstone()`；包 `.catch()` 防止 unhandled promise rejection
   - `vite.config.ts` **未動**（Vite pre-bundle 自動處理 `@cornerstonejs/dicom-image-loader`，無 esbuild 衝突）

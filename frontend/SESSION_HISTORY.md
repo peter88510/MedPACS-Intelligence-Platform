@@ -41,7 +41,7 @@
 
 - **Phase 2 task #7（2026-05-13, `2d055de`）** — React + Vite + TS 專案骨架
 - **Phase 2 task #8 Stage A（2026-05-13, `83b8c9a`）** — 安裝 4 個 Cornerstone 套件、Vite pre-bundle 驗證
-- **Phase 2 task #8 Stage B（2026-05-14, `<pending commit>`）** — `setup.ts` + `main.tsx` 改造完成，dev server 端驗證乾淨
+- **Phase 2 task #8 Stage B（2026-05-14, `8cd61f3`）** — `setup.ts` + `main.tsx` 改造完成，dev server 端驗證乾淨
 
 ---
 
