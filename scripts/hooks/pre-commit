@@ -1,0 +1,59 @@
+#!/usr/bin/env bash
+# pre-commit hook — auto-regenerate docs/generated/*.md when sources change.
+#
+# Install (one-time per clone):
+#     git config core.hooksPath scripts/hooks
+#
+# This hook is bash; works in Git Bash on Windows, native bash on macOS / Linux.
+
+set -euo pipefail
+
+# Detect what's staged
+staged=$(git diff --cached --name-only)
+
+api_changed=false
+schema_changed=false
+
+while IFS= read -r f; do
+  case "$f" in
+    main.py)
+      api_changed=true
+      ;;
+    models.py|alembic/versions/*.py)
+      schema_changed=true
+      ;;
+  esac
+done <<< "$staged"
+
+# Nothing relevant — exit
+if ! $api_changed && ! $schema_changed; then
+  exit 0
+fi
+
+# Locate Python (prefer project venv)
+if [ -x ".venv/Scripts/python.exe" ]; then
+  PYTHON=".venv/Scripts/python.exe"
+elif [ -x ".venv/bin/python" ]; then
+  PYTHON=".venv/bin/python"
+elif command -v python >/dev/null 2>&1; then
+  PYTHON="python"
+else
+  echo "❌ pre-commit: no python found (.venv not active, no system python)"
+  echo "   Manually regenerate docs/generated/*.md before committing."
+  exit 1
+fi
+
+# Regenerate as needed
+if $api_changed; then
+  echo "→ pre-commit: main.py changed, regenerating api_spec.md"
+  "$PYTHON" scripts/gen_api_spec.py
+  git add docs/generated/api_spec.md
+fi
+
+if $schema_changed; then
+  echo "→ pre-commit: schema source changed, regenerating db_schema.md"
+  "$PYTHON" scripts/gen_db_schema.py
+  git add docs/generated/db_schema.md
+fi
+
+exit 0

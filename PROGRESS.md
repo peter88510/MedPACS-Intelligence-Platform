@@ -277,10 +277,19 @@ MedPACS Intelligence Platform/
 ├── docs/                            # 詳細文件（按需查閱、非啟動必讀）
 │   ├── PLAN.md                      # MVP 開發規劃
 │   ├── IMPLEMENTATION.md            # 系統架構（backend 內部 + frontend 摘要）
+│   ├── generated/                   # 🤖 自動生成（禁人工編輯）
+│   │   ├── api_spec.md              # FastAPI routes（from main.py）
+│   │   └── db_schema.md             # DB schema（from models.py + alembic）
 │   └── archive/                     # 歸檔文件（低頻使用）
 │       ├── QUICKSTART.md            # 5 分鐘雙端啟動
 │       ├── STORAGE_BACKEND.md       # 儲存後端設計
 │       └── COMMIT_GUIDE.md          # Commit 流程（已由系統 prompt 接手）
+│
+├── scripts/                         # 工具腳本
+│   ├── gen_api_spec.py              # 產生 docs/generated/api_spec.md
+│   ├── gen_db_schema.py             # 產生 docs/generated/db_schema.md
+│   └── hooks/
+│       └── pre-commit               # git hook（偵測 source 變動 → 自動 regen）
 │
 ├── pytest.ini                       # pytest 配置
 ├── requirements.txt                 # Python 依賴清單

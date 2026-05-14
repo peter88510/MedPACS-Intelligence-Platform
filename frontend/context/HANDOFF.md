@@ -53,151 +53,58 @@
 
 ## 3. 可用 API Endpoint
 
-> 所有 endpoint 來自 `main.py`。底下 schema 為實際 response 結構（含欄位順序）；型別參考 `models.py` 與 `db_service.py`。
+> **完整 endpoint 清單**（path / method / handler / line / docstring）由 generator 自動從 `main.py` 抓出：
+> → [`../../docs/generated/api_spec.md`](../../docs/generated/api_spec.md)（**權威來源、自動產生**）
+>
+> 本節僅補充 generator 抓不到的設計細節。
 
-### 3.1 系統
+### 3.1 Response 欄位由 `_row()` helper 推導
 
-#### `GET /health`
+查詢類 endpoint（`/studies`、`/series/{id}`、`/instances/{id}`、`/instances/{id}/metadata`）使用 `main.py:_row()` helper 從 ORM `__dict__` 還原，**回傳所有非 `_sa_instance_state` 欄位**。
 
-**用途**：liveness check
-**Response 200**：
-```json
-{ "status": "ok", "version": "2.0" }
-```
+含意：DB schema 變動時，response 欄位自動 reflect（無需改 handler）。前端應假設「欄位 ≈ DB 欄位」並參考 `docs/generated/db_schema.md`。
 
-### 3.2 Upload
+### 3.2 Error response 兩種格式
 
-#### `POST /upload`
+| 觸發情境 | 來源 | 格式 |
+|---|---|---|
+| DICOM 驗證失敗（`POST /upload`） | `JSONResponse` | `{"error": "..."}` |
+| 其他錯誤（404、500、`InvalidDicomError`...） | FastAPI `HTTPException` | `{"detail": "..."}` |
 
-**用途**：上傳 DICOM 檔（multipart）
-**Body**：`multipart/form-data` with field `file` (binary DICOM)
-**Response 200**：
-```json
-{
-  "filename": "patient_001.dcm",
-  "patient_id": "P12345",
-  "study_instance_uid": "1.2.3.4.5.6.7",
-  "modality": "US",
-  "message": "DICOM file uploaded and processed successfully"
-}
-```
-**Response 400**（驗證失敗 / 非合法 DICOM）：
-```json
-{ "error": "Missing or empty required DICOM field: PixelData" }
-```
-**Response 500**（後端 / 儲存錯誤）：標準 FastAPI `HTTPException` 格式
+前端錯誤處理要區分這兩個欄位名稱。
 
-> ⚠️ **MVP 期間前端不實作 upload UI**（見 `docs/PLAN.md` §10.5、`frontend/docs/IMPLEMENTATION.md` §11）。Upload 流程仰賴 curl / Postman / 其他工具。
+### 3.3 Stub endpoints 限制（Phase 3 才會接通）
 
-### 3.3 查詢
+| Endpoint | 目前行為 |
+|---|---|
+| `POST /ai/segment/{id}` | 不實際做事，僅回 `{"instance_id": id, "status": "queued", "message": "Segmentation job accepted (stub)"}` |
+| `GET /ai/result/{id}` | 永遠回固定 mock：`{"instance_id": id, "status": "completed", "result": {"mask": "stub_mask_data", "confidence": 0.95}}` |
 
-#### `GET /studies`
+⚠️ `result.mask` 是**字串** `"stub_mask_data"`，**不是真實 PNG URL**。前端 mask overlay 渲染卡在這（見 §6）。
 
-**用途**：列出所有 study
-**Response 200**：
-```json
-{
-  "studies": [
-    { "id": 1, "study_instance_uid": "1.2.840...", "patient_id": "P12345", "modality": "US", "created_at": "..." },
-    ...
-  ]
-}
-```
+### 3.4 Upload UI 不在 MVP 範圍
 
-> **欄位順序與型別由 `_row()` helper 從 ORM `__dict__` 還原**；目前回傳所有非 `_sa_instance_state` 欄位。若後端 schema 異動，response 會自動 reflect。
-
-#### `GET /series/{id}`
-
-**用途**：依 DB primary key 取單一 series
-**URL param**：`id` (int) — Series 表的 DB id（非 UID）
-**Response 200**：Series ORM dump
-```json
-{ "id": 10, "series_instance_uid": "1.2.3.4", "study_instance_uid": "1.2.3", "created_at": "..." }
-```
-**Response 404**：
-```json
-{ "detail": "Series with id 99 not found" }
-```
-
-#### `GET /instances/{id}`
-
-**用途**：依 DB primary key 取單一 instance
-**URL param**：`id` (int)
-**Response 200**：
-```json
-{ "id": 100, "sop_instance_uid": "1.2.3.4.5", "file_path": "P001/1.2.3/file.dcm", "study_instance_uid": "1.2.3", "created_at": "..." }
-```
-**Response 404**：同上
-
-### 3.4 Viewer-facing
-
-#### `GET /instances/{id}/file`
-
-**用途**：下載原始 DICOM 檔（給 CornerstoneJS `wadouri:` 使用）
-**URL param**：`id` (int)
-**Response 200**：
-- `Content-Type: application/dicom`
-- Body: binary DICOM
-- Header: `Content-Disposition: attachment; filename=...`
-**Response 404**：instance 不存在 **或** 檔案不在 disk
-
-#### `GET /instances/{id}/metadata`
-
-**用途**：取 instance metadata（flat dict）給 MetadataPanel 顯示
-**URL param**：`id` (int)
-**Response 200**：
-```json
-{ "id": 100, "sop_instance_uid": "1.2.3.4.5", "file_path": "...", "study_instance_uid": "1.2.3", "created_at": "..." }
-```
-**Response 404**：同上
-
-### 3.5 AI（**目前皆為 stub**）
-
-#### `POST /ai/segment/{id}`
-
-**用途**：觸發 AI 分割（目前為 stub）
-**URL param**：`id` (int)
-**Response 200**（stub）：
-```json
-{ "instance_id": 1, "status": "queued", "message": "Segmentation job accepted (stub)" }
-```
-**Response 404**：instance 不存在
-
-⚠️ **Stub limitation**：實際無分割邏輯、無 DB 寫入、無 mask 產生。Phase 3 才會接通 PyTorch。
-
-#### `GET /ai/result/{id}`
-
-**用途**：取 AI 分割結果（目前為 stub）
-**URL param**：`id` (int)
-**Response 200**（stub）：
-```json
-{ "instance_id": 1, "status": "completed", "result": { "mask": "stub_mask_data", "confidence": 0.95 } }
-```
-
-⚠️ **Stub limitation**：永遠回相同的 mock 結果，不論是否曾呼叫過 `POST /ai/segment`。`result.mask` 是字串 `"stub_mask_data"`，**不是真實 PNG URL**。
+> ⚠️ MVP 期間前端不實作 upload UI（見 `docs/PLAN.md` §10.5、`frontend/docs/IMPLEMENTATION.md` §11）。Upload 流程仰賴 curl / Postman / 其他工具。但 backend `POST /upload` 仍是完整實作（非 stub）。
 
 ---
 
 ## 4. DB Schema
 
-> 由 Alembic 管理（baseline migration `20809e26d134`）。詳見 `IMPLEMENTATION.md` 的 Database Schema 章節。
+> **完整 schema**（欄位、型別、PK / Unique / Index / FK、最新 Alembic revision）由 generator 自動從 `models.py` + alembic 抓出：
+> → [`../../docs/generated/db_schema.md`](../../docs/generated/db_schema.md)（**權威來源、自動產生**）
+>
+> 本節僅補充 generator 抓不到的設計細節。
 
-### 4 個表 + Alembic 追蹤表
+### 4.1 DB id vs DICOM UID 語義差別（前端必懂）
 
-| Table | PK | Unique | FK | 備註 |
-|---|---|---|---|---|
-| `patients` | `id` | `patient_id` | — | Patient upsert key |
-| `studies` | `id` | `study_instance_uid` | `patient_id` → `patients.patient_id` | 含 `modality` |
-| `series` | `id` | （無）| `study_instance_uid` → `studies.study_instance_uid` | `series_instance_uid` 有 index 但**不 unique** |
-| `instances` | `id` | `sop_instance_uid` | `study_instance_uid` → `studies.study_instance_uid` | 含 `file_path` 相對路徑 |
-| `alembic_version` | `version_num` | — | — | Alembic 內部使用、前端無關 |
+- **DB primary key (`id`)**：自增整數，每張表獨立 — **大部分 endpoint URL 使用此 ID**
+- **DICOM UID**（`study_instance_uid` / `series_instance_uid` / `sop_instance_uid`）：醫療影像產業標準的唯一識別字串，跨表用來建立關聯
 
-### 前端要注意的 ID 語義差別
+前端 fetch 時：用 `/instances/{db_id}`，**不要**用 SOPInstanceUID 當 URL 參數。
 
-- **DB primary key (`id`)**：自增整數，每張表獨立 — 大部分 endpoint URL 使用此 ID
-- **DICOM UID（`study_instance_uid` / `series_instance_uid` / `sop_instance_uid`）**：醫療影像產業標準的唯一識別字串，跨表用來建立關聯
+### 4.2 alembic_version 表（generator 不列）
 
-前端 fetch 時：**用 DB id**（如 `/instances/{id}`），不要直接用 SOPInstanceUID 當 URL 參數。
+Alembic 在 DB 多建一張 `alembic_version`（單欄、單列、記錄目前 migration revision）。**前端無關**、不會出現在任何 API。`docs/generated/db_schema.md` 由 `Base.metadata.tables` 推導，**不含**此表 — 描述正確。
 
 ---
 
@@ -259,8 +166,9 @@
 | 2026-05-12 | in-memory SQLite + StaticPool（測試用）| 不影響前端 |
 | 2026-05-13 | 文件重組（後端 + 前端拆 hybrid 架構）| `IMPLEMENTATION.md` 加 Frontend Overview、`README.md` 拓寬為雙端視角 |
 | 2026-05-13 | 建立前後端分工機制（CLAUDE.md §15.5、`frontend/CLAUDE.md`、本檔）| 前端 Agent 啟動流程改變：必讀本檔最新版 |
+| 2026-05-14 | API spec / DB schema 改為 auto-generated（`docs/generated/`） | 前端應從 generated 檔讀完整 spec；本檔 §3 / §4 退化為「補充說明」，不再 duplicate spec |
 
-> ⏸ **目前無 in-flight 後端變更**。下次更新時機：當主 Agent 在派發新前端任務前發現有新的 API、schema、env var、CORS 異動時。
+> ⏸ **目前無 in-flight 後端變更**。下次更新時機：當主 Agent 在派發新前端任務前發現有新的 API、schema、env var、CORS 異動時（spec 變動會自動進 `docs/generated/`，本檔 §3.x / §4.x 只在「補充說明」需新增 / 修正時動）。
 
 ---
 
