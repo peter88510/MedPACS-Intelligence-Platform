@@ -27,7 +27,7 @@ MedDICOMParseAPI/
 ├── pytest.ini               (NEW) testpaths + pythonpath 設定
 ├── .env.example             (UPDATED)
 ├── README.md                (UPDATED)
-├── QUICKSTART.md            (UPDATED) 測試指令改為 pytest tests/ -v
+├── docs/archive/QUICKSTART.md (UPDATED) 測試指令改為 pytest tests/ -v
 └── tests/                   (NEW) 測試目錄
     ├── conftest.py          (NEW) 共用工廠函式 _FakeRow / make_*()
     ├── test_dicom_service.py (MOVED) 從根目錄移入

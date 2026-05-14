@@ -555,6 +555,12 @@ status: active
 ## 相關 API
 [指向 frontend/HANDOFF.md 對應段]
 
+## 相關深入文件
+[若任務需要查閱 frontend/IMPLEMENTATION.md / frontend/README.md，
+ 在此明確指出章節 / 主題。若不需要，標註「無，本任務以 DISPATCH 自含
+ 資訊為主」。此欄與 frontend/CLAUDE.md §1.2 按需查閱機制配合 ——
+ 沒被指向的大檔就不應為此任務載入]
+
 ## 注意事項
 [禁忌、scope 邊界]
 

@@ -65,8 +65,11 @@ MedPACS Intelligence Platform/
 ├── PLAN.md                  # MVP scope + roadmap + non-goals
 ├── PROGRESS.md              # Current project status
 ├── IMPLEMENTATION.md        # System architecture (backend internals + frontend overview)
-├── QUICKSTART.md            # 5-minute setup (both sides)
-├── STORAGE_BACKEND.md       # Storage backend design
+├── docs/                    # Detail docs (read on demand)
+│   └── archive/             # Archived docs (low traffic)
+│       ├── QUICKSTART.md
+│       ├── STORAGE_BACKEND.md
+│       └── COMMIT_GUIDE.md
 ├── SESSION_HISTORY.md       # AI session working memory
 └── CLAUDE.md                # AI operating contract
 ```

@@ -25,19 +25,30 @@
 
 ## 1. 啟動時必讀文件
 
-**每次 session 開始**（不只是初次交接），前端 Agent 必須依序讀取：
+### 1.1 必讀（每次 session 啟動）
+
+下列 **5 份**為前端 Agent 啟動的最小工作集，**每次 session 開始都要讀**：
 
 | # | 文件 | 用途 |
 |---|---|---|
 | 1 | `frontend/CLAUDE.md`（本檔） | 行為規範與角色定位 |
-| 2 | `frontend/HANDOFF.md`（主 Agent 維護） | **持續更新**的後端狀態文件，每次啟動都要讀最新版 |
-| 3 | `frontend/DISPATCH.md`（主 Agent 維護） | **當前任務交付**；每次新任務會整檔覆蓋。前端 Agent 啟動先讀此檔知道要做什麼 |
+| 2 | `frontend/HANDOFF.md`（主 Agent 維護） | **持續更新**的後端狀態文件，每次啟動讀最新版 |
+| 3 | `frontend/DISPATCH.md`（主 Agent 維護） | **當前任務交付**；每次新任務會整檔覆蓋 |
 | 4 | `frontend/PROGRESS.md` | 前端工作進度（含已知缺口、後端需求清單） |
 | 5 | `frontend/SESSION_HISTORY.md` | 跨 session 工作記憶（前端 Agent 自己維護） |
-| 6 | `frontend/IMPLEMENTATION.md` | 前端架構詳述（元件樹、Context、API、CornerstoneJS 計畫） |
-| 7 | `frontend/README.md` | 啟動指令與開發者向新手指引 |
 
-讀完上述 7 份文件後，依 `DISPATCH.md` 的當前任務開始工作。
+讀完後，依 `DISPATCH.md` 的當前任務開始工作。
+
+### 1.2 按需查閱（僅當任務指引指向時讀）
+
+下列文件**不在啟動必讀範圍**，避免重複載入大份文件。當 `DISPATCH.md`「相關深入文件」段落指向、或開發過程明確需要時才讀：
+
+| 文件 | 何時讀 |
+|---|---|
+| `frontend/IMPLEMENTATION.md` | 任務涉及元件設計、Context 設計、API client、CornerstoneJS 整合計畫等架構層 |
+| `frontend/README.md` | 任務涉及啟動流程、環境設定、新依賴安裝等工程環境層 |
+
+> **理由**：兩份檔合計 ~895 行（~8K tokens），多數 dispatch 只需要其中一小段。改為按需查閱可降啟動 token 消耗約 40%（從 ~18K 降到 ~11K）。
 
 ---
 
@@ -272,6 +283,7 @@ PROGRESS.md「已完成」← 加入（含 commit hash 與簡短結果）；從�
 - frontmatter：`issued` / `issued_by` / `task_id` / `status`
 - 任務目標與具體工作
 - 相關 API（指向 HANDOFF.md 的對應段）
+- **相關深入文件**（指引前端 Agent 何時該載入 §1.2 的按需查閱文件；若不需要也要明寫「無」）
 - 注意事項（含禁忌、scope 邊界）
 - 完成標準（checklist）
 - 驗證步驟

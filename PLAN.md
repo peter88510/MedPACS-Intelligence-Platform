@@ -5,7 +5,7 @@
 > **責任邊界（避免與其他文件重複）**：
 > - 「已完成什麼 / 進度狀態」 → [PROGRESS.md](./PROGRESS.md)
 > - 「AI 行為規範 / Coding 約束」 → [CLAUDE.md](./CLAUDE.md)
-> - 「快速啟動 / API 操作範例」 → [QUICKSTART.md](./QUICKSTART.md)
+> - 「快速啟動 / API 操作範例」 → [docs/archive/QUICKSTART.md](./docs/archive/QUICKSTART.md)
 > - 「系統架構詳細實作」 → [IMPLEMENTATION.md](./IMPLEMENTATION.md)
 >
 > **更新觸發條件**：MVP scope 變動 / 新模組規劃 / API 設計變更 / Non-goal 重新評估。

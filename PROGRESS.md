@@ -1,7 +1,7 @@
 # PROGRESS.md — 專案現況 (Project Status)
 
 > **文件定位**：本檔僅記錄「狀態與進度」。
-> 架構說明請見 [IMPLEMENTATION.md](./IMPLEMENTATION.md)、操作教學請見 [QUICKSTART.md](./QUICKSTART.md)、AI 行為約束請見 [CLAUDE.md](./CLAUDE.md)。
+> 架構說明請見 [IMPLEMENTATION.md](./IMPLEMENTATION.md)、操作教學請見 [docs/archive/QUICKSTART.md](./docs/archive/QUICKSTART.md)、AI 行為約束請見 [CLAUDE.md](./CLAUDE.md)。
 >
 > **更新規則**：每完成一項任務、變更狀態、或調整下一步時，同步更新本檔。
 
@@ -61,8 +61,8 @@
 ### 文件
 - [x] README.md — 功能概覽與設置指南
 - [x] IMPLEMENTATION.md — 架構與模組責任
-- [x] QUICKSTART.md — 5 分鐘 API 操作範例
-- [x] STORAGE_BACKEND.md — 儲存後端設計與 S3 遷移指南
+- [x] QUICKSTART.md — 5 分鐘 API 操作範例（2026-05-14 移至 docs/archive/）
+- [x] STORAGE_BACKEND.md — 儲存後端設計與 S3 遷移指南（2026-05-14 移至 docs/archive/）
 - [x] CLAUDE.md — AI 操作規範
 - [x] PLAN.md — MVP 開發規劃（scope / architecture / API / roadmap / non-goals）
 
@@ -268,8 +268,11 @@ MedPACS Intelligence Platform/
 │
 ├── README.md                        # 項目概覽與雙端啟動指引
 ├── IMPLEMENTATION.md                # 系統架構（含 backend 內部 + frontend 摘要）
-├── QUICKSTART.md                    # 5 分鐘雙端啟動
-├── STORAGE_BACKEND.md               # 儲存後端設計與遷移指南
+├── docs/                            # 詳細文件（按需查閱、非啟動必讀）
+│   └── archive/                     # 歸檔文件（低頻使用）
+│       ├── QUICKSTART.md            # 5 分鐘雙端啟動
+│       ├── STORAGE_BACKEND.md       # 儲存後端設計與遷移指南
+│       └── COMMIT_GUIDE.md          # Commit 流程規範（已由系統 prompt 接手）
 ├── CLAUDE.md                        # AI 操作規範（行為約束）
 ├── PLAN.md                          # MVP 開發規劃（scope / architecture / roadmap）
 ├── PROGRESS.md                      # 本檔（專案現況）
