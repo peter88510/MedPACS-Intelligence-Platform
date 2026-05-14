@@ -24,25 +24,27 @@
 ### 系統現況
 
 - **定位**：AI-ready Ultrasound DICOM 平台 MVP（非完整 PACS 替代）
-- **階段**：**Phase 2 進行中** — 前端骨架就位（Vite + React 19 + TS 6）、CornerstoneJS 套件已安裝（Stage A 完成）。Stage B（init 設定）已 dispatch，待前端 Agent 接手
+- **階段**：**Phase 2 進行中** — 前端骨架就位、Cornerstone Stage A 完成、Stage B 已 dispatch 待前端 Agent 接手。**AI 工作流優化 Phase 1-4 完成**（2026-05-14）
 - **Backend**：FastAPI + PostgreSQL + SQLAlchemy + pydicom，9 個 API endpoints 中 7 個完整實作、2 個（`/ai/segment/{id}`、`/ai/result/{id}`）為 stub
 - **CORS**：✅ dev allow `http://localhost:5173`（Vite default）
 - **驗證層**：6 個必填欄位全部就位（PatientID / StudyInstanceUID / SeriesInstanceUID / SOPInstanceUID / Modality / PixelData）+ Modality 白名單（US）
-- **Frontend**：✅ scaffold 完成（React 19 + Vite 8 + TS 6 + Cornerstone3D v4.22 已裝）；元件未實作；DISPATCH.md 裝載 Stage B 任務待執行
+- **Frontend**：✅ scaffold 完成（React 19 + Vite 8 + TS 6 + Cornerstone3D v4.22 已裝）；元件未實作；`frontend/context/DISPATCH.md` 裝載 Stage B 任務待執行
 - **AI 推論**：尚未實作（Phase 3 任務）
 - **測試**：36 個測試（單元 9 / 整合 6 / API 21），用 in-memory SQLite + StaticPool 隔離。前端尚無測試套件
 - **儲存**：本地檔案系統（`storage/{patient}/{study}/{filename}.dcm`），已透過 `StorageBackend` 抽象預留 S3 接口
-- **DB Migration 工具**：✅ Alembic 已導入（2026-05-12），baseline migration 涵蓋四表
-- **AI 操作規範**：CLAUDE.md **v1.1**（2026-05-12）— 加入 §10「任務完成前的最後檢查」與 §8「README.md 評估補充規範」；2026-05-13 加入 §15.5「前後端分工機制」
-- **前後端分工**：建立完整檔案機制（2026-05-13 / 14）— `frontend/CLAUDE.md`（前端 Agent 規範）、`frontend/context/HANDOFF.md`（後端狀態鏡像，主 Agent 維護）、`frontend/context/DISPATCH.md`（當前任務交付，覆寫式）、`frontend/PROGRESS.md`（前端進度）、`frontend/context/SESSION_HISTORY.md`（前端 Agent 維護）
-- **文件結構**：採 Hybrid — 根目錄文件為跨專案；frontend/ 內為前端開發者深入文件
+- **DB Migration 工具**：✅ Alembic 已導入（2026-05-12），baseline migration `20809e26d134` 涵蓋四表
+- **AI 操作規範**：CLAUDE.md **v1.2**（2026-05-14、commit `688f098`）— v1.1 之上再加 R3 Doc Impact 檢測 / R4 Stale Warning / §15.6 PROGRESS 觸發式 archive；§8 風險說明表格化
+- **文件結構（Hybrid）**：根目錄為跨專案文件、`docs/` 為後端深入文件（PLAN、IMPLEMENTATION）、`docs/generated/` 為 auto-gen 權威來源（api_spec.md / db_schema.md）、`docs/archive/` 為歷史備檔；frontend/ 鏡像同樣結構
+- **前後端分工**：完整檔案機制 — `frontend/CLAUDE.md` v1.1（前端規範）、`frontend/context/HANDOFF.md`（後端狀態鏡像、主 Agent 維護）、`frontend/context/DISPATCH.md`（覆寫式任務交付）、`frontend/PROGRESS.md`、`frontend/context/SESSION_HISTORY.md`（前端 Agent 維護）
+- **自動化機制**：`scripts/hooks/pre-commit`（git config core.hooksPath 已啟用）偵測 `main.py` / `models.py` / `alembic/versions/*.py` 變動 → 自動 regenerate `docs/generated/` 並 `git add`
 - **個人學習筆記**：`learning/` 資料夾（gitignored）— 主 Agent 解釋技術後可存檔
 
 ### 進行中的任務
 
 - 無 in-flight 程式碼修改（主 Agent 端）
+- AI 工作流優化 Phase 1-4 全部完成 + 已 push（CLAUDE.md v1.2 啟用）
 - **Stage B 已完成**（commit `8cd61f3`、`acd2ced`）。`frontend/context/DISPATCH.md` 仍裝載 Stage B 內容（status: active 但實際完工）、待主 Agent 派 Stage C 時覆寫
-- 下一個主 Agent 任務（Stage B 完成後）：依前端 Agent 回報之缺口 / 後端需求，評估是否補後端 endpoint（如 `/studies/{id}/series` 或真實 AI mask）；或直接派 Stage C dispatch（DICOM 渲染）
+- 下一個主 Agent 任務：(a) 評估 PROGRESS 是否需立刻觸發第一次 archive（§15.6 規則）；(b) 依前端 Agent 回報之缺口 / 後端需求，評估是否補後端 endpoint（如 `/studies/{id}/series` 或真實 AI mask）；(c) 派 Stage C dispatch（DICOM 渲染）
 
 ### 待決定事項
 
@@ -90,35 +92,43 @@
   - `frontend/PROGRESS.md`（5 區塊：已完成/進行中/待辦/已知缺口/後端需求清單）
   - `frontend/SESSION_HISTORY.md`（規劃中，前端 Agent 第一次 dispatch 收尾自寫）
   - 任務生命週期：DISPATCH 覆寫 → 前端 Agent 萃取摘要進 PROGRESS 進行中 → 完成移到已完成（含 commit hash）
+- **M13 — AI 工作流優化 Phase 1（Hybrid Doc 重組）**（2026-05-14）：
+  - 根目錄文件搬遷：`PLAN.md` → `docs/PLAN.md`、`IMPLEMENTATION.md` → `docs/IMPLEMENTATION.md`
+  - `docs/archive/` 建立：`QUICKSTART.md`、`STORAGE_BACKEND.md`、`COMMIT_GUIDE.md`（不再活躍）
+  - PROGRESS 採「PROGRESS 觸發式 archive」機制（>150 行或季末切到 `docs/archive/PROGRESS_YYYY_QN.md`）
+  - SESSION_HISTORY A/B 段拆分（A 必讀、B 按需）
+- **M14 — Phase 2（雙端結構對稱）**（2026-05-14）：
+  - `frontend/` 鏡像主 Agent 結構：`frontend/context/`（HANDOFF、DISPATCH、SESSION_HISTORY）、`frontend/docs/`（IMPLEMENTATION、未來 archive）
+  - 前端 `SESSION_HISTORY.md` 同步 A/B 拆分
+- **M15 — Phase 3（API/Schema spec 自動化）**（2026-05-14、commits `f086072` + `e93e6cf`）：
+  - `scripts/gen_api_spec.py`（FastAPI APIRoute 反射 → `docs/generated/api_spec.md`，9 endpoints）
+  - `scripts/gen_db_schema.py`（SQLAlchemy `Base.metadata` + 最新 alembic revision → `docs/generated/db_schema.md`，4 tables）
+  - `scripts/hooks/pre-commit`（bash、跨 Windows Git Bash）+ `git config core.hooksPath scripts/hooks`
+  - `frontend/context/HANDOFF.md` §3/§4 由「duplicate spec」退化為「補充說明」（指向 generated 為權威來源）
+- **M16 — Phase 4（CLAUDE.md v1.2）**（2026-05-14、commit `688f098`）：
+  - 根 `CLAUDE.md`：§8 ⚠️ 風險說明表格化、§10 加 R3（Doc Impact 自動檢測）+ R4（Stale Warning >30 天）、§15.6 加 PROGRESS 觸發式 archive 規範
+  - `frontend/CLAUDE.md`：§6.5 觸發式 Archive、§9.7 Stale Warning（對稱根 §10 R4），版本升 v1.1
 
 ### 上次 session 結尾狀態
 
-- **日期**：2026-05-14（Phase 2 起手 + 前後端分工機制建立完成）
-- **本批 session 完成（跨 2026-05-13 與 2026-05-14）**：
-  1. **Phase 2 task #7**（commit `2d055de`）：Vite + React 19 + TS 6 專案骨架，dev server 啟動 ~440ms 正常回應，取代預設 README 為新手向中文版
-  2. **Phase 2 task #8 Stage A**（commit `83b8c9a`）：Cornerstone3D v4.22 + dicom-image-loader + tools + dicom-parser 安裝，Vite pre-bundle 驗證通過、smoke test 撤回乾淨
-  3. **雙端文件 Hybrid 重組**（commit `bd42ec9`）：新增 `frontend/IMPLEMENTATION.md`、改寫根 README / QUICKSTART / IMPLEMENTATION、PLAN §10 補元件 × API 表、PROGRESS §7 補 frontend/、順手修 3 處 stale
-  4. **learning/ 個人筆記目錄**（commit `e285703`）：`.gitignore` 加 `learning/`，本機保存學習筆記
-  5. **前後端分工機制 v1**（commit `097cef4`）：根 `CLAUDE.md` §15.5 + TOC、`frontend/CLAUDE.md`（12 章節）、`frontend/HANDOFF.md`（後端狀態鏡像、放進 frontend/）、`frontend/PROGRESS.md`（5 區塊）
-  6. **DISPATCH + SESSION_HISTORY 機制**（commit `a5058b7`）：`frontend/DISPATCH.md`（覆寫式任務交付、第一版裝 Stage B）、`frontend/CLAUDE.md` §8/§9 新增、任務生命週期改寫
-- **Commit 序列**（全部已 push）：
+- **日期**：2026-05-14（AI 工作流優化 Phase 1-4 全部完成 + 已 push）
+- **本批 session 完成（單日 2026-05-14）**：
+  1. **Phase 1（Hybrid Doc 重組）**：PLAN / IMPLEMENTATION 搬入 `docs/`、QUICKSTART / STORAGE_BACKEND / COMMIT_GUIDE 進 `docs/archive/`、SESSION_HISTORY A/B 拆分
+  2. **Phase 2（雙端結構對稱）**：`frontend/context/`、`frontend/docs/` 建立，HANDOFF / DISPATCH / SESSION_HISTORY 全部搬進 `frontend/context/`
+  3. **Phase 3（spec 自動化）**（commits `f086072` + `e93e6cf`）：`gen_api_spec.py`、`gen_db_schema.py`、pre-commit hook、`docs/generated/` 建立、HANDOFF §3/§4 退化為補充說明
+  4. **Phase 4（CLAUDE.md v1.2）**（commit `688f098`）：§8 風險表格化、§10 加 R3 / R4、§15.6 PROGRESS 觸發式 archive；`frontend/CLAUDE.md` 同步升 v1.1
+- **Commit 序列（最近，全部已 push）**：
   ```
-  a5058b7 chore: 補 DISPATCH.md（覆寫式任務交付）與 SESSION_HISTORY 機制
-  097cef4 chore: 建立前後端分工機制 — HANDOFF 進 frontend/、規範任務生命週期
-  bd42ec9 docs: 重構文件結構以反映 backend + frontend 雙端架構
-  e285703 chore(gitignore): 排除 learning/ 個人學習筆記目錄
-  83b8c9a chore(frontend): 安裝 Cornerstone3D 套件（Phase 2 task #8）
-  2d055de feat(frontend): 建立 React + Vite + TypeScript 專案骨架（Phase 2 task #7）
+  688f098 docs(claude): v1.2 — Doc Impact 檢測 / Stale Warning / PROGRESS 觸發式 archive + 表格化風險說明
+  e93e6cf docs(generated): 補 db_schema.md 4 表完整 schema
+  f086072 chore(docs): API spec / DB schema 自動產生機制（Phase 3）
   ```
-  本次 SESSION_HISTORY 更新（commit 7）為唯一待 push
 - **重大認知變更**：
-  - Frontend 從「規劃模糊」到「規劃明確」（8 個元件、5 欄位 Context、7 個 API endpoint、3 階段整合）
-  - 引入「主 Agent / 前端 Agent」分工角色觀；主 Agent 不動 frontend/ 內程式碼，僅維護 HANDOFF + DISPATCH
-  - dispatch 從 ephemeral prompt 改為檔案化（DISPATCH.md 覆寫式）
+  - 「Doc Impact 檢測」由 prompt 規則 + pre-commit hook 雙層保障 — generator 自動同步 `docs/generated/`，主 Agent 規則覆蓋「補充說明」人工同步段
+  - 「Stale Warning」開啟自我約束機制：讀重要文件前 git log -1 偵測 > 30 天就警告
+  - 「PROGRESS 觸發式 archive」採 >150 行或季末兜底，避免時間驅動的 archive 動作在低活動期空跑
 - **下個 session 起手建議**：
-  1. `git push` 本次 SESSION_HISTORY 更新
-  2. **開新 session 給前端 Agent 執行 Stage B**：起手語只需「依 `frontend/CLAUDE.md` §1 必讀清單啟動，然後依 `frontend/DISPATCH.md` 開始當前任務」
-  3. 前端 Agent 完成 Stage B 後：
-     - 讀 `frontend/PROGRESS.md` 看完成記錄與新發現的後端需求
-     - 若有後端需求 → 主 Agent 處理、更新 `frontend/HANDOFF.md`
-     - 派 Stage C dispatch（DICOM 實際渲染）— 整檔覆寫 `frontend/DISPATCH.md`
+  1. **啟用新規則自我驗證**：下次起手讀任何 Tier 1 文件前跑 R4 stale check（≥30 天 warn）
+  2. **PROGRESS.md 體積評估**：目前 root 與 frontend 兩個 PROGRESS 是否已逼近 150 行 → 若是、立即執行第一次觸發式 archive 到 `docs/archive/PROGRESS_2026_Q2.md`
+  3. **開新 session 給前端 Agent 執行 Stage B**：起手語「依 `frontend/CLAUDE.md` §1 必讀清單啟動，然後依 `frontend/context/DISPATCH.md` 開始當前任務」
+  4. 前端 Agent 完成 Stage B 後：讀 `frontend/PROGRESS.md` 看完成記錄與後端需求 → 主 Agent 評估後端補完 → 派 Stage C dispatch
