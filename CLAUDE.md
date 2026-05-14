@@ -23,6 +23,7 @@
 13. [DICOM 處理規範](#13-dicom-處理規範)
 14. [錯誤處理與 Logging 規範](#14-錯誤處理與-logging-規範)
 15. [擴充區塊（保留）](#15-擴充區塊保留)
+    - [15.5 前後端分工機制](#155-前後端分工機制)
 
 ---
 
@@ -526,6 +527,56 @@ except Exception:
 ```
 # TODO: 隨系統成長，在此列出新增的關鍵保護模組
 ```
+
+### 15.5 前後端分工機制
+
+> 自 2026-05-13 起，前端開發進入 Phase 2。為避免主 Agent 跨資料夾誤動、並確保前後端責任清楚，採以下分工機制。
+
+#### 主 Agent 的責任邊界
+
+1. **主 Agent 不干預 `frontend/` 內的開發任務** — 任何 `frontend/` 內的程式碼修改應交由前端 Agent 處理；主 Agent 僅在前端 Agent 回報後端需求時介入後端調整
+2. **分配前端任務前，必須先更新 `frontend/HANDOFF.md`** — 反映最新後端狀態（API 清單、DB schema、env var、CORS 設定等）
+3. **`frontend/HANDOFF.md` 是持續更新的後端狀態文件**，不是一次性交接文件。每次前端任務分配前必須反映當下後端狀態；前端 Agent 每次 session 啟動都會重讀
+4. **遇到前端任務時，主 Agent 產出交付 prompt，格式如下**：
+
+```
+【前端任務交付】
+任務：xxx
+相關 API：xxx
+注意事項：xxx
+完成標準：xxx
+```
+
+5. **主 Agent 負責專案進度推動**，包含：
+   - 更新主專案 `PROGRESS.md`
+   - 協調前後端分工、判斷哪些任務交給前端 Agent
+   - 定期檢查 `frontend/PROGRESS.md`，並將前端進度同步回主專案 `PROGRESS.md`
+   - 接收前端 Agent 的「後端需求清單」回報，處理後更新 `frontend/HANDOFF.md`
+
+#### 前端 Agent 的責任邊界
+
+前端 Agent 的詳細規範見 [`frontend/CLAUDE.md`](./frontend/CLAUDE.md)。摘要：
+
+- 只操作 `frontend/` 內檔案
+- 不修改後端、DB、根目錄文件
+- 遇到需要後端配合 → 產出「後端需求清單」回報主 Agent
+- API 尚未就緒時 → 回報，不自行 mock
+- 每次任務後更新 `frontend/PROGRESS.md`
+- UI/UX、瀏覽器相容性、效能、無障礙等規範**未定案前**，相關決策必須回報主 Agent
+
+#### 跨層文件對照
+
+| 文件 | 維護者 | 用途 |
+|---|---|---|
+| `CLAUDE.md`（本檔） | 工程師 | 主 Agent + 跨專案規範 |
+| `frontend/CLAUDE.md` | 工程師 | 前端 Agent 規範 |
+| `frontend/HANDOFF.md` | 主 Agent | 持續更新的後端狀態鏡像（前端 Agent 只讀） |
+| `PROGRESS.md`（根目錄） | 主 Agent | 跨專案進度 |
+| `frontend/PROGRESS.md` | 前端 Agent | 前端任務進度 + 後端需求清單 |
+
+#### 衝突處理
+
+若 `frontend/CLAUDE.md` 與本檔規則衝突，**以本檔為準**。前端 Agent 發現衝突時應立即回報主 Agent。
 
 ---
 
