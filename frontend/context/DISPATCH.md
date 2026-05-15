@@ -1,11 +1,11 @@
 ---
-issued: 2026-05-14
+issued: 2026-05-15
 issued_by: 主 Agent
-task_id: phase-2-task-8-stage-c
+task_id: phase-2-task-8-stage-c-fit
 status: active
 ---
 
-# 當前任務 — CornerstoneJS Stage C（第一張 DICOM 渲染）
+# 當前任務 — Stage C 收尾：影像尺寸自適應 + 一併 commit
 
 > **本檔機制**：本檔是**當前任務**的單一入口。主 Agent 派發新任務時會**整檔覆蓋**，不累積歷史。歷史請看 `frontend/PROGRESS.md` 的「已完成任務」段與 git commit log。
 >
@@ -19,86 +19,101 @@ status: active
 
 ### 目標
 
-Stage C — **以 hardcoded instance ID + wadouri scheme，從 `GET /instances/{id}/file` 拉一張 DICOM、在 `<DicomViewer />` 元件內渲染**。範圍刻意縮小到「能看到圖」即過關。
+修正 Stage C 驗收時發現的「影像尺寸不完整」缺口（PROGRESS §4.4），讓 DicomViewer 能完整顯示 DICOM 影像，**完成後一併 commit Stage C 完整版**。
 
-完成後即可進入 Phase 2 task #9（API client + AppContext + 4 個業務元件）。
+### 主 Agent 已拍板的決策
 
-### 主 Agent 已拍板的決策（前端 Agent 不必再問）
-
-- **Stage C 範圍**：純 viewer 起手。**不做** API client、AppContext、StudyList、MetadataPanel、AIPanel — 這些屬下一個 dispatch
-- **CSS 方法**：CSS Modules（`*.module.css`），符合 `frontend/docs/IMPLEMENTATION.md` §9 預期
-- **API base URL**：本 dispatch **暫時 hardcode** 為 `http://localhost:8000`。`VITE_API_BASE_URL` env var 制度於下個 dispatch 才正式導入（避免本任務 scope creep）
+- **處理時機**：立刻修，不延後（不併進 task #9 的「CSS Modules 樣式整理」）
+- **Commit 策略**：尺寸修正完成後，與 Stage C 既有未 commit 的 4 個檔案一起做**單一 commit**（commit message 反映 Stage C 完整版，註明含尺寸修正）
+- **修正手法**：先試 `viewport.resetCamera()` + 容器 aspect-ratio 雙管齊下；若仍不完整再從 metadata 取尺寸（屬探索範疇）
 
 ### 具體工作
 
-1. **新增 `frontend/src/components/DicomViewer/DicomViewer.tsx`**
-   - 接受 props `{ instanceId: number }`
-   - 使用 `useRef<HTMLDivElement>` 取容器 element
-   - 在 `useEffect` 內：
-     - 建立 `RenderingEngine`（id 自取，建議含 `Date.now()` 或固定 id + cleanup destroy 避 StrictMode 雙 mount 衝突）
-     - 建立 `StackViewport`（element 用 ref.current）
-     - 建立 `imageId`：`` `wadouri:http://localhost:8000/instances/${instanceId}/file` ``
-     - `viewport.setStack([imageId])`
-     - `viewport.render()`
-   - `useEffect` 的 cleanup：destroy RenderingEngine，避免記憶體洩漏與 StrictMode 雙 mount 衝突
+1. **修 `frontend/src/components/DicomViewer/DicomViewer.tsx`**
+   - 在 `viewport.setStack([imageId])` 之後（async chain 內）呼叫 `viewport.resetCamera()`
+   - 然後 `viewport.render()`
+   - Cornerstone3D `setStack` 是 promise — 確保 `await` 或 `.then()` 處理
+   - StrictMode-safe 既有處理保留（`cancelled` flag、cleanup destroy 不變）
 
-2. **新增 `frontend/src/components/DicomViewer/DicomViewer.module.css`**
-   - container 設明確尺寸（例：`width: 100%; height: 600px;` 或 `min-height: 600px`）— Cornerstone canvas 需明確尺寸才會 layout
-   - 黑底（醫療影像慣例）
+2. **修 `frontend/src/components/DicomViewer/DicomViewer.module.css`**
+   - 容器尺寸從固定 `width: 100%; height: 600px;` 改為 aspect-ratio 自適應
+   - 建議：`width: 100%; aspect-ratio: 4/3;`（DICOM 大多 4:3 或 1:1）+ 保留 `min-height: 400px` 兜底
+   - 黑底 `background-color: #000;` 保留
 
-3. **修改 `frontend/src/App.tsx`**
-   - 取代 Vite scaffold 內容
-   - render `<DicomViewer instanceId={<工程師提供的 DB id>} />`
-   - **hardcoded ID 由工程師上傳一張 DICOM 後告知**（見「驗證步驟」第 1-2 步）；前端 Agent 先把它寫成常數，例 `const INSTANCE_ID = 1;` 並在註解標「工程師驗收時替換」
+3. **驗證**（與 Stage C 同樣流程）
+   - `npx tsc -b --noEmit` 通過
+   - `npm run dev` 乾淨啟動
+   - 瀏覽器以 `INSTANCE_ID=1`（`Peter_Quiet_1.dcm`）開啟、確認影像**完整顯示**（無被切、無黑邊溢出）
 
-4. **重啟 `npm run dev`**，驗證 PowerShell + 瀏覽器 DevTools console 皆乾淨
+4. **若 ① + ② 仍不完整**：
+   - 先停下、把當下狀態與觀察寫進 PROGRESS §4.4 follow-up
+   - 回報主 Agent，**不要**自行進入 metadata-driven 尺寸（會 scope creep）
+   - 主 Agent 會評估是否要改派一個「DICOM metadata-aware viewport」dispatch
+
+5. **若 ① + ② 成功**：
+   - **單一 commit** 含全部 Stage C 工作（尺寸修正 + 之前未 commit 的 4 檔）
+   - Commit message 模板（範例）：
+     ```
+     feat(frontend): Phase 2 task #8 Stage C — DicomViewer 第一張 DICOM 渲染
+
+     新增：
+     - src/components/DicomViewer/DicomViewer.tsx — wadouri scheme + StrictMode-safe
+     - src/components/DicomViewer/DicomViewer.module.css — aspect-ratio 自適應
+     改寫：
+     - src/App.tsx — 取代 Vite scaffold、hardcoded INSTANCE_ID
+
+     驗證：以 INSTANCE_ID=1 (Peter_Quiet_1.dcm) 成功渲染，
+     viewport.resetCamera() 後影像完整顯示。
+
+     Co-Authored-By: Claude Opus 4.7 <noreply@anthropic.com>
+     ```
+   - Commit 後 hash 回填 PROGRESS §1 Stage C 條目 + B 段里程碑
 
 ---
 
 ## 相關 API
 
-| Endpoint | 用法 | 來源 |
-|---|---|---|
-| `GET /instances/{id}/file` | 回 `application/dicom` 二進位 — dicom-image-loader 透過 `wadouri:` scheme 拉取 | `HANDOFF.md` §1 / §3.4；完整 spec 見 `docs/generated/api_spec.md` |
-
-> 本 stage **不**呼叫其他 endpoint。不需 fetch `/studies`、不需 `/instances/{id}`、不需 metadata。下個 dispatch 才需要。
+無新 endpoint 呼叫；既有 `GET /instances/{id}/file` 不變。
 
 ---
 
 ## 相關深入文件
 
-- **必查**：`frontend/docs/IMPLEMENTATION.md` — DicomViewer 元件設計、Cornerstone 整合計畫（Stage A/B/C 段落）
-- **引用**：`frontend/context/HANDOFF.md` §3（API 補充說明）、`docs/generated/api_spec.md`（GET /instances/{id}/file spec 權威來源）
-- **背景參考**：`docs/PLAN.md` §12（Cornerstone 整合風險點：v3+ 對 esbuild 預打包不友善、wasm / worker 邊界）
+- `frontend/PROGRESS.md` §4.4 — 尺寸缺口紀錄與初步分析
+- `frontend/PROGRESS.md` §4.5 — Stage C debug 紀錄（zombie dev server / port 衝突 / instance_id 探測）
+- `frontend/context/SESSION_HISTORY.md` A 段「待決定事項」第 1 條 — 可移除（主 Agent 已拍板選 ①）
 
 ---
 
 ## 注意事項
 
-### 已知技術陷阱
+### Cornerstone3D resetCamera 行為
 
-1. **Vite StrictMode 雙 mount**：`main.tsx` 預設用 `<React.StrictMode>` 包裹 → useEffect 會 run twice → RenderingEngine 同 id 衝突。對策：
-   - **首選**：每次 mount 用 deterministic id（如 `'mainEngine'`），cleanup destroy；下次 mount 重建
-   - **次選**：用 `Date.now()` 隨機 id（但 cleanup 一樣要 destroy）
-   - **不可**：在 module scope 建 RenderingEngine（會綁全域）
+- `resetCamera()` 會把 viewport 的 zoom / pan / windowing 重設為「能看到完整影像」的預設值
+- 必須在 `setStack` **完成 await** 後呼叫（image 還沒 load 完前 resetCamera 沒意義）
+- 一般 pattern：
+  ```ts
+  await viewport.setStack([imageId]);
+  viewport.resetCamera();
+  viewport.render();
+  ```
 
-2. **Cornerstone 物件不進 React state**（承襲 Stage B 注意事項 #7、PLAN §12）— 一律 useRef 或 module-level singleton（`initCornerstone()` 已是 singleton）
+### Scope 邊界
 
-3. **若遇 wasm / worker / cors 問題**，debug 順序（同 Stage B 預演）：
-   - `optimizeDeps.exclude` → `worker.format='es'` → `assetsInclude` → 最後才考慮版本鎖
-   - 真的要動 `vite.config.ts` 超過 5 行 → 在 PROGRESS 進行中段說明理由
+- ❌ 不可動 backend（含 `main.py`、`models.py`、`alembic/`）
+- ❌ 不可動 `vite.config.ts`（同 Stage B/C 限制）
+- ❌ 不可動 `frontend/src/main.tsx` 或 `frontend/src/cornerstone/setup.ts`（既有運作良好）
+- ❌ 不可加 zoom / pan / window-level 互動工具（task #9 範圍）
+- ❌ 不可加 metadata 顯示（task #9 範圍）
+- ❌ 不可清 Vite scaffold 殘留（`App.css` / `assets/` / `public/icons.svg`）— 雖 SESSION_HISTORY 標可順手清，但本 dispatch scope 嚴格限縮在尺寸
+- ❌ 不可修 `frontend/PROGRESS.md` lines 5, 64 的 `./IMPLEMENTATION.md` stale link（屬另一個 issue，主 Agent 會單獨處理）
+- ❌ 不可修改本檔
 
-4. **`viewport.render()` 是同步 call 但 image load 是非同步**：第一次 render 可能看不到圖（image 還沒下載完）。Cornerstone 內建會在 image loaded 後 auto-rerender；如果沒看到圖、先檢查 Network tab 是否 200 拿到 DICOM、Console 是否有 cornerstone 的 image load event log
+### Commit 操作
 
-### Scope 邊界（禁忌）
-
-- ❌ 不可動 backend 任何檔案（含 `main.py` CORS、`models.py`、`alembic/`）
-- ❌ 不可動 `vite.config.ts` 中 `server.port = 5173`（後端 CORS 對齊）
-- ❌ 不可寫 API client / AppContext / StudyList / MetadataPanel / AIPanel（下個 dispatch）
-- ❌ 不可自行下載 sample DICOM；若工程師沒有可上傳的 DICOM → **暫停、回報主 Agent**（不要自己用 pydicom-data 或網路 sample，那是 `docs/PLAN.md` §14 + 根 `SESSION_HISTORY.md` 待決定事項 #2，需主 Agent 拍板）
-- ❌ 不可加 zoom / pan / window-level 互動工具（屬 Phase 2 task #9 範圍）
-- ❌ 不可修改 `frontend/context/DISPATCH.md`（本檔）
-- ❌ 不可動 backend env var；前端目前不需任何 env var（暫 hardcode API URL）
+- 與你既有的 4 個未 commit 檔（`src/components/`、`src/App.tsx`、`PROGRESS.md`、`context/SESSION_HISTORY.md`）+ 本次新改的 2 個（DicomViewer.tsx 加 resetCamera、DicomViewer.module.css 改 aspect-ratio）**一次 commit**
+- 不要拆成兩個 commit（避免「Stage C 半成品」歷史）
+- pre-commit hook 會自動跑（不影響前端檔，但 commit 後 git status 確認乾淨）
 
 ---
 
@@ -106,65 +121,52 @@ Stage C — **以 hardcoded instance ID + wadouri scheme，從 `GET /instances/{
 
 ### 必須全部成立
 
-- [ ] `frontend/src/components/DicomViewer/DicomViewer.tsx` 存在、export default 元件、接受 `instanceId: number` props
-- [ ] `frontend/src/components/DicomViewer/DicomViewer.module.css` 存在、container 有明確尺寸與黑底
-- [ ] `frontend/src/App.tsx` 改寫為 render `<DicomViewer instanceId={...} />`，hardcoded 常數含「工程師驗收時替換」註解
-- [ ] `npm run dev` 啟動，PowerShell 無 error / warning
-- [ ] 瀏覽器 `http://localhost:5173` 開啟，DevTools console 無 red error，**且 viewport 顯示 DICOM 影像**（工程師驗收）
-- [ ] `frontend/PROGRESS.md` 已更新：
-  - 收到此 dispatch 後在「進行中」段寫摘要（格式見 `frontend/CLAUDE.md` §6.4）
-  - 完成後從「進行中」移到「已完成任務」，加 commit hash
-  - 若有新發現的後端需求或缺口，加進對應區塊
-- [ ] `frontend/context/SESSION_HISTORY.md` 更新：
-  - A 段「進行中任務」完成後清空 / 改寫
-  - A 段「待決定事項」移除 Stage C 起手點 + CSS Modules 兩項（已由主 Agent 拍板）
-  - B 段「上次 session 結尾狀態」更新
+- [ ] DicomViewer.tsx 在 `setStack` 後呼叫 `resetCamera()` 再 `render()`
+- [ ] DicomViewer.module.css 容器改為 aspect-ratio 自適應
+- [ ] `npx tsc -b --noEmit` 通過
+- [ ] `npm run dev` 啟動乾淨（無 error / warning）
+- [ ] 瀏覽器以 `INSTANCE_ID=1` 開啟、**影像完整顯示無切割**（工程師肉眼確認）
+- [ ] 單一 commit 含全部 Stage C 工作（6 個檔：DicomViewer.tsx / DicomViewer.module.css / App.tsx / PROGRESS.md / context/SESSION_HISTORY.md / 任何順手改動）
+- [ ] Commit hash 回填 PROGRESS.md §1 Stage C 條目 + SESSION_HISTORY B 段里程碑「Stage C」項
+- [ ] PROGRESS.md §4.4「影像尺寸不完整」缺口移除（或標註「已解決於 commit XXX」），維持累積歷史可讀
+- [ ] **完成驗收後** 用 `TaskStop` 結束你的 background dev server（避免 PROGRESS §4.5 第 1 點再次發生）
 
 ### 允許但不強制
 
-- viewport 顯示 metadata 標籤（patient name 等）— Stage C 不要求
-- 多 frame 切換 — 不要求
-- 任何互動工具 — 不要求
+- 若 `aspect-ratio: 4/3` 與某些 DICOM 不匹配，可改為 `1/1` 或其他比例 — 在 PROGRESS §1 Stage C 條目註明所選比例與理由
+- DicomViewer.tsx 的 useEffect cleanup 邏輯若需微調以配合新 async flow，可動 — 但保持 StrictMode-safe
+
+### 禁止
+
+- ❌ 拆成兩個以上 commit
+- ❌ 動 vite.config.ts / backend / main.tsx / setup.ts
+- ❌ 改 INSTANCE_ID 預設值（保留 `1`）
+- ❌ 自行擴展 metadata-driven 尺寸（若 ①+② 不夠用、回報主 Agent）
 
 ---
 
 ## 驗證步驟（工程師驗收用）
 
-1. **準備一張 DICOM 並上傳取得 instance ID**（工程師執行；前端 Agent 不做這步）：
-   ```powershell
-   curl.exe -X POST http://localhost:8000/upload -F "file=@<path-to-sample.dcm>"
-   ```
-   Response 內取 **`instance_id`** 欄位（int、DB 主鍵；2026-05-14 加入此欄位、解除「需 psql 繞路」窘境）。範例：
-   ```json
-   { "instance_id": 1, "filename": "...", "patient_id": "...", ... }
-   ```
-
-2. 將該 ID 替換 `App.tsx` 內的 hardcoded 常數
-
+1. 確認 backend 跑著（`http://localhost:8000/health` 回 OK）
+2. 確認 instance id 1 仍可用：`curl.exe http://localhost:8000/instances/1`
 3. `cd frontend && npm run dev`
-
 4. 瀏覽器開 `http://localhost:5173`
-
-5. 預期：viewport 黑底中顯示一張 DICOM 影像；F12 → Console 無 red error
-
-6. 關閉 dev server、重啟、再次確認無 error（StrictMode 雙 mount 不會炸）
-
----
-
-## 回報格式（寫進 PROGRESS 的「已完成任務」項目）
-
-- 改動 / 新增的檔案清單（path + 大致行數）
-- `vite.config.ts` 是否動到、動了什麼（若有）
-- 驗收時用的 instance ID（紀錄方便重現）
-- 遇到的坑（讓主 Agent 記進文件 / `frontend/docs/IMPLEMENTATION.md`）
-- 新發現的後端需求 / 缺口
-- 是否觸及 PLAN §12 預警的 wasm / worker / cors 邊界問題
+5. 預期：viewport 內看到完整 DICOM 影像、無切割、無不必要黑邊
+6. F12 → Console 無 red error
+7. 關掉 dev server（前端 Agent 須在 commit 前 TaskStop 自己背景的 dev server）
 
 ---
 
-## 預期下個 dispatch（Phase 2 task #9，僅供前端 Agent 心理準備）
+## 回報格式（commit message + PROGRESS 更新）
 
-- API client (`src/api/`)：含 `VITE_API_BASE_URL` env var 制度
-- AppContext (`src/context/AppContext.tsx`)：5 欄位
-- `<Layout />` + `<TopBar />` + `<StudyList />` + `<MetadataPanel />` + `<AIPanel />`
-- 屆時 Stage C 的 hardcoded instanceId 改由 AppContext + StudyList 點選注入
+- 改動檔案清單（path + 大致行數）
+- 用了哪個 aspect-ratio 與理由
+- `viewport.resetCamera()` 放置位置（在 setStack 之後 / await 流程）
+- 是否觸及 PROGRESS §4.4 列的任一可能因素
+- 任何意外發現
+
+---
+
+## 預期下個 dispatch（Phase 2 task #9，主 Agent 規劃中）
+
+- **依賴**：本 dispatch 完成 + backend 補完（`/studies/{id}/series` 等）— 主 Agent 正在規劃 backend schema 補完範圍（涉及 Instance ↔ Series FK），具體下個 dispatch 內容會等主 Agent 與工程師確認 backend 範圍後派發
