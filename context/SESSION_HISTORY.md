@@ -21,20 +21,6 @@
 
 ## A. 系統現況快照（必讀，每次 session 啟動）
 
-### 🔴 下次 session 啟動強制動作（在進入任何任務前先跑）
-
-> 工程師於 2026-05-14 指示：CLAUDE.md v1.2 新規則必須先自我驗證一次再開工。本區塊一旦執行完畢即可刪除。
-
-1. **R4 Stale Warning 自我驗證**（CLAUDE.md §10 R4）— 對下列 Tier 1 文件逐一執行 `git log -1 --format=%cd --date=short -- <path>`，距今 > 30 天則於工作開始前明確 warn 工程師：
-   - `CLAUDE.md`、`frontend/CLAUDE.md`
-   - `context/SESSION_HISTORY.md`、`frontend/context/SESSION_HISTORY.md`
-   - `frontend/context/HANDOFF.md`、`frontend/context/DISPATCH.md`
-   - `PROGRESS.md`、`frontend/PROGRESS.md`
-   - `docs/PLAN.md`
-2. **PROGRESS 觸發式 archive 評估**（CLAUDE.md §15.6）— `wc -l PROGRESS.md frontend/PROGRESS.md`，若任一已 > 150 行 → 立即執行第一次 archive 至 `docs/archive/PROGRESS_2026_Q2.md`（root 由主 Agent 執行；frontend 由前端 Agent 執行，主 Agent 只記錄需求）。未達門檻則記錄當下行數於本檔，下次再評估。
-
-> 完成後在 §B「下次 session 起手建議」標註執行結果（warn 了哪些檔 / archive 是否觸發 / 留待下次），並從 A 段移除本區塊。
-
 ### 系統現況
 
 - **定位**：AI-ready Ultrasound DICOM 平台 MVP（非完整 PACS 替代）
@@ -56,9 +42,10 @@
 ### 進行中的任務
 
 - 無 in-flight 程式碼修改（主 Agent 端）
-- AI 工作流優化 Phase 1-4 全部完成 + 已 push（CLAUDE.md v1.2 啟用）
-- **Stage B 已完成**（commit `8cd61f3`、`acd2ced`）。`frontend/context/DISPATCH.md` 仍裝載 Stage B 內容（status: active 但實際完工）、待主 Agent 派 Stage C 時覆寫
-- 下一個主 Agent 任務：(a) 評估 PROGRESS 是否需立刻觸發第一次 archive（§15.6 規則）；(b) 依前端 Agent 回報之缺口 / 後端需求，評估是否補後端 endpoint（如 `/studies/{id}/series` 或真實 AI mask）；(c) 派 Stage C dispatch（DICOM 渲染）
+- **Stage C 已 dispatch 並交付前端 Agent**（dispatch 寫於 `cbca650`、`instance_id` 驗證步驟修正於 `40fd1e9`）。等待前端 Agent commit + 回報結果。
+- **主 Agent 進入待命**（工程師於 2026-05-14 宣告「工作告一段落、待前端完成後審查結果」）
+- 前端 Agent 端 working tree 仍有 `frontend/PROGRESS.md` 與 `frontend/context/SESSION_HISTORY.md` 兩份 unstaged 修改（前端上次 Stage B 收尾遺留）。預期前端 Agent 開 Stage C session 起手時會處理（commit 或 stash）
+- 下一個主 Agent 任務（前端完工後）：(a) 審查前端 Stage C commit、(b) 同步根 PROGRESS.md 標註 Stage C 完成、(c) 評估前端回報的新後端需求、(d) 派 Phase 2 task #9 dispatch（API client + AppContext + 4 業務元件）
 
 ### 待決定事項
 
@@ -125,24 +112,30 @@
 
 ### 上次 session 結尾狀態
 
-- **日期**：2026-05-14（AI 工作流優化 Phase 1-4 全部完成 + 已 push）
-- **本批 session 完成（單日 2026-05-14）**：
-  1. **Phase 1（Hybrid Doc 重組）**：PLAN / IMPLEMENTATION 搬入 `docs/`、QUICKSTART / STORAGE_BACKEND / COMMIT_GUIDE 進 `docs/archive/`、SESSION_HISTORY A/B 拆分
-  2. **Phase 2（雙端結構對稱）**：`frontend/context/`、`frontend/docs/` 建立，HANDOFF / DISPATCH / SESSION_HISTORY 全部搬進 `frontend/context/`
-  3. **Phase 3（spec 自動化）**（commits `f086072` + `e93e6cf`）：`gen_api_spec.py`、`gen_db_schema.py`、pre-commit hook、`docs/generated/` 建立、HANDOFF §3/§4 退化為補充說明
-  4. **Phase 4（CLAUDE.md v1.2）**（commit `688f098`）：§8 風險表格化、§10 加 R3 / R4、§15.6 PROGRESS 觸發式 archive；`frontend/CLAUDE.md` 同步升 v1.1
-- **Commit 序列（最近，全部已 push）**：
+- **日期**：2026-05-14（同日多 batch；Phase 1-4 重組完成後接續 Stage C dispatch + backend instance_id 補正）
+- **本批 session 完成（單日 2026-05-14、Stage C dispatch batch）**：
+  1. **CLAUDE.md v1.2 規則首次實戰驗證**：
+     - R4 Stale Check 全 9 份 Tier 1 文件均 = 2026-05-14（同日新增 / 修訂），無一觸發 ≥30 天 warn
+     - PROGRESS Archive 評估：root 已完成段 ~45 行 / frontend ~31 行，均遠未達 150 行門檻，本次不 archive
+  2. **派發 Stage C dispatch 到前端 Agent**（commit `cbca650`）：純 viewer 起手、CSS Modules、API URL hardcode、StrictMode 雙 mount 注意事項齊備
+  3. **同步前端 Stage A/B 完成狀態進根 PROGRESS.md**：§1 新增 Frontend 段、§5 Phase 2 勾選 #7 + #8 Stage A/B
+  4. **README.md Project Structure stale tree 修正**（commit `93f274c`）：補 Phase 1+2 reorg 後新增的 `context/`、`docs/`、`frontend/context/`、`frontend/docs/`、`docs/generated/`、`scripts/`，移除已遷檔的根層引用（PLAN / IMPLEMENTATION / SESSION_HISTORY）
+  5. **新 feature：POST /upload response 加 `instance_id`**（commit `40fd1e9`）：non-breaking 欄位新增，解除前端 / 工程師「拿到 instance DB id 必須繞 psql」窘境。改動 main.py + 1 test 加斷言 + README + HANDOFF §3/§7 + DISPATCH 驗證步驟；36/36 pytest 全綠；pre-commit hook 自動 regen `docs/generated/api_spec.md`
+- **Commit 序列（本批，全部已 push）**：
   ```
-  688f098 docs(claude): v1.2 — Doc Impact 檢測 / Stale Warning / PROGRESS 觸發式 archive + 表格化風險說明
-  e93e6cf docs(generated): 補 db_schema.md 4 表完整 schema
-  f086072 chore(docs): API spec / DB schema 自動產生機制（Phase 3）
+  40fd1e9 feat(api): POST /upload response 加 instance_id 欄位（non-breaking）
+  93f274c docs(readme): 同步 Project Structure 至 Phase 1+2 reorg 後狀態
+  cbca650 docs: 同步前端 Stage A/B 完成狀態 + 派發 Stage C dispatch
+  6fdbe91 docs(session): 加入下次 session 啟動強制動作區塊（R4 + PROGRESS archive 評估）
   ```
 - **重大認知變更**：
-  - 「Doc Impact 檢測」由 prompt 規則 + pre-commit hook 雙層保障 — generator 自動同步 `docs/generated/`，主 Agent 規則覆蓋「補充說明」人工同步段
-  - 「Stale Warning」開啟自我約束機制：讀重要文件前 git log -1 偵測 > 30 天就警告
-  - 「PROGRESS 觸發式 archive」採 >150 行或季末兜底，避免時間驅動的 archive 動作在低活動期空跑
-- **下個 session 起手建議**：
-  1. **啟用新規則自我驗證**：下次起手讀任何 Tier 1 文件前跑 R4 stale check（≥30 天 warn）
-  2. **PROGRESS.md 體積評估**：目前 root 與 frontend 兩個 PROGRESS 是否已逼近 150 行 → 若是、立即執行第一次觸發式 archive 到 `docs/archive/PROGRESS_2026_Q2.md`
-  3. **開新 session 給前端 Agent 執行 Stage B**：起手語「依 `frontend/CLAUDE.md` §1 必讀清單啟動，然後依 `frontend/context/DISPATCH.md` 開始當前任務」
-  4. 前端 Agent 完成 Stage B 後：讀 `frontend/PROGRESS.md` 看完成記錄與後端需求 → 主 Agent 評估後端補完 → 派 Stage C dispatch
+  - v1.2 規則確實首戰即捉到漏網：README.md Project Structure 是 Phase 1 reorg 漏改的 stale doc，靠 R3 概念與工程師事件回報才補上 → 證實「Doc Impact 檢測」對結構性 reorg 仍需主 Agent 視角而非單靠 pre-commit hook
+  - `/upload` response 缺 `instance_id` 是 API 設計小坑 — frontend/PROGRESS §5 早 flag、但直到工程師實戰才被觸發補上；提醒：派 dispatch 前要 dry-run 驗證步驟可行性
+  - Claude Code session 之間 DISPATCH cache：前端 Agent session 啟動後讀過 DISPATCH 就快取於 context，主 Agent 中途覆寫 DISPATCH 對該 session 不可見，需起新 session 才能讀到。**未來規則建議**：派新 dispatch 後一律請工程師起新前端 session（不要嘗試在舊 session 內推進）
+- **下個 session 起手建議（前端完工後審查階段）**：
+  1. **R4 Stale Check** 對 9 份 Tier 1 文件重做一次（規則常駐）
+  2. **讀 `frontend/PROGRESS.md`** 看 Stage C 完成記錄、新後端需求清單、新缺口
+  3. **同步根 `PROGRESS.md`**：§5 Stage C 改為已完成（加 commit hash）、Phase 2 task #9 升為下一步
+  4. **評估後端補完**：依前端回報的後端需求（最可能：`/studies/{id}/series` + `/series/{id}/instances`）決定是否派 backend task
+  5. **派 Phase 2 task #9 dispatch**：API client + AppContext + 4 業務元件 + `VITE_API_BASE_URL` env var 制度
+  6. **修 `frontend/PROGRESS.md` lines 5, 64 的 `./IMPLEMENTATION.md` stale link**（→ `./docs/IMPLEMENTATION.md`）— 屬前端 Agent territory，但若前端 Agent 沒順手修，下次 session 可標 §9.5 結構性修正例外動一下並在 commit message 註明
