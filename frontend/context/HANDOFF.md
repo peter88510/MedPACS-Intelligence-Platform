@@ -147,8 +147,8 @@ Alembic 在 DB 多建一張 `alembic_version`（單欄、單列、記錄目前 m
 
 | 期望 endpoint | 用途 | 後端目前狀態 |
 |---|---|---|
-| `GET /studies/{id}/series` | 列出該 study 的所有 series | ❌ 不存在；目前只能透過 hack（fetch 全部 instances 過濾）|
-| `GET /series/{id}/instances` | 列出該 series 的所有 instance | ❌ 不存在 |
+| `GET /studies/{id}/series` | 列出該 study 的所有 series | ✅ **已實作（2026-05-15）**；response `{"series": [...]}`；2026-05-15 前 upload 沒寫 series 表，舊 study 會回 `[]` 直到累積新上傳資料 |
+| `GET /series/{id}/instances` | 列出該 series 的所有 instance | ✅ **已實作（2026-05-15）**；response `{"instances": [...]}`；2026-05-15 前 upload 的 instances `series_instance_uid` 為 NULL、無法被新 endpoint 匹配（legacy gap，MVP 接受） |
 | `GET /ai/result/{id}/mask` | 回真實 PNG mask（含 `image/png` content-type）| ❌ 不存在；現有 `/ai/result/{id}` 僅回 stub JSON |
 | 真實 AI 推論（背後機制） | `POST /ai/segment/{id}` 實際跑 PyTorch | ❌ 僅 stub 回 `queued` |
 | Cancel running AI job | 中止已觸發的 AI | ❌ Out of scope（MVP） |
@@ -170,6 +170,7 @@ Alembic 在 DB 多建一張 `alembic_version`（單欄、單列、記錄目前 m
 | 2026-05-13 | 建立前後端分工機制（CLAUDE.md §15.5、`frontend/CLAUDE.md`、本檔）| 前端 Agent 啟動流程改變：必讀本檔最新版 |
 | 2026-05-14 | API spec / DB schema 改為 auto-generated（`docs/generated/`） | 前端應從 generated 檔讀完整 spec；本檔 §3 / §4 退化為「補充說明」，不再 duplicate spec |
 | 2026-05-14 | `POST /upload` response 加 `instance_id`（int、新建 instance 的 DB pk）| 前端任務 #9 的 upload UI（若日後實作）+ MVP 期間工程師驗收都能單一 round-trip 拿到 id，不用繞 psql |
+| 2026-05-15 | **Series 結構補完**（migration `e25c80289a9c`）：① `series.series_instance_uid` UNIQUE+NOT NULL ② `instances.series_instance_uid` ADD COLUMN+FK→series ③ upload pipeline 加 series upsert ④ 新 endpoints `GET /studies/{id}/series` + `GET /series/{id}/instances` | 解除前端 §6 兩個「不存在」endpoint 的阻擋；StudyList 完整版可實作；DicomViewer 可在同一 series 內切換 instance。**注意**：2026-05-15 前 upload 的 instances 與 series 都沒 series link，新 endpoints 對舊資料會回空陣列 |
 
 > ⏸ **目前無 in-flight 後端變更**。下次更新時機：當主 Agent 在派發新前端任務前發現有新的 API、schema、env var、CORS 異動時（spec 變動會自動進 `docs/generated/`，本檔 §3.x / §4.x 只在「補充說明」需新增 / 修正時動）。
 

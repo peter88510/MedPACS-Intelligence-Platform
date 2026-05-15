@@ -217,3 +217,84 @@ class TestAiResult:
         api_client.get("/ai/result/33")
         call_args = mock_get.call_args[0]
         assert call_args[1] == 33
+
+
+# ---------------------------------------------------------------------------
+# GET /studies/{id}/series  (added 2026-05-15)
+# ---------------------------------------------------------------------------
+
+class TestListSeriesForStudy:
+
+    @patch("main.get_series_by_study_id")
+    def test_returns_series_list_when_study_exists(self, mock_get, api_client):
+        mock_get.return_value = [
+            make_series(id=10, series_instance_uid="1.2.3.4"),
+            make_series(id=11, series_instance_uid="1.2.3.5"),
+        ]
+        response = api_client.get("/studies/1/series")
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data["series"]) == 2
+        assert data["series"][0]["id"] == 10
+        assert data["series"][1]["series_instance_uid"] == "1.2.3.5"
+
+    @patch("main.get_series_by_study_id")
+    def test_returns_empty_list_when_study_has_no_series(self, mock_get, api_client):
+        mock_get.return_value = []
+        response = api_client.get("/studies/1/series")
+        assert response.status_code == 200
+        assert response.json() == {"series": []}
+
+    @patch("main.get_series_by_study_id")
+    def test_returns_404_when_study_not_found(self, mock_get, api_client):
+        mock_get.return_value = None
+        response = api_client.get("/studies/999/series")
+        assert response.status_code == 404
+        assert "not found" in response.json()["detail"].lower()
+
+    @patch("main.get_series_by_study_id")
+    def test_id_passed_correctly(self, mock_get, api_client):
+        mock_get.return_value = []
+        api_client.get("/studies/42/series")
+        call_args = mock_get.call_args[0]
+        assert call_args[1] == 42
+
+
+# ---------------------------------------------------------------------------
+# GET /series/{id}/instances  (added 2026-05-15)
+# ---------------------------------------------------------------------------
+
+class TestListInstancesForSeries:
+
+    @patch("main.get_instances_by_series_id")
+    def test_returns_instances_list_when_series_exists(self, mock_get, api_client):
+        mock_get.return_value = [
+            make_instance(id=100),
+            make_instance(id=101),
+        ]
+        response = api_client.get("/series/10/instances")
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data["instances"]) == 2
+        assert data["instances"][0]["id"] == 100
+
+    @patch("main.get_instances_by_series_id")
+    def test_returns_empty_list_when_series_has_no_instances(self, mock_get, api_client):
+        mock_get.return_value = []
+        response = api_client.get("/series/10/instances")
+        assert response.status_code == 200
+        assert response.json() == {"instances": []}
+
+    @patch("main.get_instances_by_series_id")
+    def test_returns_404_when_series_not_found(self, mock_get, api_client):
+        mock_get.return_value = None
+        response = api_client.get("/series/999/instances")
+        assert response.status_code == 404
+        assert "not found" in response.json()["detail"].lower()
+
+    @patch("main.get_instances_by_series_id")
+    def test_id_passed_correctly(self, mock_get, api_client):
+        mock_get.return_value = []
+        api_client.get("/series/77/instances")
+        call_args = mock_get.call_args[0]
+        assert call_args[1] == 77

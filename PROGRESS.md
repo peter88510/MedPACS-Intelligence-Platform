@@ -29,13 +29,15 @@
 - [x] Modality 白名單驗證（目前僅允許 `US`）
 - [x] Patient upsert（依 patient_id 唯一性）
 - [x] Study upsert（依 study_instance_uid 唯一性）
-- [x] Series 建立（依 series_instance_uid）
-- [x] Instance 建立（依 sop_instance_uid 唯一性）
+- [x] **Series upsert（依 series_instance_uid，2026-05-15 補完 — 此前 upload pipeline 跳過 series 表寫入）**
+- [x] Instance 建立（依 sop_instance_uid 唯一性 + 2026-05-15 加 series_instance_uid FK）
 - [x] DICOM 檔案本地儲存（路徑：`{storage}/{patient_id}/{study_uid}/{filename}.dcm`）
 
 ### 查詢能力
 - [x] 列出所有研究（GET /studies）
 - [x] 取得指定系列（GET /series/{id}）
+- [x] **列出指定研究的所有系列（GET /studies/{id}/series，2026-05-15）**
+- [x] **列出指定系列的所有實例（GET /series/{id}/instances，2026-05-15）**
 - [x] 取得指定實例（GET /instances/{id}）
 - [x] 下載原始 DICOM 檔案（GET /instances/{id}/file）
 - [x] 取得實例 metadata（GET /instances/{id}/metadata）
@@ -77,24 +79,26 @@
 
 | 方法 | 路徑 | 功能 | 狀態 | 備註 |
 |---|---|---|---|---|
-| POST | `/upload` | 上傳並處理 DICOM 檔案 | ✅ 完整 | — |
+| POST | `/upload` | 上傳並處理 DICOM 檔案 | ✅ 完整 | response 含 `instance_id`（2026-05-14 加） |
 | GET | `/health` | 健康檢查 | ✅ 完整 | — |
 | GET | `/studies` | 列出所有研究 | ✅ 完整 | — |
+| GET | `/studies/{id}/series` | 列出該研究的所有系列 | ✅ 完整 | 2026-05-15 加；舊 study 可能回 `[]` |
 | GET | `/series/{id}` | 取得指定系列 | ✅ 完整 | — |
+| GET | `/series/{id}/instances` | 列出該系列的所有實例 | ✅ 完整 | 2026-05-15 加；2026-05-15 前的 instances `series_instance_uid` 為 NULL、不會列出 |
 | GET | `/instances/{id}` | 取得指定實例 | ✅ 完整 | — |
 | GET | `/instances/{id}/file` | 下載原始 DICOM 檔案 | ✅ 完整 | 透過 FileResponse |
 | GET | `/instances/{id}/metadata` | 取得實例 metadata | ✅ 完整 | — |
 | POST | `/ai/segment/{id}` | 觸發 AI 分割 | ⚠️ **Stub** | 僅回傳 `{"status": "queued"}`，無實作 |
 | GET | `/ai/result/{id}` | 取得 AI 分割結果 | ⚠️ **Stub** | 僅回傳 mock 結果 |
 
-**完整度**：7/9 完整實作，2/9 為 stub。
+**完整度**：9/11 完整實作，2/11 為 stub。
 
 ---
 
 ## 3. 測試覆蓋簡況
 
 ### 總覽
-- **總測試數**：36 個
+- **總測試數**：46 個
 - **執行方式**：`pytest tests/ -v`
 - **隔離機制**：記憶體 SQLite + monkeypatch 臨時 storage，每個測試獨立
 
@@ -102,8 +106,8 @@
 
 | 層級 | 檔案 | 測試數 | 風格 |
 |---|---|---|---|
-| 整合測試 | `tests/test_dicom_service.py` | 6 | 真實 SQLite 記憶體 DB + 臨時 storage |
-| API 測試 | `tests/test_query_api.py` | 21 | TestClient + mock `db_service` |
+| 整合測試 | `tests/test_dicom_service.py` | 8 | 真實 SQLite 記憶體 DB + 臨時 storage（含 2026-05-15 加的 series upsert + upload-creates-series 兩項） |
+| API 測試 | `tests/test_query_api.py` | 29 | TestClient + mock `db_service`（含 2026-05-15 加的 /studies/{id}/series 與 /series/{id}/instances 各 4 cases） |
 | 單元測試 | `tests/test_validators.py` | 9 | 純邏輯，無 DB / HTTP |
 
 ### 已覆蓋路徑

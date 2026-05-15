@@ -356,6 +356,42 @@ Returns a single series record by its database ID.
 { "detail": "Series with id 99 not found" }
 ```
 
+### GET /studies/{id}/series
+
+Returns all series for the given study (added 2026-05-15).
+
+| Parameter | Type | Description |
+|---|---|---|
+| `id` | integer | Database primary key of the study |
+
+**Response (200 OK):**
+
+```json
+{ "series": [ { "id": 10, "series_instance_uid": "1.2.3.4", "study_instance_uid": "1.2.3" } ] }
+```
+
+Empty `series: []` is valid when the study has no series records yet (e.g., legacy uploads from before 2026-05-15 when the upload pipeline did not write to the series table).
+
+**Response (404 Not Found):** Returned when the study itself does not exist.
+
+### GET /series/{id}/instances
+
+Returns all instances for the given series (added 2026-05-15).
+
+| Parameter | Type | Description |
+|---|---|---|
+| `id` | integer | Database primary key of the series |
+
+**Response (200 OK):**
+
+```json
+{ "instances": [ { "id": 100, "sop_instance_uid": "1.2.3.4.5", "series_instance_uid": "1.2.3.4" } ] }
+```
+
+Empty `instances: []` is valid when the series exists but its child instances were uploaded before the 2026-05-15 schema upgrade (their `series_instance_uid` column is NULL and they cannot be matched).
+
+**Response (404 Not Found):** Returned when the series itself does not exist.
+
 ### GET /instances/{id}
 
 Returns a single instance record by its database ID.
@@ -471,7 +507,7 @@ Returns the AI segmentation result for the specified instance. Currently impleme
 | Column | Type | Constraints |
 |---|---|---|
 | `id` | Integer | Primary key |
-| `series_instance_uid` | String | Nullable |
+| `series_instance_uid` | String | **Unique, NOT NULL** (since 2026-05-15 migration `e25c80289a9c`) |
 | `study_instance_uid` | String | FK → `studies.study_instance_uid` |
 | `created_at` | DateTime | Auto-set on insert |
 
@@ -483,6 +519,7 @@ Returns the AI segmentation result for the specified instance. Currently impleme
 | `sop_instance_uid` | String | Nullable; unique |
 | `file_path` | String | Relative path to stored file |
 | `study_instance_uid` | String | FK → `studies.study_instance_uid` |
+| `series_instance_uid` | String | Nullable; FK → `series.series_instance_uid` (added 2026-05-15; legacy rows are NULL) |
 | `created_at` | DateTime | Auto-set on insert |
 
 ## Storage Structure

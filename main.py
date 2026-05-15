@@ -16,7 +16,15 @@ from validation.dicom_validator import validate_dicom
 from validation.exceptions import ValidationError
 
 from fastapi import HTTPException
-from db_service import get_all_studies, get_series_by_id, get_instance_by_id, get_instance_file_path, get_instance_metadata
+from db_service import (
+    get_all_studies,
+    get_series_by_id,
+    get_instance_by_id,
+    get_instance_file_path,
+    get_instance_metadata,
+    get_series_by_study_id,
+    get_instances_by_series_id,
+)
 from storage_backend import LocalStorageBackend
 from config import settings
 
@@ -103,12 +111,22 @@ async def upload(file: UploadFile = File(...), db: Session = Depends(get_db)):
             modality=modality
         )
 
-        # Create instance record
+        # Upsert series (added 2026-05-15: previously skipped, leaving series table empty)
+        series_instance_uid = getattr(dicom_data, "SeriesInstanceUID", None)
+        if series_instance_uid:
+            DatabaseService.upsert_series(
+                db,
+                series_instance_uid=series_instance_uid,
+                study_instance_uid=study_instance_uid
+            )
+
+        # Create instance record (linked to both study and series)
         instance = DatabaseService.create_instance(
             db,
             file_path=relative_file_path,
             study_instance_uid=study_instance_uid,
-            sop_instance_uid=sop_instance_uid
+            sop_instance_uid=sop_instance_uid,
+            series_instance_uid=series_instance_uid
         )
 
         # Step 3: Return response (instance_id added 2026-05-14 for client drill-down)
@@ -153,6 +171,22 @@ def get_series(id: int, db: Session = Depends(get_db)):
     if not series:
         raise HTTPException(status_code=404, detail=f"Series with id {id} not found")
     return _row(series)
+
+
+@app.get("/studies/{id}/series")
+def list_series_for_study(id: int, db: Session = Depends(get_db)):
+    series_list = get_series_by_study_id(db, id)
+    if series_list is None:
+        raise HTTPException(status_code=404, detail=f"Study with id {id} not found")
+    return {"series": [_row(s) for s in series_list]}
+
+
+@app.get("/series/{id}/instances")
+def list_instances_for_series(id: int, db: Session = Depends(get_db)):
+    instances = get_instances_by_series_id(db, id)
+    if instances is None:
+        raise HTTPException(status_code=404, detail=f"Series with id {id} not found")
+    return {"instances": [_row(i) for i in instances]}
 
 
 @app.get("/instances/{id}")

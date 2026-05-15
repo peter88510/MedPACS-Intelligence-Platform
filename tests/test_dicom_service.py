@@ -168,17 +168,101 @@ def test_database_create_instance(db):
         study_instance_uid="1.2.3.5",
         patient_id="PATIENT_003"
     )
+    DatabaseService.upsert_series(
+        db,
+        series_instance_uid="1.2.3.5.1",
+        study_instance_uid="1.2.3.5"
+    )
 
     # Create instance
     instance = DatabaseService.create_instance(
         db,
         file_path="PATIENT_003/1.2.3.5/file.dcm",
         study_instance_uid="1.2.3.5",
-        sop_instance_uid="1.2.3.5.1"
+        sop_instance_uid="1.2.3.5.2",
+        series_instance_uid="1.2.3.5.1"
     )
 
     assert instance.file_path == "PATIENT_003/1.2.3.5/file.dcm"
     assert instance.study_instance_uid == "1.2.3.5"
+    assert instance.series_instance_uid == "1.2.3.5.1"
+
+
+def test_database_upsert_series(db):
+    """Series upsert dedupes on series_instance_uid (multi-instance series)."""
+
+    # Setup parent study
+    DatabaseService.upsert_patient(db, "PATIENT_004")
+    DatabaseService.upsert_study(
+        db,
+        study_instance_uid="1.2.3.6",
+        patient_id="PATIENT_004"
+    )
+
+    # First insert
+    series1 = DatabaseService.upsert_series(
+        db,
+        series_instance_uid="1.2.3.6.1",
+        study_instance_uid="1.2.3.6"
+    )
+    assert series1.series_instance_uid == "1.2.3.6.1"
+
+    # Second insert with same series_instance_uid — dedupe, return existing
+    series2 = DatabaseService.upsert_series(
+        db,
+        series_instance_uid="1.2.3.6.1",
+        study_instance_uid="1.2.3.6"
+    )
+    assert series2.id == series1.id
+
+
+def test_upload_creates_series_record(tmp_path, db_client, db):
+    """Verify upload pipeline upserts Series (was previously skipped, leaving table empty)."""
+    import pydicom
+    from pydicom.dataset import FileDataset
+    from models import Series
+
+    file_meta = pydicom.dataset.FileMetaDataset()
+    file_meta.MediaStorageSOPClassUID = "1.2.840.10008.5.1.4.1.1.2"
+    file_meta.MediaStorageSOPInstanceUID = "1.2.3.4"
+    file_meta.TransferSyntaxUID = pydicom.uid.ImplicitVRLittleEndian
+
+    ds = FileDataset(
+        str(tmp_path / "series_test.dcm"),
+        {},
+        file_meta=file_meta,
+        preamble=b"\0" * 128,
+    )
+    ds.PatientID = "SERIES_TEST_PATIENT"
+    ds.StudyInstanceUID = "9.9.9.9"
+    ds.SeriesInstanceUID = "9.9.9.9.1"
+    ds.SOPInstanceUID = "9.9.9.9.1.1"
+    ds.Modality = "US"
+    ds.Rows = 1
+    ds.Columns = 1
+    ds.BitsAllocated = 8
+    ds.BitsStored = 8
+    ds.HighBit = 7
+    ds.PixelRepresentation = 0
+    ds.SamplesPerPixel = 1
+    ds.PhotometricInterpretation = "MONOCHROME2"
+    ds.PixelData = b"\x00"
+
+    test_file_path = tmp_path / "series_test.dcm"
+    ds.save_as(test_file_path)
+
+    with open(test_file_path, "rb") as f:
+        response = db_client.post(
+            "/upload",
+            files={"file": ("series_test.dcm", f, "application/dicom")}
+        )
+
+    assert response.status_code == 200
+
+    # Verify Series record was created with the expected uid
+    series = db.query(Series).filter(Series.series_instance_uid == "9.9.9.9.1").first()
+    assert series is not None
+    assert series.study_instance_uid == "9.9.9.9"
 
 
 if __name__ == "__main__":

@@ -34,11 +34,12 @@ class Series(Base):
     __tablename__ = "series"
 
     id = Column(Integer, primary_key=True, index=True)
-    series_instance_uid = Column(String(255), nullable=True, index=True)
+    series_instance_uid = Column(String(255), unique=True, nullable=False, index=True)
     study_instance_uid = Column(String(255), ForeignKey("studies.study_instance_uid"), nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
 
     study = relationship("Study", back_populates="series")
+    instances = relationship("Instance", back_populates="series")
 
 
 class Instance(Base):
@@ -48,6 +49,8 @@ class Instance(Base):
     sop_instance_uid = Column(String(255), nullable=True, unique=True, index=True)
     file_path = Column(String(500), nullable=False)
     study_instance_uid = Column(String(255), ForeignKey("studies.study_instance_uid"), nullable=False)
+    series_instance_uid = Column(String(255), ForeignKey("series.series_instance_uid"), nullable=True, index=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
     study = relationship("Study", back_populates="instances")
+    series = relationship("Series", back_populates="instances")

@@ -59,11 +59,42 @@ class DatabaseService:
         return study
 
     @staticmethod
+    def upsert_series(
+            db: Session,
+            series_instance_uid: str,
+            study_instance_uid: str
+    ) -> Series:
+        """
+        Upsert series record. If exists (matched by series_instance_uid), return existing;
+        if not, create. Multiple instances within the same DICOM series will share the
+        same series_instance_uid, so this must dedupe on each upload.
+
+        Args:
+            db: SQLAlchemy session
+            series_instance_uid: SeriesInstanceUID from DICOM
+            study_instance_uid: StudyInstanceUID (FK reference, parent study)
+
+        Returns:
+            Series object
+        """
+        series = db.query(Series).filter(Series.series_instance_uid == series_instance_uid).first()
+        if not series:
+            series = Series(
+                series_instance_uid=series_instance_uid,
+                study_instance_uid=study_instance_uid
+            )
+            db.add(series)
+            db.commit()
+            db.refresh(series)
+        return series
+
+    @staticmethod
     def create_instance(
             db: Session,
             file_path: str,
             study_instance_uid: str,
-            sop_instance_uid: Optional[str] = None
+            sop_instance_uid: Optional[str] = None,
+            series_instance_uid: Optional[str] = None
     ) -> Instance:
         """
         Create instance record (always new, never update).
@@ -73,6 +104,8 @@ class DatabaseService:
             file_path: Relative file path from storage
             study_instance_uid: StudyInstanceUID (FK reference)
             sop_instance_uid: Optional SOPInstanceUID from DICOM
+            series_instance_uid: Optional SeriesInstanceUID (FK to series.series_instance_uid).
+                                 Added 2026-05-15 along with Series upsert pipeline.
 
         Returns:
             Instance object
@@ -80,7 +113,8 @@ class DatabaseService:
         instance = Instance(
             file_path=file_path,
             study_instance_uid=study_instance_uid,
-            sop_instance_uid=sop_instance_uid
+            sop_instance_uid=sop_instance_uid,
+            series_instance_uid=series_instance_uid
         )
         db.add(instance)
         db.commit()
@@ -100,6 +134,35 @@ def get_series_by_id(db: Session, series_id: int):
 
 def get_instance_by_id(db: Session, instance_id: int):
     return db.query(Instance).filter(Instance.id == instance_id).first()
+
+
+def get_series_by_study_id(db: Session, study_id: int) -> Optional[list]:
+    """
+    Return all series for a given study DB id. Returns None if study doesn't exist
+    (lets handler emit 404); empty list if study exists but has no series yet.
+    """
+    study = db.query(Study).filter(Study.id == study_id).first()
+    if not study:
+        return None
+    return (db.query(Series)
+            .filter(Series.study_instance_uid == study.study_instance_uid)
+            .order_by(Series.created_at.asc())
+            .all())
+
+
+def get_instances_by_series_id(db: Session, series_id: int) -> Optional[list]:
+    """
+    Return all instances for a given series DB id. Returns None if series doesn't exist;
+    empty list if series exists but has no instances (e.g., legacy NULL series_instance_uid
+    rows from before the 2026-05-15 schema upgrade).
+    """
+    series = db.query(Series).filter(Series.id == series_id).first()
+    if not series:
+        return None
+    return (db.query(Instance)
+            .filter(Instance.series_instance_uid == series.series_instance_uid)
+            .order_by(Instance.created_at.asc())
+            .all())
 
 
 # --- Day 8-9: Frontend API support functions ---
