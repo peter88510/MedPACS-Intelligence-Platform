@@ -41,11 +41,11 @@
 
 ### 進行中的任務
 
-- 無 in-flight 程式碼修改（主 Agent 端）
-- **Stage C 已 dispatch 並交付前端 Agent**（dispatch 寫於 `cbca650`、`instance_id` 驗證步驟修正於 `40fd1e9`）。等待前端 Agent commit + 回報結果。
-- **主 Agent 進入待命**（工程師於 2026-05-14 宣告「工作告一段落、待前端完成後審查結果」）
-- 前端 Agent 端 working tree 仍有 `frontend/PROGRESS.md` 與 `frontend/context/SESSION_HISTORY.md` 兩份 unstaged 修改（前端上次 Stage B 收尾遺留）。預期前端 Agent 開 Stage C session 起手時會處理（commit 或 stash）
-- 下一個主 Agent 任務（前端完工後）：(a) 審查前端 Stage C commit、(b) 同步根 PROGRESS.md 標註 Stage C 完成、(c) 評估前端回報的新後端需求、(d) 派 Phase 2 task #9 dispatch（API client + AppContext + 4 業務元件）
+- 無 in-flight 程式碼修改（主 Agent 端，本批已 push 完）
+- **DISPATCH 改派為 Stage C 修正版**（`a7e973e`）— 純 viewer 已過關但影像尺寸不完整；新 dispatch 要前端 Agent 補 `viewport.resetCamera()` + 容器 aspect-ratio + 一併 commit Stage C 完整版
+- **Backend Series 結構補完已 push**（`9967f71`）— upload pipeline 加 series upsert / Instance 加 series_instance_uid FK / 2 新 endpoints (`/studies/{id}/series` + `/series/{id}/instances`) / migration `e25c80289a9c` / 46 tests 全綠 / docs 全同步
+- **主 Agent 進入第二輪待命**，等：① 工程師跑 `alembic upgrade head` ② 前端 Agent 完成 Stage C 修正 dispatch
+- 下一個主 Agent 任務（前端完工後）：(a) 審查前端 Stage C 完整版 commit、(b) 同步根 PROGRESS §5「下一步」標 Stage C 完成、(c) 派 Phase 2 task #9 dispatch（API client + AppContext + 4 業務元件 + `VITE_API_BASE_URL` env var 制度）
 
 ### 待決定事項
 
@@ -123,11 +123,20 @@
   5. **新 feature：POST /upload response 加 `instance_id`**（commit `40fd1e9`）：non-breaking 欄位新增，解除前端 / 工程師「拿到 instance DB id 必須繞 psql」窘境。改動 main.py + 1 test 加斷言 + README + HANDOFF §3/§7 + DISPATCH 驗證步驟；36/36 pytest 全綠；pre-commit hook 自動 regen `docs/generated/api_spec.md`
 - **Commit 序列（本批，全部已 push）**：
   ```
+  9967f71 feat(api): Series 結構補完 — upload upsert + 2 endpoints + Instance FK
+  a7e973e docs(dispatch): 覆寫為 Stage C 收尾 — 影像尺寸自適應 + 一併 commit
+  6bd4bd8 docs(session): 收尾 — Stage C 已 dispatch、主 Agent 進入待命
   40fd1e9 feat(api): POST /upload response 加 instance_id 欄位（non-breaking）
   93f274c docs(readme): 同步 Project Structure 至 Phase 1+2 reorg 後狀態
   cbca650 docs: 同步前端 Stage A/B 完成狀態 + 派發 Stage C dispatch
   6fdbe91 docs(session): 加入下次 session 啟動強制動作區塊（R4 + PROGRESS archive 評估）
   ```
+- **2026-05-15 補充批次（Stage C 結果審查 + Series 補完）**：
+  - 審查前端 Stage C：純 viewer 達成（瀏覽器以 instance_id=1 渲染 Peter_Quiet_1.dcm 成功）但影像尺寸被切。前端 Agent 列三個可能因素於 §4.4，等主 Agent 拍板處理時機
+  - 工程師拍板：尺寸缺口立刻修 + 一併 commit Stage C；backend 走完整解
+  - 派 Stage C 尺寸修正 dispatch（`a7e973e`）— scope 嚴格限縮 viewport.resetCamera() + aspect-ratio
+  - 主 Agent 自行做 backend Series 補完（`9967f71`）— 發現 schema 比預期糟（upload 跳過 series upsert + Instance 沒 series FK，導致 `/series/{id}/instances` 完全無法實作）；走 alembic migration 完整解、46 tests 全綠
+  - **遺留**：工程師需跑 `alembic upgrade head` 在實際 dev DB 上、否則 backend 重啟會找不到新 column（test 用 in-memory sqlite + create_all 不受影響）
 - **重大認知變更**：
   - v1.2 規則確實首戰即捉到漏網：README.md Project Structure 是 Phase 1 reorg 漏改的 stale doc，靠 R3 概念與工程師事件回報才補上 → 證實「Doc Impact 檢測」對結構性 reorg 仍需主 Agent 視角而非單靠 pre-commit hook
   - `/upload` response 缺 `instance_id` 是 API 設計小坑 — frontend/PROGRESS §5 早 flag、但直到工程師實戰才被觸發補上；提醒：派 dispatch 前要 dry-run 驗證步驟可行性
