@@ -108,8 +108,8 @@ async def upload(file: UploadFile = File(...), db: Session = Depends(get_db)):
 
 - **Patient**: Stores unique `patient_id`; has a one-to-many relationship with studies.
 - **Study**: Stores unique `study_instance_uid`; has a foreign key to patient; stores modality.
-- **Series**: Provides series-level grouping; extensible for future use.
-- **Instance**: Represents an individual DICOM file record; has a foreign key to study; stores `file_path`.
+- **Series**: Stores series-level grouping with **unique `series_instance_uid`** (constraint added 2026-05-15); FK to study via `study_instance_uid`. One study has many series.
+- **Instance**: Represents an individual DICOM file record; FK to study via `study_instance_uid`; **FK to series via `series_instance_uid` (added 2026-05-15)**; stores `file_path`. Legacy rows from before 2026-05-15 have NULL `series_instance_uid`.
 
 ### db.py
 
@@ -122,7 +122,9 @@ async def upload(file: UploadFile = File(...), db: Session = Depends(get_db)):
 
 - `upsert_patient()`: Inserts a patient if not exists; returns the existing record on duplicate.
 - `upsert_study()`: Inserts a study if not exists, keyed by `study_instance_uid`.
-- `create_instance()`: Always creates a new instance record (no upsert required).
+- **`upsert_series()` (added 2026-05-15)**: Dedupes on `series_instance_uid` — multiple instances within the same DICOM series share the same UID, so this must be called per-upload.
+- `create_instance()`: Creates a new instance record. Signature gained `series_instance_uid` parameter (Optional) on 2026-05-15.
+- `get_series_by_study_id()` / `get_instances_by_series_id()` (added 2026-05-15): Power the new listing endpoints. Return `None` if the parent doesn't exist (handler emits 404), `[]` if parent exists but has no children.
 
 ### storage.py
 
@@ -149,35 +151,40 @@ CREATE TABLE studies (
     created_at TIMESTAMP DEFAULT NOW()
 );
 
--- Series (one study, many series)
+-- Series (one study, many series). UNIQUE/NOT NULL added 2026-05-15.
 CREATE TABLE series (
     id SERIAL PRIMARY KEY,
-    series_instance_uid VARCHAR(255),
+    series_instance_uid VARCHAR(255) UNIQUE NOT NULL,
     study_instance_uid VARCHAR(255) NOT NULL REFERENCES studies(study_instance_uid),
     created_at TIMESTAMP DEFAULT NOW()
 );
 
--- Instances (one study, many DICOM files)
+-- Instances (one study, many DICOM files). series_instance_uid FK added 2026-05-15.
 CREATE TABLE instances (
     id SERIAL PRIMARY KEY,
     sop_instance_uid VARCHAR(255) UNIQUE,
     file_path VARCHAR(500) NOT NULL,
     study_instance_uid VARCHAR(255) NOT NULL REFERENCES studies(study_instance_uid),
+    series_instance_uid VARCHAR(255) REFERENCES series(series_instance_uid),  -- nullable; legacy rows are NULL
     created_at TIMESTAMP DEFAULT NOW()
 );
 ```
+
+> **Authoritative source**: `docs/generated/db_schema.md` (auto-regenerated from `models.py` + alembic by pre-commit hook). The SQL above is illustrative and may lag. Migration history: `20809e26d134` (baseline) → `e25c80289a9c` (Series 補完, 2026-05-15).
 
 ## Upload Workflow
 
 The following steps occur on every `/upload` request:
 
-1. **Parse**: `pydicom.dcmread()` extracts `PatientID`, `StudyInstanceUID`, `Modality`, and `SOPInstanceUID`.
-2. **Store**: Saves the file to `storage/{patient_id}/{study_uid}/{filename}`.
-3. **Persist**:
+1. **Parse**: `pydicom.dcmread()` extracts `PatientID`, `StudyInstanceUID`, **`SeriesInstanceUID`**, `Modality`, and `SOPInstanceUID`.
+2. **Validate**: 6-field required check + Modality whitelist (`US` only).
+3. **Store**: Saves the file to `storage/{patient_id}/{study_uid}/{filename}`.
+4. **Persist**:
   - Upsert patient (keyed by `patient_id`).
   - Upsert study (keyed by `study_instance_uid`).
-  - Create instance (new record, foreign key to study).
-4. **Respond**: Returns JSON response identical to v1.0 API.
+  - **Upsert series (keyed by `series_instance_uid`, added 2026-05-15)** — if SeriesInstanceUID is missing, this step is skipped.
+  - Create instance (new record, FK to study + FK to series).
+5. **Respond**: Returns JSON with `instance_id` (added 2026-05-14) plus echoed DICOM tag values.
 
 ## Error Handling
 
@@ -297,12 +304,23 @@ Backend `main.py` registers `CORSMiddleware` allowing `http://localhost:5173` (V
 
 ---
 
+## Schema Evolution Beyond v2.0
+
+Changes after the initial v2.0 cut:
+
+| Date | Change | Migration / Commit |
+|---|---|---|
+| 2026-05-12 | Alembic baseline migration (4 tables; pre-Alembic state captured) | `20809e26d134` |
+| 2026-05-14 | `POST /upload` response gained `instance_id` (int, DB pk of new instance). Non-breaking field add. | commit `40fd1e9` |
+| 2026-05-15 | **Series 結構補完**: `series.series_instance_uid` UNIQUE+NOT NULL · `instances.series_instance_uid` ADD COLUMN+FK · upload pipeline 加 series upsert · 新 endpoints `GET /studies/{id}/series` + `GET /series/{id}/instances`. | migration `e25c80289a9c`, commit `9967f71` |
+
+Legacy data note: instances and series rows created before 2026-05-15 do not participate in the new series listing endpoint (`series_instance_uid` is NULL on those instance rows; series table was empty pre-补完). MVP accepts this gap; no backfill script.
+
 ## Future Extensions
 
 The current schema is designed to support the following future capabilities:
 
-- Multiple series per study (via the existing `series` table).
-- Series-level metadata (extensible schema).
 - Soft deletes (add `deleted_at` timestamps to tables).
 - Audit logs (add a transaction history table).
 - File metadata (add file hash, file size, and timestamp fields to the `instances` table).
+- Phase 3 AI: `AIResult` model + migration + real `/ai/segment/{id}` + `/ai/result/{id}/mask` PNG endpoint.

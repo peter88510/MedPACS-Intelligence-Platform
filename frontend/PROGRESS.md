@@ -2,7 +2,7 @@
 
 > **文件定位**：本檔僅記錄前端的**狀態與進度**。
 >
-> 架構說明見 [`IMPLEMENTATION.md`](./IMPLEMENTATION.md)；操作教學見 [`README.md`](./README.md)；AI 行為約束見 [`CLAUDE.md`](./CLAUDE.md)。
+> 架構說明見 [`IMPLEMENTATION.md`](./docs/IMPLEMENTATION.md)；操作教學見 [`README.md`](./README.md)；AI 行為約束見 [`CLAUDE.md`](./CLAUDE.md)。
 >
 > **更新規則**：每完成一項任務、變更狀態、或回報新需求時，由前端 Agent 同步更新本檔（規則見 [`CLAUDE.md`](./CLAUDE.md) §6）。
 
@@ -61,7 +61,7 @@
 
 ## 3. 待辦
 
-> 順序見 [`IMPLEMENTATION.md`](./IMPLEMENTATION.md) §10「開發順序建議」。
+> 順序見 [`IMPLEMENTATION.md`](./docs/IMPLEMENTATION.md) §10「開發順序建議」。
 
 ### Phase 2 task #8 — CornerstoneJS 整合（接續）
 
