@@ -1,0 +1,8 @@
+.viewport {
+  width: 100%;
+  min-height: 400px;
+  /* JS runtime sets aspect-ratio from DICOM rows/columns; this 4/3 is the
+     CSS fallback used only when metadata is unavailable. */
+  aspect-ratio: 4 / 3;
+  background-color: #000;
+}

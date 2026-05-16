@@ -16,32 +16,37 @@
 
 ## A. 系統現況快照（必讀，每次 session 啟動）
 
-### 系統現況（2026-05-14）
+### 系統現況（2026-05-15）
 
 - **架構**：React 19.2 + Vite 8.0 + TypeScript 6.0；單頁 SPA。
 - **目錄結構**：
   ```
   frontend/src/
-  ├── main.tsx           ← 程式入口，啟動時 await initCornerstone() 才 render
-  ├── App.tsx            ← Vite 預設範例（StageC 才會改）
-  ├── App.css / index.css
-  ├── assets/            ← Vite scaffold 圖片
-  └── cornerstone/
-      └── setup.ts       ← initCornerstone() — idempotent, module-level singleton flag
+  ├── main.tsx                                  ← 程式入口，啟動時 await initCornerstone() 才 render
+  ├── App.tsx                                   ← 已改寫；hardcoded INSTANCE_ID + render <DicomViewer />
+  ├── App.css / index.css                       ← App.css 不再 import（Vite scaffold 殘留，暫不刪）
+  ├── assets/                                   ← Vite scaffold 圖片（暫不刪）
+  ├── cornerstone/
+  │   └── setup.ts                              ← initCornerstone() — idempotent module-level singleton
+  └── components/
+      └── DicomViewer/
+          ├── DicomViewer.tsx                   ← Stage C；props instanceId、wadouri、StrictMode-safe
+          └── DicomViewer.module.css            ← 黑底 + 100%×600px
   ```
-- **dev server**：`npm run dev` → `http://localhost:5173`，啟動 329ms，目前確認無 PowerShell error / warning。Vite pre-bundle 自動處理 `@cornerstonejs/dicom-image-loader`。
+- **dev server**：`npm run dev` → `http://localhost:5173`；metadata dispatch 期間 restart 299ms；**目前仍在跑（task `bp155c6gs`）** — 主 Agent 若快速 iterate 新 dispatch 可省一次冷啟動，否則前端 Agent 收尾前 TaskStop
 - **已裝套件**：`@cornerstonejs/core@4.22.6`、`@cornerstonejs/dicom-image-loader@4.22.6`、`@cornerstonejs/tools@4.22.6`、`dicom-parser@1.8.21`、React 19.2、TypeScript 6.0。
-- **目前可做到的事**：dev server 啟動、Cornerstone 已 init（但尚未掛 viewport，因為沒元件需要）。
+- **目前可做到的事**：DICOM 渲染成功（`INSTANCE_ID=1`，`Peter_Quiet_1.dcm`，1640×1990 portrait 大尺寸超音波）；container aspect-ratio 已動態對齊 1640/1990；metadata 主路成功；無 console error；StrictMode-safe；cache hit 行為正確；**但影像仍未撐滿 container** — Fix-1/2/3/4 全部試過，皆未完整解。Fix-4 是「destroy+recreate engine」最徹底解仍失敗 → 根因可能比 Cornerstone API 層更深（CSS layout / Cornerstone module-level state）。**Stage C 已 commit 含 UX 缺口、等主 Agent 下一步**。PROGRESS §4.4 Fix-4 + 整體狀況彙整子段已詳記。
 
 ### 進行中的任務
 
-> **無進行中任務**。Stage B 已實作完，等待工程師瀏覽器 DevTools console 驗證後 commit；commit hash 將回填 PROGRESS.md。
+> **無進行中任務**。工程師授權的 Fix-4 方向 I（destroy+recreate engine）也失敗 → 影像填滿問題比預期深。工程師決定 commit 現狀、等主 Agent 下一步指示。**Stage C 5 個檔（DicomViewer.tsx, .module.css, App.tsx, PROGRESS.md, SESSION_HISTORY.md）已 commit 完整版含 UX 缺口**；commit hash 待回填。
 
 ### 待決定事項
 
-- **`<DicomViewer />` Stage C 起手點**：要直接寫 `<DicomViewer />` 元件、還是先做 API client + AppContext 把資料流打通？IMPLEMENTATION.md §10「開發順序建議」傾向後者（先資料流、後 viewer），等下次 dispatch 確認。
-- **CSS Modules vs. plain CSS**：IMPLEMENTATION.md §9 預期使用 CSS Modules（`*.module.css`），但 `CLAUDE.md` §11 標 UI 規範未定。Stage C 起步時若要寫第一個元件樣式，先回報主 Agent。
-- **`vite.config.ts` 何時要動**：本次 Stage B 證實**不需動**；Stage C 真正載入 DICOM 二進位時可能仍會觸發 wasm / worker 邊界問題（PLAN §12 風險點），屆時再決定。
+- **Stage C 尺寸缺口處理方向（4 次嘗試後）**：主 Agent 從 PROGRESS §4.4「Stage C 尺寸缺口 — 整體狀況彙整」給的 J/H/F/K/L 五方向擇一（前端 Agent 強推 **方向 J — CSS 層級偵錯**：拿掉所有 Cornerstone 假設、直接用瀏覽器 Computed style 看 `.viewport` / `.viewport-element` / `canvas` 三層真實尺寸，可能 root cause 在 Vite scaffold `#root` CSS 限制或 `min-height: 400px` 與動態 aspect-ratio 衝突；或 **方向 H — 暫退、留 task #9 順手處理**也務實）— 需新 dispatch 才能執行
+- **Multi-frame 處理**：工程師提出「多張 frame vs 單張 frame 會有不同尺寸」— 屬下個 dispatch 範圍；本任務仍僅需顯示第一 frame，cine 播放 / frame slider 屬 task #9 或 Phase 3
+- **`vite.config.ts` 何時要動**：本次 Stage C 四次嘗試**皆未需動**（無 wasm/worker/cors 邊界錯）；下個 dispatch 若遇問題，debug 順序仍是 `optimizeDeps.exclude` → `worker.format='es'` → `assetsInclude` → 最後才考慮版本鎖
+- **Vite scaffold 殘留清理**：`App.css`、`assets/`、`public/icons.svg`、`public/vite.svg` 在 Stage C 改寫後已不再被 import — 方向 J 偵錯時可能需要動 `#root` CSS，那時可一併清理（兩者相關）
 
 ---
 
@@ -54,22 +59,42 @@
 - **Phase 2 task #7（2026-05-13, `2d055de`）** — React + Vite + TS 專案骨架
 - **Phase 2 task #8 Stage A（2026-05-13, `83b8c9a`）** — 安裝 4 個 Cornerstone 套件、Vite pre-bundle 驗證
 - **Phase 2 task #8 Stage B（2026-05-14, `8cd61f3`）** — `setup.ts` + `main.tsx` 改造完成，dev server 端驗證乾淨
+- **文件架構重組 Phase 1-4（2026-05-14, `5f8acae` → `08ee711`）** — 主 Agent 主導；前端側影響：`frontend/context/` + `frontend/docs/` 分層、SESSION_HISTORY 拆 A/B 段、CLAUDE.md v1.1（加 §6.5 觸發式 Archive 與 §9.7 Stale Warning）
+- **Phase 2 task #8 Stage C — 瀏覽器驗收通過（2026-05-15，commit 待回填）** — `DicomViewer.tsx` + `DicomViewer.module.css` 新增、`App.tsx` 改寫 hardcoded `INSTANCE_ID`；dev server 兩次 boot 皆乾淨；瀏覽器以 `INSTANCE_ID=1`（`Peter_Quiet_1.dcm`）成功渲染 DICOM。⚠️ **影像尺寸不完整** — 見 PROGRESS §4.4 follow-up
+- **Stage C fit dispatch `phase-2-task-8-stage-c-fit` — gate 失敗（2026-05-15，未 commit）** — 加 `viewport.resetCamera()` + `aspect-ratio: 4/3`，dev server 端 tsc + HTTP 全通過；但瀏覽器仍見「完整超音波影像未在正確視窗框」。依 DISPATCH §「具體工作」4 停下、寫 §4.4 Fix-1 結果、待主 Agent 派新 dispatch（推薦方向 B：metadata-aware 動態 aspect-ratio）
+- **Stage C metadata dispatch `phase-2-task-8-stage-c-metadata` — gate 失敗（2026-05-16，未 commit）** — 加 `cornerstone.metaData.get('imagePlaneModule', imageId)` 動態取 rows/columns、設 container aspect-ratio、rAF 等 layout、`renderingEngine.resize` + `resetCameraForResize` + `render`。Container 與 canvas 兩者 aspect ratio 都對齊到 1640/1990，但 image actor 在 VTK scene 仍縮在角落（80% → 60% 黑底）。根因：Cornerstone 4.x GPU 模式底層 VTK actor 的 scene-space scale 在 setStack 時鎖定、後續 camera reset 動不到 actor scale。依 DISPATCH §「禁止」4 停下、寫 §4.4 Fix-2 詳記、待主 Agent 派新 dispatch（推薦方向 E：重 setStack）
+- **Stage C restack dispatch `phase-2-task-8-stage-c-restack` — gate 失敗（2026-05-16，未 commit）** — 在 metadata + rAF + resize 之後加二次 `await viewport.setStack([imageId])`。Network 0 GET（cache hit ✓）、Console 0 warning（metadata 主路成功 ✓）、setStack #2 確實執行；但影像仍未撐滿 canvas。Cornerstone source 分析：second setStack 確實走 full rebuild（stackInvalidated=true 強制）建新 actor + resetCameraNoEvent — 仍未填滿 → **Cornerstone 內部還有更深狀態綁在 enableElement 當下的 canvas 尺寸**（VTK offscreen render window / camera intrinsic 等）。依 DISPATCH §「主 Agent 已拍板的決策」5 停下、寫 §4.4 Fix-3 詳記、待主 Agent 派新 dispatch（推薦新方向 I：destroy+recreate engine）
+- **Stage C Fix-4 — 工程師授權方向 I 嘗試（2026-05-16，commit 待回填）** — destroy+recreate engine 兩階段：Phase 1 probe（fallback aspect 下載 image + 讀 metadata + 設 aspectRatio + rAF）、Phase 2 rebuild（destroy probe engine + new RenderingEngine + enableElement on portrait container + setStack cache hit）。屬工程師明示授權的 scope 擴張、非主 Agent dispatch。**仍失敗** — image 依然未撐滿。這是針對「Cornerstone 內部狀態綁第一次 enableElement」假設的最徹底解，仍敗 → 根因可能在 CSS layout 層或 Cornerstone module-level state。工程師決定 commit 現狀、等主 Agent 下一步。詳 PROGRESS §4.4 Fix-4 + 整體狀況彙整子段
 
-### 上次 session 結尾狀態（2026-05-14）
+### 上次 session 結尾狀態（2026-05-16）
 
-- **改了什麼**：
-  - 新增 `frontend/src/cornerstone/setup.ts`（25 行）
-  - 改寫 `frontend/src/main.tsx`（10 → 17 行）
-  - 更新 `frontend/PROGRESS.md`：
-    - §1 加 Stage B 已完成項
-    - §2「進行中」恢復為空
-    - §3 移除 Stage B 待辦
-  - **未動** `frontend/vite.config.ts`
-- **commit 狀態**：**尚未 commit**。dev server 仍在背景跑（task id `bpn5mq48c`）等工程師驗證瀏覽器 DevTools console。
+- **跨 session 累積改了什麼（皆未 commit）**：
+  - **Stage C 主體**（`phase-2-task-8-stage-c`）：DicomViewer.tsx 新增、.module.css 新增、App.tsx 改寫
+  - **Stage C fit dispatch**（`phase-2-task-8-stage-c-fit`，gate 失敗）：DicomViewer.tsx async IIFE + resetCamera、.module.css `height: 600px` → `aspect-ratio: 4/3; min-height: 400px`
+  - **Stage C metadata dispatch**（`phase-2-task-8-stage-c-metadata`，gate 失敗）：DicomViewer.tsx 加 `import { metaData }`、metadata 主路 + 備路 + warning fallback、`element.style.aspectRatio` 動態設定、rAF 等 layout、`renderingEngine.resize(true, false)`、`viewport.resetCameraForResize()`；.module.css 加註解說明 CSS aspect-ratio 為 fallback-only
+  - **doc**：PROGRESS §1 加 Stage C 條目 + §2 / §3 整理 + §4.4 加 + §4.5 加 + §4.4 Fix-1 + §4.4 Fix-2 子段加；SESSION_HISTORY A/B 兩段多次同步
+  - **未動**：`vite.config.ts`、`main.tsx`、`cornerstone/setup.ts`、backend 任何檔、IMPLEMENTATION.md、Vite scaffold 殘留
+- **驗證歷程總結**：
+  - Stage C 主體：瀏覽器渲染 ✅ — **但影像尺寸不完整**（image 縮邊）
+  - Stage C fit (4/3)：dev server 端 ✅、瀏覽器 gate ❌（image 在 4/3 container 內被切）
+  - Stage C metadata + rAF + resetCameraForResize：dev server 端 ✅、container & canvas aspect ratio 對齊 1640/1990 ✅、但 image 仍在 canvas 內縮邊（80% → 60% 黑底，部分改善但 gate ❌）
+- **本 session 兩個關鍵技術發現**（PROGRESS §4.4 Fix-2 詳記）：
+  1. **timing 問題**：JS 改 `element.style.aspectRatio` 後，瀏覽器尚未 layout reflow，立即呼叫 `renderingEngine.resize(true, false)` 會 measure 到舊尺寸 → canvas buffer 卡舊值。對策：**rAF 等 layout 完才呼叫 resize**
+  2. **`resetCameraForResize()` 在 GPU 模式 = `resetCamera()`**：Cornerstone 4.x `StackViewport.js:414-425` 的 dispatcher 只讀 `resetPan` + `resetZoom`，**完全忽略 `resetToCenter`/`suppressEvents`**。且 `renderingEngine.resize()` 內部已自動呼叫 resetCameraForResize（`ContextPoolRenderingEngine.js:169`），所以外層手動再呼叫是 no-op
+  - **真正未解的問題**：Cornerstone GPU 用 VTK actors+camera 架構；`setStack` 當下 image actor 在 VTK scene 的 scene-space scale 被鎖定在「當時 canvas 尺寸」；後續 resize+resetCameraForResize 只重設 camera view、**動不到 actor scale** → image 仍以舊大小 fit 入新 canvas → 縮在角落
+- **debug 過程踩到的非 code 坑**（PROGRESS §4.5）：CORS 5174→8000、`vite server` zombie 404、`instance_id=2` 後端不存在、靜態 4/3 不適用變動 DICOM、Cornerstone VTK actor scale 鎖定
+- **commit 狀態**：**完全未 commit**（三份 dispatch 累積在工作樹）。`git status` 應該見：
+  - M PROGRESS.md
+  - M context/SESSION_HISTORY.md
+  - M src/App.tsx
+  - M src/components/DicomViewer/DicomViewer.tsx
+  - M src/components/DicomViewer/DicomViewer.module.css
+  - ?? src/components/（首次新增）
+- **背景任務**：dev server `bp155c6gs` **仍在跑**（沒 TaskStop） — 主 Agent 若快速 iterate 新 dispatch 可省冷啟動；若不快速 iterate、前端 Agent 應在 session 結尾前 TaskStop 避免 zombie 5173
 - **下次起手建議**：
-  1. 確認工程師對 Stage B 瀏覽器驗證結果 → commit
-  2. 若工程師發現 console 噴 cornerstone 相關 error / warning：debug 方向先看 worker / wasm 路徑、再考慮加 `vite.config.ts` 的 `optimizeDeps.exclude`、最後才考慮版本鎖
-  3. 若驗證通過 → 等主 Agent 派 Stage C（DICOM 渲染） dispatch
+  1. **等主 Agent 看 §4.4 「整體狀況彙整」段（含 J/H/F/K/L 五方向選項）+ 給新 dispatch**（前端 Agent 強推 **方向 J — CSS 層級偵錯**：拿掉所有 Cornerstone 假設、用瀏覽器 Computed style 對照 `.viewport`/`.viewport-element`/`canvas` 三層真實尺寸；可能 root cause 在 `#root` Vite scaffold CSS 限制 max-width / padding、或 `min-height: 400px` 與動態 aspect-ratio 衝突。次選 **方向 H — 暫退**：commit 現狀、把完整 fit 留到 task #9）
+  2. Stage C 5 個檔已 commit 含 UX 缺口（image 未撐滿）；commit hash 待回填 PROGRESS §1 + 本段
+  3. 不要再自行擴 scope 試方向 K/L（DOM 簡化 / 換 viewport type）；那些是重構級工作，需主 Agent 拍板
 
 ---
 
