@@ -41,11 +41,11 @@
 
 ### 進行中的任務
 
-- 無 in-flight 程式碼修改（主 Agent 端，本批已 push 完）
-- **DISPATCH 改派為 Stage C 修正版**（`a7e973e`）— 純 viewer 已過關但影像尺寸不完整；新 dispatch 要前端 Agent 補 `viewport.resetCamera()` + 容器 aspect-ratio + 一併 commit Stage C 完整版
-- **Backend Series 結構補完已 push**（`9967f71`）— upload pipeline 加 series upsert / Instance 加 series_instance_uid FK / 2 新 endpoints (`/studies/{id}/series` + `/series/{id}/instances`) / migration `e25c80289a9c` / 46 tests 全綠 / docs 全同步
-- **主 Agent 進入第二輪待命**，等：① 工程師跑 `alembic upgrade head` ② 前端 Agent 完成 Stage C 修正 dispatch
-- 下一個主 Agent 任務（前端完工後）：(a) 審查前端 Stage C 完整版 commit、(b) 同步根 PROGRESS §5「下一步」標 Stage C 完成、(c) 派 Phase 2 task #9 dispatch（API client + AppContext + 4 業務元件 + `VITE_API_BASE_URL` env var 制度）
+- 無 in-flight 程式碼修改（主 Agent 端）
+- **Stage C 已 commit `13cccd3`**（前端 Agent 主導），含 UX 缺口（影像未填滿 container、4 個 fix dispatch 都失敗）— 列為 known issue（根 PROGRESS §6.11 + frontend §4.4）
+- **Phase 2 task #9 dispatch 已派**（覆寫 DISPATCH `phase-2-task-9-business-components`）— 4 業務元件 + AppContext + API client + `VITE_API_BASE_URL` env var；含「方向 J」CSS 偵錯 30 分鐘 timebox 順手試解 Stage C UX 缺口
+- **R4 stale check 規則調整**（2026-05-16，工程師授權）：主 Agent 改為 per-Read inline、active phase 不再做 blanket per-session 全掃；不動 CLAUDE.md 文字（仍符合 §10 R4 letter）
+- 下一個主 Agent 任務（task #9 完工後）：(a) 審查 7 個 commit、(b) 同步根 PROGRESS、(c) 派 Phase 3 dispatch（AIResult model + ai_service + 真實 AI mask）
 
 ### 待決定事項
 

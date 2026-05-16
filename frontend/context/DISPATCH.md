@@ -1,12 +1,12 @@
 ---
 issued: 2026-05-16
 issued_by: 主 Agent
-task_id: phase-2-task-8-stage-c-restack
+task_id: phase-2-task-9-business-components
 status: active
-supersedes: phase-2-task-8-stage-c-metadata (gate failed — see PROGRESS §4.4 Fix-2)
+supersedes: phase-2-task-8-stage-c-restack (Stage C 已 commit 13cccd3 含 UX 缺口；UX 缺口由本 dispatch CSS 整理段順手處理)
 ---
 
-# 當前任務 — Stage C 收尾 Fix-3：在 resize 後二次 setStack 重建 actor scene
+# 當前任務 — Phase 2 task #9：4 業務元件 + AppContext + API client + env var 制度
 
 > **本檔機制**：本檔是**當前任務**的單一入口。主 Agent 派發新任務時會**整檔覆蓋**，不累積歷史。歷史請看 `frontend/PROGRESS.md` 的「已完成任務」段與 git commit log。
 >
@@ -20,131 +20,155 @@ supersedes: phase-2-task-8-stage-c-metadata (gate failed — see PROGRESS §4.4 
 
 ### 目標
 
-接續 Stage C 修正。Fix-2 dispatch 把 metadata-aware aspect-ratio 設對、canvas buffer 也擴對，但**影像仍縮在 container 一角不撐滿**。前端 Agent 讀 Cornerstone 4.22.6 source code 定位根因（PROGRESS §4.4 Fix-2 段詳述）：
+完成 Phase 2 業務元件層 — 從「hardcoded INSTANCE_ID 顯示一張 DICOM」進化到「完整 SPA：選 study → 自動列 series → 列 instance → 渲染 + metadata 顯示 + AI stub 觸發」。
 
-> **`setStack` 當下、image actor 在 VTK scene 的 scaling 是依當時 canvas 尺寸鎖定的；後續 canvas 變大、`resetCameraForResize` 只重設 camera view transform、actor scene-space scale 不跟著改**
-
-本 dispatch 採前端 Agent 提出的方向 E（最小針對性解）：**在 metadata 設好 + reflow + resize 之後，再呼叫一次 `viewport.setStack([imageId])`，讓 image actor scene 在正確 canvas 尺寸下重建**。
+依賴：
+- ✅ Stage C 已 commit `13cccd3`（DicomViewer 元件已存在，本 task 改造其 props 來源）
+- ✅ Backend 補完 `9967f71` + `40fd1e9`（`/upload` 回 instance_id、`/studies/{id}/series`、`/series/{id}/instances` 都已上線）
+- ✅ 工程師已跑 `alembic upgrade head`（migration `e25c80289a9c` 已 apply）
 
 ### 主 Agent 已拍板的決策
 
-- **方向**：E（二次 setStack）。不採 F（ResizeObserver）/ G（image loader）/ H（暫退）
-- **Cornerstone image cache**：第二次 setStack 應該 hit cache、不會二次下載 DICOM；若意外發現會二次下載、回報但不阻斷（task #9 才需要 ResizeObserver-grade 解）
-- **保留所有 Fix-2 改動**：metadata 主路 + 備路 + fallback console.warn、rAF、`renderingEngine.resize(true, false)`、`resetCamera()`、`cancelled` flag、cleanup `destroy()`
-- **Multi-frame 仍延後**：本 dispatch 仍只顯示第 1 frame，不做 frame UI（task #9 / Phase 3）
-- **若 Fix-3 仍失敗**：停下、回報、PROGRESS §4.4 加 Fix-3 子段；**不自行升級到 F（ResizeObserver）**，主 Agent 會評估
+- **API base URL**：採 `VITE_API_BASE_URL` env var 制度（本 task dispatch 內正式導入）
+- **State 管理**：React Context（`AppContext`，5 fields）— **不引入** Redux / Zustand / TanStack Query
+- **CSS**：CSS Modules（與 Stage C 同）
+- **Layout**：CSS Grid 三欄 — TopBar 在頂、StudyList 在左、DicomViewer 在中、MetadataPanel + AIPanel 在右上下分（依 frontend/docs/IMPLEMENTATION.md §架構圖）
+- **DicomViewer**：改 props 從 AppContext.currentInstanceId 取；**移除** App.tsx 的 hardcoded `INSTANCE_ID = 1`
+- **AI mask overlay**：本 task **不**做（依賴 Phase 3 真實 mask；frontend §5「後端需求清單」第 3 條 still pending）
+- **Multi-frame UI / cine**：本 task **不**做（Phase 3）
+- **upload UI**：本 task **不**做（依 PLAN §10.5、frontend HANDOFF §3.4）
+- **Stage C UX 缺口（影像未填滿 container）**：在「CSS Modules 樣式整理」子段**順手做方向 J（CSS 層偵錯）**；若 J 無解、留為 known issue（PROGRESS §6.11、根 PROGRESS §6.11）
 
-### 具體工作
+### 具體工作（建議拆 7 個 commit、不要單一 commit）
 
-**唯一改動**：在 `frontend/src/components/DicomViewer/DicomViewer.tsx` 現有 Fix-2 代碼的 `renderingEngine.resize(true, false)` **之後、`viewport.resetCamera()` 之前**，加一行：
+1. **API client + env var 制度**（`src/api/`）
+   - `client.ts`：fetch wrapper（含 base URL 從 `import.meta.env.VITE_API_BASE_URL` 讀，default `http://localhost:8000`）+ `ApiError` class（含 status code + parsed body）
+   - `types.ts`：共享 TypeScript types（`Study`、`Series`、`Instance`、`InstanceMetadata`、`AISegmentResponse`、`AIResultResponse`）
+   - `studies.ts`：`listStudies()` → `GET /studies`、`listSeriesForStudy(studyId)` → `GET /studies/{id}/series`
+   - `series.ts`：`listInstancesForSeries(seriesId)` → `GET /series/{id}/instances`
+   - `instances.ts`：`getInstance(id)`、`getInstanceMetadata(id)`、`getInstanceFileUrl(id)`（純 URL builder，給 wadouri 用）
+   - `ai.ts`：`triggerSegmentation(instanceId)` → `POST /ai/segment/{id}`、`getResult(instanceId)` → `GET /ai/result/{id}`
+   - `.env.example` 加 `VITE_API_BASE_URL=http://localhost:8000`；建議建 `.env.local`（前端 Agent 不 commit、`.gitignore` 應已涵蓋 `.env*`，若沒涵蓋確認後加）
+   - **commit**：`feat(frontend): API client + VITE_API_BASE_URL env var 制度`
 
-```ts
-await viewport.setStack([imageId]);
-```
+2. **AppContext**（`src/context/AppContext.tsx`）
+   - 5 fields：`studies: Study[]`、`currentStudyId: number | null`、`currentSeriesId: number | null`、`currentInstanceId: number | null`、`aiResult: AIResultResponse | null`
+   - Provider 含 setter helpers + reducers（用 useReducer 或 useState 視複雜度）
+   - `useAppContext()` hook + null check
+   - 啟動時 fetch `/studies` 填 `studies`、預設選第一個（若有）→ 觸發 series fetch → instance fetch → 預設選第一個 instance
+   - **commit**：`feat(frontend): AppContext + 5 field state shape`
 
-完整的 init flow（關鍵步驟順序）：
+3. **結構元件**（`src/components/Layout/` + `src/components/TopBar/`）
+   - `Layout.tsx` + `Layout.module.css`：CSS Grid `grid-template-areas: "topbar topbar topbar" "studylist viewer rightpanel"; grid-template-columns: 240px 1fr 280px; grid-template-rows: 56px 1fr;`
+   - `TopBar.tsx` + `TopBar.module.css`：簡單 header（標題 "MedPACS"、可加目前選中的 study/series/instance UID 顯示作 debug）
+   - **commit**：`feat(frontend): Layout + TopBar 結構元件`
 
-```ts
-// 1. First setStack — load image, populate metadata
-await viewport.setStack([imageId]);
-if (cancelled) return;
+4. **`<StudyList />`**（`src/components/StudyList/`）
+   - 左欄、列出 `appContext.studies`、可展開 series 子清單（點 study → fetch + show series → 點 series → fetch + show instances）
+   - 三層 nested list 或 expandable tree（看實作偏好）
+   - 點 instance → 設 `currentStudyId / currentSeriesId / currentInstanceId`
+   - **commit**：`feat(frontend): StudyList 元件 + 三層展開`
 
-// 2. Get image dimensions (Fix-2 既有邏輯：metaData 主路 + viewport.getImageData 備路 + fallback warn)
-let aspectRatio: string | null = ...;
+5. **`<MetadataPanel />`**（`src/components/MetadataPanel/`）
+   - 右上、依 `currentInstanceId` fetch `/instances/{id}/metadata` 顯示 key-value 表
+   - Loading / empty / error 三態（不必過度設計）
+   - **commit**：`feat(frontend): MetadataPanel 元件`
 
-// 3. Set container aspect-ratio
-if (aspectRatio && containerRef.current) {
-  containerRef.current.style.aspectRatio = aspectRatio;
-}
+6. **`<AIPanel />`**（`src/components/AIPanel/`）
+   - 右下、`Run AI` 按鈕（disabled if no `currentInstanceId`）
+   - 按下 → `POST /ai/segment/{id}` → polling or one-shot fetch `/ai/result/{id}` → 顯示 `aiResult` JSON
+   - **mask overlay 不做**（pending Phase 3 真實 mask）— UI 顯示「Mask 渲染待 Phase 3」字樣即可
+   - **commit**：`feat(frontend): AIPanel 元件 + AI stub 接通`
 
-// 4. Wait for browser reflow
-await new Promise(r => requestAnimationFrame(r));
-if (cancelled) return;
-
-// 5. Re-buffer canvas at new container size
-renderingEngine.resize(true, false);
-if (cancelled) return;
-
-// 6. ★ NEW: Second setStack — re-create image actor scene at correct canvas size
-await viewport.setStack([imageId]);
-if (cancelled) return;
-
-// 7. Reset camera + render
-viewport.resetCamera();
-viewport.render();
-```
-
-**為什麼第二次 setStack 解問題**：
-- 第一次 setStack 在「container 還是 fallback aspect-ratio (`4/3`)」的 canvas 上建立 image actor、actor 的 scene-space scale 鎖定在那個 canvas 尺寸
-- 第二次 setStack 在「container 已是正確 aspect-ratio (e.g. `1640/1990`) + canvas 已 re-buffer」的環境下重建 actor、actor 的 scale 對應正確尺寸
-- Cornerstone 內部 image data cache 已 hit、不會二次 fetch DICOM 檔（DISPATCH 期待如此；若 Network tab 顯示二次 GET、回報）
-
-### 不需要做的
-
-- ❌ 不需要動 `DicomViewer.module.css`（保留 Fix-2 既有：`width: 100%; min-height: 400px; aspect-ratio: 4/3` CSS fallback）
-- ❌ 不需要動 `App.tsx` / `main.tsx` / `setup.ts` / `vite.config.ts` / backend
-- ❌ 不需要動 metadata 取得邏輯（Fix-2 主路成功）
-- ❌ 不需要 ResizeObserver、不需要新 React state、不需要新 hook
+7. **DicomViewer 改造 + App.tsx 改寫 + CSS Modules 樣式整理**
+   - DicomViewer：移除 prop `instanceId`、改從 `useAppContext().currentInstanceId` 取（或保留 prop 但 App.tsx 從 context 傳入 — 視 prop 純度偏好）
+   - `currentInstanceId === null` 時顯示空狀態（避免 wadouri URL 變成 `/instances/null/file`）
+   - App.tsx 改為：`<AppContextProvider><Layout><TopBar /><StudyList /><DicomViewer /><MetadataPanel /><AIPanel /></Layout></AppContextProvider>`
+   - 移除 hardcoded `INSTANCE_ID = 1` 與相關註解
+   - **CSS Modules 樣式整理**：
+     - 統一視覺風格（深色主題或淺色擇一、本 task 限縮為深色 — viewer 黑底為主、配深灰 panel）
+     - 清掉 Vite scaffold 殘留（`App.css` 不再 import 可刪、`assets/` 留空、`public/vite.svg` 等）
+     - **方向 J — CSS 層偵錯 Stage C UX 缺口**：
+       - F12 → Computed 對照 `#root`、`.viewport`、`.viewport-element`、`canvas` 四層的真實 box dimensions
+       - 確認 Vite scaffold `#root` 是否有 `max-width` / `padding` / `text-align: center` 限制
+       - 確認 DicomViewer container 在 Layout 三欄內（`grid-area: viewer`）的實際寬高、`min-height` 與 dynamic `aspect-ratio` 是否衝突
+       - 嘗試移除 `min-height` 或改用 `display: flex` + `flex: 1` 給 viewport
+       - 若找到 root cause、修；**若 30 分鐘內無解、停下、加進 PROGRESS §4.4 Fix-J 子段、留為 known issue 進 task #9 commit**
+   - **commit**：`feat(frontend): DicomViewer ← AppContext + CSS Modules 整理 (含方向 J 嘗試)`
 
 ---
 
 ## 相關 API
 
-無新 endpoint 呼叫。
+完整 spec 見 `docs/generated/api_spec.md`（11 routes 全可用）。本 task 用到：
+
+| Endpoint | 用途 | Component |
+|---|---|---|
+| `GET /studies` | 啟動時填 AppContext.studies | AppContext init |
+| `GET /studies/{id}/series` | 點 study 展開 series | StudyList |
+| `GET /series/{id}/instances` | 點 series 展開 instances | StudyList |
+| `GET /instances/{id}/file` | DICOM bytes（透過 wadouri） | DicomViewer（既有） |
+| `GET /instances/{id}/metadata` | metadata 顯示 | MetadataPanel |
+| `POST /ai/segment/{id}` | 觸發 AI（stub queued） | AIPanel |
+| `GET /ai/result/{id}` | 取 AI 結果（stub completed） | AIPanel |
+
+**已知缺口**：
+- `/upload` UI 不做（HANDOFF §3.4）
+- AI mask 真實 PNG 不存在（HANDOFF §6 第 3 條）— AIPanel 顯示 JSON、不做 overlay
 
 ---
 
 ## 相關深入文件
 
-- `frontend/PROGRESS.md` §4.4 Fix-2 — 根因分析（Cornerstone GPU dispatcher 行為、VTK actors vs camera 區別、4 個方向 E/F/G/H trade-off）
-- `frontend/PROGRESS.md` §4.4 Fix-1 — 前次 fit dispatch 失敗紀錄（保留歷史追溯）
+- **必查**：`frontend/docs/IMPLEMENTATION.md` §10「開發順序建議」+ §架構圖 + §components 表
+- **必查**：`frontend/context/HANDOFF.md` §3 / §4 / §6 / §7（後端 API 補充說明 + endpoint 狀態 + 重大變更）
+- **必查**：`docs/generated/api_spec.md`（API 權威來源）+ `docs/generated/db_schema.md`（schema 權威來源）
+- **背景**：`frontend/PROGRESS.md` §4.4（Stage C UX 缺口完整紀錄、4 個方向都 fail 的歷程；方向 J 候選）
 
 ---
 
 ## 注意事項
 
-### 渲染原則（與 Fix-2 dispatch 同，重申）
+### 渲染原則（與 Stage C 同，重申）
 
-- **等比縮放 + 保留原始資料**：container 比例 = image 比例 → Cornerstone WebGL fit 自然等比、無扭曲
-- Cornerstone WebGL canvas **永遠等比 + 高品質 resampling**
-- 不可寫自訂 image resize / canvas redraw / Image()-based hack / 修改 image data
-- 原 DICOM bytes **全程不變**
+- **等比縮放 + 保留原始資料**：DicomViewer 內部不可寫自訂 image resize / canvas redraw / Image() hack / 改 image data
+- Cornerstone WebGL canvas 永遠等比 + 高品質 resampling
+- 原 DICOM bytes 全程不變
 
-### 二次 setStack 的潛在風險與處理
+### Stage C UX 缺口處理（方向 J）
 
-1. **Race condition**：兩次 setStack 之間若元件 unmount → cancelled flag 已存、會 return。但要確認**第二次 setStack 也包在 cancelled check 之後**（見上方流程第 6 步前）
-
-2. **Image cache miss**：理論上 Cornerstone 第二次 setStack 同 imageId 應 hit cache、瞬間完成。**若 Network tab 看到二次 GET `/instances/{id}/file`** → 回報主 Agent，可能 cache 沒 hit、需評估其他方案
-
-3. **第一次 setStack 的 actor 是否需顯式釋放**：理論上第二次 setStack 會 swap actor、不需手動釋放。若觀察到記憶體緩慢增長 → 回報
-
-4. **Fix-2 既有行為保留**：metadata 主路 / 備路 / fallback warn 全部保留；rAF + resize + resetCamera 全部保留；StrictMode-safe 機制全部保留
+- 在「CSS Modules 樣式整理」commit 內順手做
+- **30 分鐘 timebox**：若 30 分鐘 CSS 偵錯找不到、停下、寫 §4.4 Fix-J 結果、留為 known issue
+- 不要 scope creep 到 Cornerstone code、不要再做 Fix-5/6 type 的 deep dive
+- 若 J 找到根因 + 修好 → PROGRESS §4.4 主段標「已解決於 commit XXX (Fix-J)」+ 根 PROGRESS §6.11 同步更新
 
 ### Scope 邊界（禁忌）
 
-- ❌ 不可動 backend / vite.config.ts / main.tsx / setup.ts / DISPATCH.md
-- ❌ 不可寫 API client / AppContext / 任何業務元件（task #9）
-- ❌ 不可加 ResizeObserver（屬方向 F、需新 dispatch；本任務只做方向 E）
-- ❌ 不可加 frame 切換 / cine / multi-frame UI
-- ❌ 不可改 metadata 取得邏輯（Fix-2 主路已成功）
-- ❌ 不可改 `DicomViewer.module.css`（保留 Fix-2 狀態）
-- ❌ 不可改 `App.tsx` 既有的 hardcoded `INSTANCE_ID = 1`
-- ❌ 不可寫自訂 resize / canvas redraw / Image() hack / 改 image data
-- ❌ 不可在第二次 setStack 之外加任何 setStack 呼叫（避免無限 retrigger）
+- ❌ 不可動 backend / `vite.config.ts` server.port / `main.tsx` / `setup.ts`
+- ❌ 不可改 Stage C 既有的 metadata-aware aspect-ratio / 二次 setStack / destroy+recreate 邏輯（保留 Fix-4 累積結果）
+- ❌ 不可加 frame 切換 / cine / multi-frame UI（Phase 3）
+- ❌ 不可實作 AI mask overlay 渲染（Phase 3 真實 mask 才做）
+- ❌ 不可實作 upload UI（PLAN §10.5）
+- ❌ 不可引入 Redux / Zustand / TanStack Query / SWR / React Query（Context 夠用）
+- ❌ 不可引入 UI framework（MUI / Antd / Chakra）— 用 CSS Modules
+- ❌ 不可改 `frontend/CLAUDE.md` §11 待補規範（屬主 Agent + 工程師決策範圍）
+- ❌ 不可修改本檔
+- ❌ Fix-J 不可超時 30 分鐘 / 不可動 Cornerstone code
 
 ### Commit 操作
 
-- 與既有所有未 commit 改動一起做**單一 commit**：
-  ```
-  M  frontend/PROGRESS.md
-  M  frontend/context/SESSION_HISTORY.md
-  M  frontend/src/App.tsx
-  M  frontend/src/components/DicomViewer/DicomViewer.tsx        (Fix-2 + Fix-3 加一行)
-  M  frontend/src/components/DicomViewer/DicomViewer.module.css (Fix-2 狀態)
-  ?? frontend/src/components/                                    (Stage C 新建目錄)
-  ```
-- Commit message 反映完整 Stage C 歷程（主體 + Fix-1 + Fix-2 + Fix-3）
-- 不拆 commit
+- **拆 7 個 commit**（見「具體工作」段標註）— 不要單一 commit
+- 每個 commit 都要：tsc 通過 + dev server 啟動乾淨 + 該 commit 範圍內的元件可運作（不必所有元件都跑、只測新加的）
+- 最後一個 commit 後做 end-to-end 瀏覽器驗收（點 study → 渲染 → metadata → AI 觸發）
+- pre-commit hook 對前端檔不觸發（仍會跑、不影響）
+- 完成後 TaskStop background dev server
+
+### 環境變數規範（新導入）
+
+- `VITE_API_BASE_URL=http://localhost:8000` 寫進 `.env.example`
+- 前端 Agent 在自己 dev 環境**可建** `.env.local` 覆蓋（不 commit；確認 `.gitignore` 涵蓋 `.env*` 或至少 `.env.local`）
+- 若 `.gitignore` 沒涵蓋、回報主 Agent（這屬 backend `.gitignore` 範圍、主 Agent 處理）
+- `client.ts` 應 fallback：`const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'`
 
 ---
 
@@ -152,62 +176,85 @@ viewport.render();
 
 ### 必須全部成立
 
-- [ ] `DicomViewer.tsx` 在 `renderingEngine.resize(true, false)` 之後、`viewport.resetCamera()` 之前，加 `await viewport.setStack([imageId])` + `if (cancelled) return;`
-- [ ] 其他 Fix-2 既有邏輯**不動**
+- [ ] `src/api/` 完整：`client.ts` / `types.ts` / `studies.ts` / `series.ts` / `instances.ts` / `ai.ts`
+- [ ] `.env.example` 含 `VITE_API_BASE_URL`；`client.ts` 有 fallback
+- [ ] `src/context/AppContext.tsx` 完整：5 fields + Provider + `useAppContext()` hook
+- [ ] `<Layout />` + `<TopBar />` + `<StudyList />` + `<MetadataPanel />` + `<AIPanel />` 全部存在 + module.css
+- [ ] App.tsx 改為 `AppContextProvider` 包 `Layout` + 5 元件；移除 hardcoded `INSTANCE_ID`
+- [ ] DicomViewer 改用 `useAppContext().currentInstanceId`；`null` 時顯示空狀態
+- [ ] CSS Modules 樣式整理：深色主題、Vite scaffold 殘留清乾淨
+- [ ] **方向 J 嘗試結果**：成功 → §4.4 標已解決；timebox 內無解 → §4.4 加 Fix-J 結果 + 留 known issue
 - [ ] `npx tsc -b --noEmit` 通過
-- [ ] `npm run dev` 啟動乾淨
-- [ ] **瀏覽器以 `INSTANCE_ID=1` 開啟、影像完整填滿 container（工程師肉眼確認、無大量黑底、無切割）**
-- [ ] F12 → Network tab：第二次 setStack **不應**觸發二次 `GET /instances/1/file`（若觸發、回報但不阻斷）
-- [ ] F12 → Console：metadata 主路成功、無 `[DicomViewer]` warning
-- [ ] 單一 commit 含 Stage C 全部累積；commit hash 回填 PROGRESS §1 + SESSION_HISTORY B 段
-- [ ] PROGRESS §4.4 主段標「已解決於 commit XXX」、加 Fix-3 結果摘要子段；**保留 Fix-1 + Fix-2 子段不刪**（歷史追溯）
-- [ ] 完成驗收後 TaskStop background dev server
+- [ ] `npm run dev` 啟動乾淨（無 error / warning）
+- [ ] **End-to-end 瀏覽器驗收**：
+  - 開 `http://localhost:5173` → 看到 Layout 三欄
+  - StudyList 顯示 studies → 點一個 study → 自動展開 series → 點一個 series → 展開 instances → 點一個 instance
+  - DicomViewer 渲染該 instance（影像出現；填滿狀況依 J 結果）
+  - MetadataPanel 顯示 metadata
+  - AIPanel `Run AI` 按下 → response 顯示
+- [ ] 7 個 commit（依「具體工作」段拆分）
+- [ ] 每 commit 都 push（不要全做完才 push、避免單筆 push 過大）
+- [ ] PROGRESS.md §1 加各元件完成項；§2 進行中清空；§3 待辦移除 task #9 / 加 Phase 3 預告（如「真實 AI 推論 / mask overlay」）
+- [ ] SESSION_HISTORY 更新到反映 task #9 完工
+- [ ] 完成後 TaskStop background dev server
 
 ### 允許但不強制
 
-- 若實作中發現 cancelled check 點需微調以配合二次 setStack 的 await，可動 — 但保持 StrictMode-safe 核心邏輯
-- 若工程師肉眼覺得影像「完整但偏置」（aspect 對但 camera 沒在中心），可在 `resetCamera()` 後加 `viewport.setProperties({ ... })` 微調 — 但保持 fit-to-canvas 原則
+- AppContext 用 useState 或 useReducer 任一 — 視 5 fields 互動複雜度
+- StudyList 三層展開 vs flat list 任一 — 看 UX 偏好
+- AIPanel polling 還是 one-shot fetch — 視體驗
+- 深色主題具體配色 — 黑底為主、深灰 panel；不需精細設計
 
 ### 禁止
 
-- ❌ 多個 commit
-- ❌ 改 metadata 邏輯 / module.css / App.tsx / 任何 Fix-2 既有結構
-- ❌ 加第三次 setStack 或迴圈 setStack（無限觸發風險）
-- ❌ 加 ResizeObserver（升級 F、需新 dispatch）
-- ❌ 自行擴展到 image loader 介入 / dcmread / 自訂 image data 操作
+- ❌ 單一 commit
+- ❌ 動 backend / 既有 Stage C Cornerstone 邏輯 / Phase 3 範圍
+- ❌ 引入 Redux / UI framework / 任何超出 fetch wrapper 的 HTTP library
+- ❌ Fix-J 超時 30 分鐘繼續鑽
+- ❌ 跳過 end-to-end 驗收
 
 ---
 
 ## 驗證步驟（工程師驗收用）
 
-1. 確認 backend 跑著（`http://localhost:8000/health` 回 OK；若沒跑、`.\.venv\Scripts\python.exe -m uvicorn main:app --reload`）
-2. 確認 instance id 1 仍可用：`curl.exe http://localhost:8000/instances/1`
+1. 確認 backend 跑著 + 至少有 2 個 study 在 DB（用 `curl /studies` 確認）
+2. `cd frontend && npm install`（若有新依賴；本 task 不應引入新 npm 依賴、純前端）
 3. `cd frontend && npm run dev`
 4. 瀏覽器開 `http://localhost:5173`
 5. **預期**：
-   - viewport container 內影像**完整填滿**、無大量黑底、無切割
-   - DICOM 1640×1990 fan-shape US 應該完整可見、長寬比正確
-6. F12 → Network tab：應只看到**一次** `GET /instances/1/file`（第二次 setStack 應 cache hit）
-7. F12 → Console：metadata 主路成功時無 warning；如果出現 warning、紀錄是哪一條
-8. F12 → Elements：`.container` style 應有 inline `aspect-ratio: 1640 / 1990`、canvas 尺寸應對應
-9. 關掉 dev server、前端 Agent 須在 commit 前 TaskStop background dev server
+   - 看到三欄 Layout + TopBar
+   - StudyList 顯示 studies
+   - 點 study → 展開 series → 展開 instances
+   - 點 instance → DicomViewer 渲染 + MetadataPanel 顯示 metadata
+   - Run AI 按下 → AIPanel 顯示 stub 結果
+6. F12 → Console 無 red error
+7. F12 → Network：所有 fetch 走 `http://localhost:8000`（即 fallback 生效；若想驗證 env var、改 `.env.local` 設不同 URL 重啟 dev server）
+8. **方向 J 驗收**：影像填滿狀況比 Stage C `13cccd3` 改善？或仍同樣 60% 黑底？依 PROGRESS §4.4 Fix-J 結果
 
 ---
 
-## 回報格式（commit message + PROGRESS §4.4 Fix-3 子段）
+## 回報格式（每 commit message + 最後總結）
 
-- 二次 setStack 是否解決問題？影像填滿率？
-- Network tab：是否真的只有一次 GET？或意外二次？
-- Image cache hit 時間（第二次 setStack 完成多快）？
-- 任何意外發現（VTK actor swap 行為、記憶體變化等）
+每個 commit message 格式：
+```
+feat(frontend): <component name> — <one-line summary>
+
+<2-3 lines on what + why>
+
+<optional: gotchas observed>
+```
+
+最後總結（寫進 SESSION_HISTORY B 段「上次 session 結尾狀態」）：
+- 7 個 commit hash 序列
+- 方向 J 結果（成功 / 30 分鐘 timebox 觸發 / 找到 root cause 但未修）
+- 任何意外發現（後端 API 行為、Cornerstone 整合細節、CSS quirks）
+- 新發現的 known issue（加進 PROGRESS §4 已知缺口）
 
 ---
 
-## 預期下個 dispatch（Phase 2 task #9，主 Agent 規劃中）
+## 預期下個 dispatch（Phase 3 起手，主 Agent 規劃中）
 
-- API client (`src/api/`)：含 `VITE_API_BASE_URL` env var 制度
-- AppContext (`src/context/AppContext.tsx`)：5 欄位
-- 4 業務元件 + 結構元件
-- 後端新 endpoints `/studies/{id}/series` 與 `/series/{id}/instances` 屆時可用（已 push + alembic upgraded）
-- DicomViewer 屆時改由 AppContext 傳入 `instanceId`、移除 hardcoded 常數
-- ResizeObserver / 窗縮放適配可在 task #9 重構元件時順便加（屬方向 F）
+- **Phase 3 backend**：`AIResult` model + Alembic migration + `ai_service.py` + PyTorch 模型載入 + `/ai/segment/{id}` 真實實作 + `/ai/result/{id}/mask` 真 PNG endpoint
+- **Phase 3 frontend**：AIPanel mask overlay 真渲染（取代 stub JSON 顯示）
+- **Phase 4**：sample DICOM 準備 + end-to-end demo 演練（PLAN §13）
+- **可能的 Stage C UX 缺口收尾**：若 task #9 期方向 J 仍無解、可能在 Phase 3 期單獨派 viewer-fit dispatch（depending on demo gating）
