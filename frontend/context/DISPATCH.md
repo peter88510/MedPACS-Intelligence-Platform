@@ -29,6 +29,12 @@ supersedes: phase-2-task-8-stage-c-restack (Stage C 已 commit 13cccd3 含 UX �
 
 ### 主 Agent 已拍板的決策
 
+- **起手 commit 0（先於下面 7 個 commit）— 固化 codex 已做的 aspectRatio 移除修正**：
+  - 工程師於 2026-05-16 用 codex 排查找到根因之一：`element.style.aspectRatio = '${cols}/${rows}'` 套在 Cornerstone-managed outer div 上 → 在 flex / grid + `min-height` / `height: 100%` chain 環境下與瀏覽器 size derive 衝突 → viewport 被壓縮（曾觀察到 ~165px 寬）
+  - codex 已動：移除 `DicomViewer.tsx` 內所有 `element.style.aspectRatio` 設定（不再 runtime 套 aspect-ratio 到 outer div）
+  - **本 commit 0 只固化 codex 的這個刪除動作**，與其 1:1、不擴 scope、不動 module.css、不引入其他變更
+  - Commit message: `fix(frontend): 移除 DicomViewer outer div 的 aspectRatio 設定 (避免與 layout height chain 衝突)`，body 簡述 codex 排查與 root cause、指向 `frontend/PROGRESS §4.4` 與 `根 PROGRESS §6.11`
+- **拒絕 codex 提的 setTimeout 300ms workaround**：那是 race condition 掩蓋、不是 root cause。Layout 三欄就位後若仍有 race（resize 時機晚於 render），用 `useLayoutEffect` + rAF 或 `ResizeObserver`，**禁止 setTimeout**
 - **API base URL**：採 `VITE_API_BASE_URL` env var 制度（本 task dispatch 內正式導入）
 - **State 管理**：React Context（`AppContext`，5 fields）— **不引入** Redux / Zustand / TanStack Query
 - **CSS**：CSS Modules（與 Stage C 同）
@@ -39,7 +45,9 @@ supersedes: phase-2-task-8-stage-c-restack (Stage C 已 commit 13cccd3 含 UX �
 - **upload UI**：本 task **不**做（依 PLAN §10.5、frontend HANDOFF §3.4）
 - **Stage C UX 缺口（影像未填滿 container）**：在「CSS Modules 樣式整理」子段**順手做方向 J（CSS 層偵錯）**；若 J 無解、留為 known issue（PROGRESS §6.11、根 PROGRESS §6.11）
 
-### 具體工作（建議拆 7 個 commit、不要單一 commit）
+### 具體工作（commit 0 + 7 個業務 commit，共 8 個）
+
+**Commit 0**：見上方「主 Agent 已拍板的決策」第一條 — 固化 codex 的 aspectRatio 移除修正。
 
 1. **API client + env var 制度**（`src/api/`）
    - `client.ts`：fetch wrapper（含 base URL 從 `import.meta.env.VITE_API_BASE_URL` 讀，default `http://localhost:8000`）+ `ApiError` class（含 status code + parsed body）
@@ -192,7 +200,7 @@ supersedes: phase-2-task-8-stage-c-restack (Stage C 已 commit 13cccd3 含 UX �
   - DicomViewer 渲染該 instance（影像出現；填滿狀況依 J 結果）
   - MetadataPanel 顯示 metadata
   - AIPanel `Run AI` 按下 → response 顯示
-- [ ] 7 個 commit（依「具體工作」段拆分）
+- [ ] 8 個 commit（commit 0 codex 固化 + 7 業務 commit；依「具體工作」段拆分）
 - [ ] 每 commit 都 push（不要全做完才 push、避免單筆 push 過大）
 - [ ] PROGRESS.md §1 加各元件完成項；§2 進行中清空；§3 待辦移除 task #9 / 加 Phase 3 預告（如「真實 AI 推論 / mask overlay」）
 - [ ] SESSION_HISTORY 更新到反映 task #9 完工
