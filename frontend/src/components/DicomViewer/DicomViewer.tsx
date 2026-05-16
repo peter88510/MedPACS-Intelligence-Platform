@@ -65,13 +65,13 @@ export default function DicomViewer({ instanceId }: DicomViewerProps) {
             aspectRatio = `${dims[0]} / ${dims[1]}`
           }
         }
-        if (aspectRatio) {
-          element.style.aspectRatio = aspectRatio
-        } else {
-          console.warn(
-            '[DicomViewer] Could not determine image dimensions, falling back to CSS default'
-          )
-        }
+        // if (aspectRatio) {
+        //   element.style.aspectRatio = aspectRatio
+        // } else {
+        //   console.warn(
+        //     '[DicomViewer] Could not determine image dimensions, falling back to CSS default'
+        //   )
+        // }
 
         await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()))
         if (cancelled) return
