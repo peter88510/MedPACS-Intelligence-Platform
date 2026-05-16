@@ -43,14 +43,20 @@
   - `vite.config.ts` **未動**（Vite pre-bundle 自動處理 `@cornerstonejs/dicom-image-loader`，無 esbuild 衝突）
   - 驗證：`npm run dev` 啟動 329ms，無 error / warning；curl /、/src/main.tsx、/src/cornerstone/setup.ts 皆回 HTTP 200；Vite log 顯示 dicom-image-loader 成功 optimize
   - 瀏覽器 DevTools console 驗證**待工程師於瀏覽器確認**（Agent 無法存取瀏覽器）
-- [x] **Phase 2 task #8 Stage C：第一張 DICOM 渲染**（2026-05-15，commit 待回填）
-  - 新增 `src/components/DicomViewer/DicomViewer.tsx`（49 行）— props `instanceId: number`、`useRef<HTMLDivElement>` 容器、`useEffect` 內建 `RenderingEngine('medpacs-engine')` + `StackViewport`、`wadouri:http://localhost:8000/instances/${id}/file`、cleanup `destroy()` + `cancelled` flag 防 StrictMode 雙 mount race
-  - 新增 `src/components/DicomViewer/DicomViewer.module.css`（5 行）— `width: 100%; height: 600px; background-color: #000;`
-  - 改寫 `src/App.tsx`（123 → 10 行）— 取代 Vite scaffold、`const INSTANCE_ID = 1`（工程師驗收時替換）、render `<DicomViewer instanceId={INSTANCE_ID} />`
+- [x] **Phase 2 task #8 Stage C：第一張 DICOM 渲染**（2026-05-15 → 2026-05-16，commit `13cccd3`，含 UX 缺口）
+  - 主體（2026-05-15）：
+    - 新增 `src/components/DicomViewer/DicomViewer.tsx` — props `instanceId: number`、`useRef<HTMLDivElement>` 容器、`useEffect` 內建 `RenderingEngine` + `StackViewport`、`wadouri:http://localhost:8000/instances/${id}/file`、cleanup `destroy()` + `cancelled` flag 防 StrictMode race
+    - 新增 `src/components/DicomViewer/DicomViewer.module.css` — `width: 100%; min-height: 400px; aspect-ratio: 4/3` CSS fallback + 黑底
+    - 改寫 `src/App.tsx`（123 → 10 行）— 取代 Vite scaffold、`const INSTANCE_ID = 1`、render `<DicomViewer instanceId={INSTANCE_ID} />`
+  - 累積演進（Fix-1 ~ Fix-4，2026-05-15 至 2026-05-16）：
+    - **Fix-1** fit dispatch：加 `viewport.resetCamera()` + 靜態 aspect-ratio 4/3 → gate 失敗（§4.4 Fix-1）
+    - **Fix-2** metadata dispatch：加 `cornerstone.metaData.get('imagePlaneModule')` 動態取 rows/columns + rAF + `resetCameraForResize` → 部分改善但 gate 失敗（§4.4 Fix-2）
+    - **Fix-3** restack dispatch：再加二次 `await setStack` → gate 失敗（§4.4 Fix-3）
+    - **Fix-4** 工程師授權方向 I：destroy+recreate engine 兩階段 → gate 失敗（§4.4 Fix-4）
   - `vite.config.ts` **未動**（dev server 端 Cornerstone pre-bundle 無 esbuild / wasm / worker 衝突）
-  - dev server 驗證：`npx tsc -b --noEmit` 通過、`npm run dev` 首次 1792ms / restart 294ms、PowerShell 無 error / warning、源碼與 cornerstone 預打包模組 HTTP 200
-  - 瀏覽器驗收（工程師）：CORS / port 排查後（見 §4.5 debug 紀錄）以 `INSTANCE_ID=1`/`3` 成功渲染 DICOM；尺寸不完整 → 列 §4.4 已知缺口
-  - 驗收時 instance_id：1（`Peter_Quiet_1.dcm`，study uid `1.2.276.0.7230010.3.1.2.0.307.1760679939.593536`）
+  - dev server 驗證每次皆 ✅：tsc 通過、`npm run dev` 啟動乾淨、所有 HTTP probe 200
+  - 瀏覽器驗收：以 `INSTANCE_ID=1`（`Peter_Quiet_1.dcm`，1640×1990 portrait US）功能 ✅（DICOM 顯示、metadata 主路成功、無 console error、cache hit 正確）；**UX 缺口 ❌：影像未撐滿 container**（從 80% 黑底改善到 60% 黑底後停滯）
+  - 4 次嘗試後仍未解 → 根因可能在 CSS layout 層或 Cornerstone GPU+VTK module-level state；待主 Agent 拍板方向 J（CSS 層偵錯）或 H（暫退、留 task #9）— 詳 §4.4「整體狀況彙整」
 
 ### 文件
 

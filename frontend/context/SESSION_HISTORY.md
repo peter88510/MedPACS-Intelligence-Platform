@@ -64,7 +64,7 @@
 - **Stage C fit dispatch `phase-2-task-8-stage-c-fit` — gate 失敗（2026-05-15，未 commit）** — 加 `viewport.resetCamera()` + `aspect-ratio: 4/3`，dev server 端 tsc + HTTP 全通過；但瀏覽器仍見「完整超音波影像未在正確視窗框」。依 DISPATCH §「具體工作」4 停下、寫 §4.4 Fix-1 結果、待主 Agent 派新 dispatch（推薦方向 B：metadata-aware 動態 aspect-ratio）
 - **Stage C metadata dispatch `phase-2-task-8-stage-c-metadata` — gate 失敗（2026-05-16，未 commit）** — 加 `cornerstone.metaData.get('imagePlaneModule', imageId)` 動態取 rows/columns、設 container aspect-ratio、rAF 等 layout、`renderingEngine.resize` + `resetCameraForResize` + `render`。Container 與 canvas 兩者 aspect ratio 都對齊到 1640/1990，但 image actor 在 VTK scene 仍縮在角落（80% → 60% 黑底）。根因：Cornerstone 4.x GPU 模式底層 VTK actor 的 scene-space scale 在 setStack 時鎖定、後續 camera reset 動不到 actor scale。依 DISPATCH §「禁止」4 停下、寫 §4.4 Fix-2 詳記、待主 Agent 派新 dispatch（推薦方向 E：重 setStack）
 - **Stage C restack dispatch `phase-2-task-8-stage-c-restack` — gate 失敗（2026-05-16，未 commit）** — 在 metadata + rAF + resize 之後加二次 `await viewport.setStack([imageId])`。Network 0 GET（cache hit ✓）、Console 0 warning（metadata 主路成功 ✓）、setStack #2 確實執行；但影像仍未撐滿 canvas。Cornerstone source 分析：second setStack 確實走 full rebuild（stackInvalidated=true 強制）建新 actor + resetCameraNoEvent — 仍未填滿 → **Cornerstone 內部還有更深狀態綁在 enableElement 當下的 canvas 尺寸**（VTK offscreen render window / camera intrinsic 等）。依 DISPATCH §「主 Agent 已拍板的決策」5 停下、寫 §4.4 Fix-3 詳記、待主 Agent 派新 dispatch（推薦新方向 I：destroy+recreate engine）
-- **Stage C Fix-4 — 工程師授權方向 I 嘗試（2026-05-16，commit 待回填）** — destroy+recreate engine 兩階段：Phase 1 probe（fallback aspect 下載 image + 讀 metadata + 設 aspectRatio + rAF）、Phase 2 rebuild（destroy probe engine + new RenderingEngine + enableElement on portrait container + setStack cache hit）。屬工程師明示授權的 scope 擴張、非主 Agent dispatch。**仍失敗** — image 依然未撐滿。這是針對「Cornerstone 內部狀態綁第一次 enableElement」假設的最徹底解，仍敗 → 根因可能在 CSS layout 層或 Cornerstone module-level state。工程師決定 commit 現狀、等主 Agent 下一步。詳 PROGRESS §4.4 Fix-4 + 整體狀況彙整子段
+- **Stage C 完整版含 UX 缺口（2026-05-16, `13cccd3`）** — 主體 + Fix-1 (fit) + Fix-2 (metadata) + Fix-3 (restack) + Fix-4 (destroy+recreate engine) 全部 4 次嘗試已 commit；功能可用、影像未撐滿 container 的 UX 缺口未解，等主 Agent 拍板方向 J（CSS 層偵錯）或 H（暫退）
 
 ### 上次 session 結尾狀態（2026-05-16）
 
@@ -92,8 +92,8 @@
   - ?? src/components/（首次新增）
 - **背景任務**：dev server `bp155c6gs` **仍在跑**（沒 TaskStop） — 主 Agent 若快速 iterate 新 dispatch 可省冷啟動；若不快速 iterate、前端 Agent 應在 session 結尾前 TaskStop 避免 zombie 5173
 - **下次起手建議**：
-  1. **等主 Agent 看 §4.4 「整體狀況彙整」段（含 J/H/F/K/L 五方向選項）+ 給新 dispatch**（前端 Agent 強推 **方向 J — CSS 層級偵錯**：拿掉所有 Cornerstone 假設、用瀏覽器 Computed style 對照 `.viewport`/`.viewport-element`/`canvas` 三層真實尺寸；可能 root cause 在 `#root` Vite scaffold CSS 限制 max-width / padding、或 `min-height: 400px` 與動態 aspect-ratio 衝突。次選 **方向 H — 暫退**：commit 現狀、把完整 fit 留到 task #9）
-  2. Stage C 5 個檔已 commit 含 UX 缺口（image 未撐滿）；commit hash 待回填 PROGRESS §1 + 本段
+  1. **等主 Agent 看 §4.4 「整體狀況彙整」段（含 J/H/F/K/L 五方向選項）+ 給新 dispatch**（前端 Agent 強推 **方向 J — CSS 層級偵錯**：拿掉所有 Cornerstone 假設、用瀏覽器 Computed style 對照 `.viewport`/`.viewport-element`/`canvas` 三層真實尺寸；可能 root cause 在 `#root` Vite scaffold CSS 限制 max-width / padding、或 `min-height: 400px` 與動態 aspect-ratio 衝突。次選 **方向 H — 暫退**：把完整 fit 留到 task #9）
+  2. Stage C 5 個檔已 commit (`13cccd3`) 含 UX 缺口（image 未撐滿）
   3. 不要再自行擴 scope 試方向 K/L（DOM 簡化 / 換 viewport type）；那些是重構級工作，需主 Agent 拍板
 
 ---
