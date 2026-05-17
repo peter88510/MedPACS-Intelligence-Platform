@@ -56,6 +56,14 @@
   font-weight: 400;
 }
 
+.icon {
+  display: inline-block;
+  width: 10px;
+  margin-right: 6px;
+  color: #888;
+  font-size: 9px;
+}
+
 .placeholder {
   padding: 16px;
   color: #888;
