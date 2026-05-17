@@ -1,0 +1,70 @@
+.tree {
+  list-style: none;
+  margin: 0;
+  padding: 8px 0;
+  font-size: 13px;
+}
+
+.sub {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.row {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: none;
+  color: #d0d0d0;
+  cursor: pointer;
+  font: inherit;
+  padding: 6px 12px;
+  border-left: 3px solid transparent;
+}
+
+.row:hover {
+  background-color: #1f1f1f;
+}
+
+.row.active {
+  background-color: #1f2937;
+  border-left-color: #3b82f6;
+  color: #fff;
+}
+
+.study {
+  padding-left: 12px;
+  font-weight: 500;
+}
+
+.series {
+  padding-left: 28px;
+  color: #b0b0b0;
+}
+
+.instance {
+  padding-left: 44px;
+  color: #a0a0a0;
+  font-family: ui-monospace, monospace;
+  font-size: 12px;
+}
+
+.muted {
+  color: #777;
+  font-weight: 400;
+}
+
+.placeholder {
+  padding: 16px;
+  color: #888;
+  font-size: 13px;
+}
+
+.empty {
+  padding: 4px 12px 4px 28px;
+  color: #666;
+  font-size: 12px;
+  font-style: italic;
+}
