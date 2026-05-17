@@ -69,7 +69,21 @@
 
 ## 2. 進行中
 
-> **目前無進行中項目。** Stage C 功能驗收通過、commit 待回填；尺寸顯示缺口已列 §4.4。等待主 Agent 指示下一步（可能是修尺寸 + commit Stage C，或進入 Phase 2 task #9）。
+### Phase 2 task #9 — 業務元件層
+
+- **任務來源**：2026-05-16 DISPATCH.md（task_id: `phase-2-task-9-business-components`，supersedes Stage C restack）
+- **核心工作**（拆 7 個 commit + 1 hash 回填）：
+  - Commit 1：API client (`src/api/`) + `VITE_API_BASE_URL` env var 制度
+  - Commit 2：AppContext (5 fields + Provider + `useAppContext()` hook)
+  - Commit 3：Layout + TopBar 結構元件（CSS Grid 三欄）
+  - Commit 4：StudyList 元件（三層展開：study → series → instance）
+  - Commit 5：MetadataPanel 元件
+  - Commit 6：AIPanel 元件 + AI stub 接通
+  - Commit 7：DicomViewer 改造（移除 hardcoded INSTANCE_ID、改用 AppContext）+ App.tsx 改寫 + CSS Modules 樣式整理 + **方向 J (CSS 層偵錯 Stage C UX 缺口、30 分鐘 timebox)**
+  - Commit 8：Hash 回填
+- **完成標準**：所有元件 tsc 通過、dev server 乾淨、end-to-end 瀏覽器驗收（點 study → 渲染 → metadata → AI 觸發）
+- **重要禁忌**：不動 backend / `vite.config.ts:server.port` / `main.tsx` / `setup.ts`；不改 Stage C 既有 Cornerstone 邏輯；不做 AI mask overlay（Phase 3）/ multi-frame UI / upload UI；不引入 Redux / UI framework / 額外 HTTP library；Fix-J 30 分鐘 timebox 不可超時
+- **參考文件**：`frontend/context/DISPATCH.md`、`frontend/docs/IMPLEMENTATION.md` §10 / §架構圖、`frontend/context/HANDOFF.md`、`docs/generated/api_spec.md`、`docs/generated/db_schema.md`
 
 ---
 
