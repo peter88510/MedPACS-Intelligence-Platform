@@ -1,25 +1,23 @@
 import { useEffect, useRef } from 'react'
 import { Enums, metaData, RenderingEngine, type Types } from '@cornerstonejs/core'
+import { useAppContext } from '../../context/AppContext'
+import { getInstanceFileUrl } from '../../api/instances'
 import styles from './DicomViewer.module.css'
 
-const API_BASE_URL = 'http://localhost:8000'
 const RENDERING_ENGINE_ID = 'medpacs-engine'
 const VIEWPORT_ID = 'medpacs-viewport'
 
-interface DicomViewerProps {
-  instanceId: number
-}
-
-export default function DicomViewer({ instanceId }: DicomViewerProps) {
+export default function DicomViewer() {
+  const { currentInstanceId } = useAppContext()
   const elementRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     const element = elementRef.current
-    if (!element) return
+    if (!element || currentInstanceId === null) return
 
     let cancelled = false
     let renderingEngine: RenderingEngine | null = null
-    const imageId = `wadouri:${API_BASE_URL}/instances/${instanceId}/file`
+    const imageId = `wadouri:${getInstanceFileUrl(currentInstanceId)}`
 
     const createEngineAndViewport = () => {
       const engine = new RenderingEngine(RENDERING_ENGINE_ID)
@@ -36,17 +34,20 @@ export default function DicomViewer({ instanceId }: DicomViewerProps) {
 
     ;(async () => {
       try {
-        // Phase 1 — probe: load the image so Cornerstone's metaData provider
-        // can answer rows/columns. The engine binds its internal scene state
-        // (offscreen render window, camera intrinsics, VTK mapper bounds) to
-        // the container's CSS-fallback aspect-ratio at this point; in-place
-        // resize / resetCamera / second setStack can't fully refit it later
+        // Phase 1 — probe: load image so Cornerstone's metaData provider can
+        // answer rows/columns. The engine binds its internal scene state to
+        // the container's pre-layout size at this point; in-place resize /
+        // resetCamera / second setStack alone can't fully refit it later
         // (verified in PROGRESS §4.4 Fix-1 / Fix-2 / Fix-3).
         let { engine, viewport } = createEngineAndViewport()
         renderingEngine = engine
         await viewport.setStack([imageId])
         if (cancelled) return
 
+        // Read DICOM dimensions for diagnostic / future use. We intentionally
+        // do NOT set `element.style.aspectRatio` here — codex's 2026-05-16
+        // investigation showed it conflicts with the grid/height-100% chain
+        // and squashes the viewport (see PROGRESS §4.4 Fix-J / commit fb656c6).
         let aspectRatio: string | null = null
         try {
           const planeModule = metaData.get('imagePlaneModule', imageId) as
@@ -65,20 +66,12 @@ export default function DicomViewer({ instanceId }: DicomViewerProps) {
             aspectRatio = `${dims[0]} / ${dims[1]}`
           }
         }
-        // if (aspectRatio) {
-        //   element.style.aspectRatio = aspectRatio
-        // } else {
-        //   console.warn(
-        //     '[DicomViewer] Could not determine image dimensions, falling back to CSS default'
-        //   )
-        // }
 
         await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()))
         if (cancelled) return
 
-        // Phase 2 — rebuild against the now-correctly-sized container. DICOM
-        // is in Cornerstone's image cache so this is a cache hit, not a
-        // network refetch.
+        // Phase 2 — rebuild against the now-laid-out container. DICOM is in
+        // Cornerstone's image cache so this is a cache hit, not a refetch.
         engine.destroy()
         renderingEngine = null
         const fresh = createEngineAndViewport()
@@ -100,7 +93,19 @@ export default function DicomViewer({ instanceId }: DicomViewerProps) {
       cancelled = true
       renderingEngine?.destroy()
     }
-  }, [instanceId])
+  }, [currentInstanceId])
 
-  return <div ref={elementRef} className={styles.viewport} />
+  if (currentInstanceId === null) {
+    return (
+      <div className={styles.viewer}>
+        <div className={styles.empty}>No instance selected.</div>
+      </div>
+    )
+  }
+
+  return (
+    <div className={styles.viewer}>
+      <div ref={elementRef} className={styles.viewport} />
+    </div>
+  )
 }

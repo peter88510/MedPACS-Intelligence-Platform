@@ -1,11 +1,27 @@
+import { AppContextProvider } from './context/AppContext'
+import Layout from './components/Layout/Layout'
+import TopBar from './components/TopBar/TopBar'
+import StudyList from './components/StudyList/StudyList'
 import DicomViewer from './components/DicomViewer/DicomViewer'
-
-// TODO 工程師驗收時替換為 `POST /upload` 回傳的實際 instance_id。
-// Stage C 用 hardcoded 常數撐住；下個 dispatch 接通 AppContext + StudyList 後移除。
-const INSTANCE_ID = 1
+import MetadataPanel from './components/MetadataPanel/MetadataPanel'
+import AIPanel from './components/AIPanel/AIPanel'
 
 function App() {
-  return <DicomViewer instanceId={INSTANCE_ID} />
+  return (
+    <AppContextProvider>
+      <Layout
+        topbar={<TopBar />}
+        studyList={<StudyList />}
+        viewer={<DicomViewer />}
+        rightPanel={
+          <>
+            <MetadataPanel />
+            <AIPanel />
+          </>
+        }
+      />
+    </AppContextProvider>
+  )
 }
 
 export default App
