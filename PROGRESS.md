@@ -64,7 +64,8 @@
 - [x] React 19 + Vite 8 + TypeScript 6 專案骨架（2026-05-13、commit `2d055de`）
 - [x] Cornerstone3D v4.22 套件安裝（`@cornerstonejs/core` + `dicom-image-loader` + `tools` + `dicom-parser`）（Stage A、2026-05-13、commit `83b8c9a`）
 - [x] CornerstoneJS 初始化設定（`src/cornerstone/setup.ts` idempotent `initCornerstone()` + `main.tsx` async bootstrap）（Stage B、2026-05-14、commit `8cd61f3`）
-- [x] **第一張 DICOM 渲染**（`<DicomViewer />` + wadouri scheme + StrictMode-safe + metadata-aware aspect-ratio + 二次 setStack + destroy/recreate engine）（Stage C、2026-05-16、commit `13cccd3`）— ⚠️ **含 UX 缺口**：影像未填滿 container（4 個 fix dispatch 都失敗、見 frontend/PROGRESS §4.4）；功能性可用、視覺待 task #9 期間順手處理（方向 J）
+- [x] **第一張 DICOM 渲染**（`<DicomViewer />` + wadouri scheme + StrictMode-safe + metadata-aware aspect-ratio + 二次 setStack + destroy/recreate engine）（Stage C、2026-05-16、commit `13cccd3`）— UX 缺口已於 task #9 commit 7 `40d766d` (Fix-J) 解決，見 §6.11
+- [x] **業務元件層完整 SPA**（task #9、2026-05-16 → 2026-05-18、11 commits `fb656c6` → `fa0dd34`）：API client + `VITE_API_BASE_URL` env var 制度 + AppContext (5 fields + cascade) + Layout/TopBar/StudyList/MetadataPanel/AIPanel + DicomViewer ← AppContext + Vite scaffold 清掉 + Fix-J（CSS 層偵錯解 Stage C UX 缺口）；E2E 瀏覽器驗收 ✅
 
 ### 文件
 - [x] README.md — 功能概覽與設置指南
@@ -148,9 +149,15 @@
 ### Phase 2：Frontend Viewer（PLAN §10、§12）
 - [x] React + Vite + TypeScript 專案初始化（2026-05-13、commit `2d055de`）
 - [x] CornerstoneJS v4.22 整合（Stage A 套件安裝 `83b8c9a` + Stage B 初始化 `8cd61f3`）
-- [x] **Stage C：第一張 DICOM 渲染**（commit `13cccd3`、2026-05-16）— ⚠️ 含 UX 缺口（影像未填滿 container），見 §6.11
-- [ ] **Phase 2 task #9：4 業務元件 + AppContext + API client + env var 制度** — **2026-05-16 dispatching 中**（順手做方向 J 試解 Stage C UX 缺口）
-- [ ] Stub AI endpoint 接通 + `<AIPanel />` mask overlay（依賴 Phase 3 真實 AI）
+- [x] **Stage C：第一張 DICOM 渲染**（commit `13cccd3`、2026-05-16）— UX 缺口已解決於 task #9 commit 7 `40d766d` (Fix-J)、見 §6.11
+- [x] **Phase 2 task #9：4 業務元件 + AppContext + API client + env var 制度**（2026-05-16 → 2026-05-18、11 commits `fb656c6` → `fa0dd34`）— 完整 SPA E2E 驗收 ✅、Fix-J 順手解 Stage C UX 缺口
+- [x] **Stub AI endpoint 接通 + `<AIPanel />`**（task #9 commit 6 `d66b6ab`）— mask overlay 渲染留 Phase 3 依賴真實 AI
+
+**Phase 2 全部完成 — 後續進入 Phase 3（AI 整合）。**
+
+### Phase 2.5：後端 audit findings 處理（task #9 §5.4 衍生，2026-05-18 工程師裁示先處理）
+- [ ] **§5.4 (a) 一次性 backfill script** — `scripts/backfill_series_uid.py`：掃 `instances` 表 `series_instance_uid IS NULL` 的記錄 (id=1, 3, 4)、用 `file_path` 重讀 DICOM header、補欄位 + 補建/掛 series
+- [ ] **§5.4 (c) Instance ID gap 來源澄清** — 跑 `SELECT MAX(id) FROM instances` 對照已存在 IDs、確認 sequence 跳號原因（DB rollback 殘留 / explicit delete / migration 副作用）；如果是 rollback → 確認 upload pipeline transaction handling 是否正確
 
 ### Phase 3：AI 整合（PLAN §9、§12）
 - [ ] `AIResult` model + Alembic migration
@@ -216,19 +223,7 @@
 - **相依**：CLAUDE.md 第 9 節已要求「Exception 訊息不可包含完整 SQL query 或 stack trace」，需落實
 
 ### 6.11 DicomViewer 影像未填滿 container（Stage C UX 缺口、2026-05-16）
-- **缺什麼**：DicomViewer 元件能渲染 DICOM、但影像縮在 container 一角、~60% 是黑底
-- **什麼時候會痛**：Phase 4 demo workflow（PLAN §13）需完整影像；用戶肉眼體驗差
-- **嘗試過的方向**：
-  - Fix-1（aspect-ratio 4/3 + resetCamera）❌
-  - Fix-2（metadata-aware 動態 aspect-ratio + rAF + resize）❌
-  - Fix-3（二次 setStack 重建 actor scene）❌
-  - Fix-4（destroy + recreate engine，工程師授權跳 dispatch scope）❌
-- **可能根因**（**未驗證**）：
-  - (a) Cornerstone 4.22.6 GPU/VTK 還有 module-level 全域狀態（cache / metaData provider）
-  - (b) **CSS layout 層**：Vite scaffold `#root` max-width / padding / `min-height` 與 dynamic aspect-ratio 衝突
-  - (c) Cornerstone-injected viewport-element 中間層交互
-- **下一步**：task #9 期間順手處理「方向 J — CSS 層偵錯」（屬「CSS Modules 樣式整理」子項）；若 J 無解、留為 Phase 3 / 單獨 viewer-fit dispatch
-- **詳細記錄**：見 `frontend/PROGRESS.md` §4.4（Fix-1 ~ Fix-4 完整過程）
+> ✅ **已解決於 commit `40d766d` (Fix-J、task #9 commit 7、2026-05-18 工程師裁示)**。task #9 期間方向 J（CSS 層偵錯）由前端 Agent + codex 排查找到根因並修復：① outer div `aspectRatio` 設定衝突（commit 0 `fb656c6` 固化移除） ② Vite scaffold `#root max-width: 1126px` 改 `width:100% height:100%` ③ `html/body/#root` 100% chain + `.viewer/.viewport` wrapper 結構。user 驗收回報「ok 在中央區顯示」。Fix-1~Fix-4 詳細失敗歷史保留於 `frontend/PROGRESS.md` §4.4 供未來 Cornerstone 整合除錯參考。本條保留以供歷史追溯。
 
 ---
 

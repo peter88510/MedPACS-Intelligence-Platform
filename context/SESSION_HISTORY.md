@@ -21,18 +21,19 @@
 
 ## A. 系統現況快照（必讀，每次 session 啟動）
 
-### 系統現況
+### 系統現況（2026-05-18）
 
 - **定位**：AI-ready Ultrasound DICOM 平台 MVP（非完整 PACS 替代）
-- **階段**：**Phase 2 進行中** — 前端骨架就位、Cornerstone Stage A 完成、Stage B 已 dispatch 待前端 Agent 接手。**AI 工作流優化 Phase 1-4 完成**（2026-05-14）
-- **Backend**：FastAPI + PostgreSQL + SQLAlchemy + pydicom，9 個 API endpoints 中 7 個完整實作、2 個（`/ai/segment/{id}`、`/ai/result/{id}`）為 stub
+- **階段**：**Phase 2 完成** — 前端業務元件層 SPA 全 E2E 驗收 ✅（task #9 11 commits push 完畢）；Stage C UX 缺口已解決於 commit `40d766d` (Fix-J)。**下一步主軸**：Phase 2.5 §5.4 後端 backfill（工程師裁示優先處理 audit findings），完成後進 Phase 3 AI 整合
+- **Backend**：FastAPI + PostgreSQL + SQLAlchemy + pydicom，11 個 API endpoints 中 9 個完整實作（含 2026-05-15 新增 `/studies/{id}/series` + `/series/{id}/instances`）、2 個（`/ai/segment/{id}`、`/ai/result/{id}`）為 stub
 - **CORS**：✅ dev allow `http://localhost:5173`（Vite default）
 - **驗證層**：6 個必填欄位全部就位（PatientID / StudyInstanceUID / SeriesInstanceUID / SOPInstanceUID / Modality / PixelData）+ Modality 白名單（US）
-- **Frontend**：✅ scaffold 完成（React 19 + Vite 8 + TS 6 + Cornerstone3D v4.22 已裝）；元件未實作；`frontend/context/DISPATCH.md` 裝載 Stage B 任務待執行
+- **Frontend**：✅ **完整 SPA E2E 可用** — React 19 + Vite 8 + TS 6 + Cornerstone3D v4.22 + AppContext (5 fields + cascade) + Layout/TopBar/StudyList/MetadataPanel/AIPanel/DicomViewer 全業務元件 + API client + `VITE_API_BASE_URL` env var 制度。Stage C UX 缺口已解決
 - **AI 推論**：尚未實作（Phase 3 任務）
-- **測試**：36 個測試（單元 9 / 整合 6 / API 21），用 in-memory SQLite + StaticPool 隔離。前端尚無測試套件
+- **測試**：46 個測試（單元 9 / 整合 8 / API 29），用 in-memory SQLite + StaticPool 隔離。前端尚無測試套件
 - **儲存**：本地檔案系統（`storage/{patient}/{study}/{filename}.dcm`），已透過 `StorageBackend` 抽象預留 S3 接口
-- **DB Migration 工具**：✅ Alembic 已導入（2026-05-12），baseline migration `20809e26d134` 涵蓋四表
+- **DB Migration 工具**：✅ Alembic 已導入（2026-05-12），baseline `20809e26d134` + Series migration `e25c80289a9c` (2026-05-15) 涵蓋四表完整
+- **DB 資料狀態（2026-05-18 audit）**：1 study + 1 series + 8 instances；其中 id=1/3/4 是 pre-2026-05-15 orphan (`series_instance_uid=NULL`)、id=6-10 正確 link；ID gap (2/5/11+) 來源待澄清。詳 frontend/PROGRESS §5.4
 - **AI 操作規範**：CLAUDE.md **v1.2**（2026-05-14、commit `688f098`）— v1.1 之上再加 R3 Doc Impact 檢測 / R4 Stale Warning / §15.6 PROGRESS 觸發式 archive；§8 風險說明表格化
 - **文件結構（Hybrid）**：根目錄為跨專案文件、`docs/` 為後端深入文件（PLAN、IMPLEMENTATION）、`docs/generated/` 為 auto-gen 權威來源（api_spec.md / db_schema.md）、`docs/archive/` 為歷史備檔；frontend/ 鏡像同樣結構
 - **前後端分工**：完整檔案機制 — `frontend/CLAUDE.md` v1.1（前端規範）、`frontend/context/HANDOFF.md`（後端狀態鏡像、主 Agent 維護）、`frontend/context/DISPATCH.md`（覆寫式任務交付）、`frontend/PROGRESS.md`、`frontend/context/SESSION_HISTORY.md`（前端 Agent 維護）
@@ -42,21 +43,22 @@
 ### 進行中的任務
 
 - 無 in-flight 程式碼修改（主 Agent 端）
-- **Stage C 已 commit `13cccd3`**（前端 Agent 主導），含 UX 缺口（影像未填滿 container、4 個 fix dispatch 都失敗）— 列為 known issue（根 PROGRESS §6.11 + frontend §4.4）
-- **Phase 2 task #9 dispatch 已派**（覆寫 DISPATCH `phase-2-task-9-business-components`）— 4 業務元件 + AppContext + API client + `VITE_API_BASE_URL` env var；含「方向 J」CSS 偵錯 30 分鐘 timebox 順手試解 Stage C UX 缺口
+- **前端**：task #9 已完成；目前無 active 前端 dispatch（`frontend/context/DISPATCH.md` status: completed）。下個前端 dispatch 等 Phase 3 backend 完成後才派
+- **主 Agent 下一步（2026-05-18 工程師裁示）**：先處理 Phase 2.5 §5.4 後端 backfill — (a) 寫 `scripts/backfill_series_uid.py` 修 orphan instances id=1/3/4；(c) 澄清 instance ID gap (2/5/11+) 來源。完成後進 Phase 3 backend（AIResult model + Alembic migration + ai_service + 真實 PyTorch + `/ai/segment` 真實實作 + `/ai/result/{id}/mask` PNG endpoint）
 - **R4 stale check 規則調整**（2026-05-16，工程師授權）：主 Agent 改為 per-Read inline、active phase 不再做 blanket per-session 全掃；不動 CLAUDE.md 文字（仍符合 §10 R4 letter）
-- 下一個主 Agent 任務（task #9 完工後）：(a) 審查 7 個 commit、(b) 同步根 PROGRESS、(c) 派 Phase 3 dispatch（AIResult model + ai_service + 真實 AI mask）
 
 ### 待決定事項
 
 | # | 議題 | 預設方向 / 選項 | 卡在哪 |
 |---|---|---|---|
-| 1 | AI 分割模型來源 | PLAN §9.4：① pretrained ultrasound checkpoint ② 最小 U-Net + 隨機 weight ③ Otsu mock | 工程師是否已有手邊的 ultrasound checkpoint 可用？沒有的話走 ③ |
-| 2 | Sample DICOM 來源 | PLAN §14：① pydicom-data ② TCIA ③ 自製 synthetic | Phase 4 demo 之前要決定 |
+| 1 | AI 分割模型來源 | PLAN §9.4：① pretrained ultrasound checkpoint ② 最小 U-Net + 隨機 weight ③ Otsu mock | 工程師是否已有手邊的 ultrasound checkpoint 可用？沒有的話走 ③；Phase 3 backend 開工時需先決定 |
+| 2 | Sample DICOM 來源 | PLAN §14：① pydicom-data ② TCIA ③ 自製 synthetic | Phase 4 demo 之前要決定；可順帶用於驗證 §5.4 backfill |
 | 3 | README env var 稽核 | 是否需要在 §15.2 新規範生效後做一次補登 | 待工程師確認是否有遺漏的 env var |
-| 4 | 前端 UI/UX / 瀏覽器相容 / 效能 / 無障礙規範 | 列於 `frontend/CLAUDE.md` §11 待補清單 | 等前端真正開始寫元件、需要做這些決策時才補；現在補只是空談 |
+| 4 | 前端 UI/UX / 瀏覽器相容 / 效能 / 無障礙規範 | 列於 `frontend/CLAUDE.md` §11 待補清單 | task #9 SPA 已驗收，現有風格是「深色主題 + Cornerstone 黑底」；Phase 4 demo 前若有正式 UX 規格再補 |
 | 5 | venv Python 版本 | 目前 3.8.8（Anaconda），系統有 3.12.2；用戶將其降為低優先 | 不阻擋；等真的踩到 3.8 限制再重建 |
-| 6 | 後端 endpoint 補完計畫 | `/studies/{id}/series` 與 `/series/{id}/instances` 是前端高機率會需要的；真實 AI mask 也是 | 等前端 Stage C 開始整合時 confirmed 再排程 |
+| 6 | 後端 endpoint 補完計畫 | ✅ Series 兩 endpoints 已於 2026-05-15 補完 (`9967f71`)；剩 AI mask 真實 PNG（Phase 3 範圍） | 已解決 series 部分 |
+| 7 | §5.4 backfill 走 (a) script 還是 (b) Alembic data migration | 工程師裁示先做 §5.4；推薦 (a) — 一次性 script、不動 schema、低風險；(b) 走 alembic data migration 留版本紀錄但較重 | 主 Agent 進入 §5.4 task 起手時需先確認 |
+| 8 | §5.4 (c) instance ID gap 處理深度 | 若是 DB rollback 殘留 → 是否要修 upload pipeline transaction handling？若是 explicit delete → 接受 | 等 (c) 分析結果後決定 |
 
 ---
 
@@ -148,3 +150,28 @@
   4. **評估後端補完**：依前端回報的後端需求（最可能：`/studies/{id}/series` + `/series/{id}/instances`）決定是否派 backend task
   5. **派 Phase 2 task #9 dispatch**：API client + AppContext + 4 業務元件 + `VITE_API_BASE_URL` env var 制度
   6. **修 `frontend/PROGRESS.md` lines 5, 64 的 `./IMPLEMENTATION.md` stale link**（→ `./docs/IMPLEMENTATION.md`）— 屬前端 Agent territory，但若前端 Agent 沒順手修，下次 session 可標 §9.5 結構性修正例外動一下並在 commit message 註明
+
+---
+
+### 2026-05-18 session 結尾狀態（task #9 審查 + 下一步裁示 + 文件同步）
+
+- **本 session 主 Agent 工作**：純文件審查與同步、未動程式碼
+  - 讀 frontend PROGRESS / DISPATCH / HANDOFF / CLAUDE.md + 根 PROGRESS + 雙端 SESSION_HISTORY 確認 task #9 完工狀態（11 commits `fb656c6` → `fa0dd34` 已 push、E2E 驗收 ✅）
+  - 問工程師下一步主軸 → 工程師裁示「§5.4 後端 backfill 先處理」
+  - 問工程師 Stage C UX 缺口處理 → 工程師裁示「標已解決於 commit `40d766d` (Fix-J)」
+  - 同步 4 份文件：
+    - `frontend/PROGRESS.md` §4.4 — 主段標已解決於 `40d766d`、整體狀況彙整段結案
+    - `PROGRESS.md` §6.11 標已解決 + §1 加 task #9 完工項 + §5 task #9 改 [x] + 加 Phase 2.5 §5.4 backfill 兩條
+    - `frontend/context/DISPATCH.md` — frontmatter `status: active` → `completed`、加 completed_commits 清單、加「⏸️ 本任務已完成」說明段
+    - `context/SESSION_HISTORY.md` A 段（系統現況 / 進行中 / 待決定）+ B 段（本記錄）
+- **跨 territory 動 frontend/PROGRESS §4.4**：屬 §15.5 例外（主 Agent 緊急同步 user 驗收結果），commit message 會明示
+- **未動 `frontend/context/SESSION_HISTORY.md`**：屬前端 Agent territory；下次前端 Agent session 啟動會自行同步「Stage C UX 已標解決」與「DISPATCH status: completed」
+- **R3 Doc Impact 檢測**：本批僅文件同步、無 API route / DB schema / env var 變動、無需 regen `docs/generated/`
+- **下次 session 主 Agent 起手**：直接進入 §5.4 後端 backfill 工作
+  1. 先讀 `models.py` (`Instance` / `Series` model) + 看現有 upload pipeline (`db_service.py:create_instance` 等) 確認 schema 與邏輯
+  2. SQL 查實際 orphan 狀態（連 PostgreSQL）：`SELECT id, sop_instance_uid, study_instance_uid, series_instance_uid, file_path FROM instances WHERE series_instance_uid IS NULL ORDER BY id;`
+  3. 問工程師走 (a) 一次性 script 還是 (b) Alembic data migration（待決定事項 #7）
+  4. 寫 `scripts/backfill_series_uid.py`（或 alembic migration）
+  5. (c) 確認 instance ID gap (2/5/11+) 來源：`SELECT MAX(id), COUNT(*) FROM instances;` + 看 upload pipeline transaction handling
+  6. 完工後同步根 PROGRESS §5 + §1 + frontend/context/HANDOFF.md §7 重大變更段、push commits
+- **commit 狀態**：4 份文件變動待 commit；commit message 草稿 `docs: task #9 收尾 — Stage C UX 標已解決 + 下一步 §5.4 backend backfill`

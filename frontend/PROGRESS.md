@@ -130,6 +130,8 @@
 
 ### 4.4 DicomViewer 影像尺寸不完整（Stage C 驗收發現，2026-05-15）
 
+> ✅ **已解決於 commit `40d766d` (Fix-J)**（2026-05-18 工程師裁示）。task #9 commit 7 內 codex 找到並修掉根因：① outer div `aspectRatio` 移除（commit 0 `fb656c6` 固化） ② Vite scaffold `#root max-width: 1126px` 改 `width:100% height:100%` ③ `html/body/#root` 100% chain + `.viewer/.viewport` wrapper 結構。user 驗收回報「ok 在中央區顯示」。Fix-1~Fix-4 詳細失敗紀錄保留以供未來 Cornerstone 整合除錯參考；不再追蹤。
+
 - **症狀**：DICOM 成功載入並渲染，但影像被切掉一部分 — viewport 內看不到完整影像
 - **可能原因**（未深查）：
   - Cornerstone StackViewport 預設無 fit-to-window 行為；未在 `setStack().then()` 後呼叫 `viewport.resetCamera()` 或設 `viewport.setProperties({ ...VOI/zoom })`
@@ -253,16 +255,12 @@ restack dispatch（Fix-3）失敗後，工程師基於「目標是處理影像�
 - **建議優先序**：**J > H > F > K > L**。方向 J 改動最小、可能找到真正根因；H 是務實妥協；F 不單獨足夠；K 改動 DOM 結構風險高；L 換 viewport type 屬重構
 - **commit 狀態**：依工程師指示**即將 commit** Stage C 完整工作樹（主體 + Fix-1 + Fix-2 + Fix-3 + Fix-4 累積）；commit message 反映完整歷程與當前 UX 缺口；hash 回填 PROGRESS §1 + SESSION_HISTORY B 段
 
-#### Stage C 尺寸缺口 — 整體狀況彙整（2026-05-16，等主 Agent）
+#### Stage C 尺寸缺口 — 整體狀況彙整（2026-05-18 結案）
 
 - **嘗試了 4 個方向**（fit / metadata / restack / destroy-recreate engine），全部 dev server 端驗證通過，全部瀏覽器驗收 ❌
-- **功能性**：DICOM 渲染成功、metadata 取得成功、無 console error、StrictMode-safe、cache hit 行為正確
-- **未解**：image 沒撐滿 container（從 80% 黑底改善到 60% 黑底後停滯）
-- **可能根因**（**未驗證**）：
-  - CSS layout 層級的隱性限制（Vite scaffold #root max-width / padding / Cornerstone-injected viewport-element 中間層）
-  - Cornerstone 4.22.6 GPU+VTK 對動態 aspect-ratio 的更深綁定（可能在 cache / metaData / global state）
-  - 兩者交互
-- **下一步建議給主 Agent**：方向 J（CSS 層偵錯）— 改動最小、可能定位真因；若 J 仍失敗 → 方向 H（暫退、commit、留待 task #9）；不建議 F/K/L（風險高 / 效果不明）
+- **方向 J（CSS 層偵錯）— 解決**：task #9 commit 7 (`40d766d`) 內前端 Agent + codex 排查 CSS 層找到根因：① outer div `aspectRatio` 設定衝突（commit 0 `fb656c6` 已固化移除）② Vite scaffold `#root max-width: 1126px` 限制 → 改 `width:100% height:100%` ③ `html/body/#root` 100% chain + `.viewer/.viewport` wrapper 結構建立。user 2026-05-17 ~ 2026-05-18 驗收回報「ok 在中央區顯示」
+- **2026-05-18 工程師裁示**：標已解決於 commit `40d766d` (Fix-J)；不再追蹤
+- **保留歷史價值**：Fix-1~Fix-4 失敗紀錄不刪，作為未來 Cornerstone 4.x GPU/VTK 整合除錯參考（曾被嘗試但無效的方向：靜態 aspect-ratio / metadata-aware 動態 / 二次 setStack / destroy+recreate engine）
 
 ### 4.5 Stage C debug 紀錄（2026-05-15，作為 IMPLEMENTATION.md 補充參考）
 

@@ -2,8 +2,10 @@
 issued: 2026-05-16
 issued_by: 主 Agent
 task_id: phase-2-task-9-business-components
-status: active
-supersedes: phase-2-task-8-stage-c-restack (Stage C 已 commit 13cccd3 含 UX 缺口；UX 缺口由本 dispatch CSS 整理段順手處理)
+status: completed
+completed_on: 2026-05-18
+completed_commits: fb656c6, e4fd960, 2e1d9fb, ea3cc1b, fec64f5, 7c8fe0b, d66b6ab, 40d766d, 4a016cd, 498a845, fa0dd34
+supersedes: phase-2-task-8-stage-c-restack (Stage C 已 commit 13cccd3 含 UX 缺口；UX 缺口由本 dispatch CSS 整理段順手處理 — Fix-J 已於 commit 40d766d 解決)
 ---
 
 # 當前任務 — Phase 2 task #9：4 業務元件 + AppContext + API client + env var 制度
@@ -13,6 +15,16 @@ supersedes: phase-2-task-8-stage-c-restack (Stage C 已 commit 13cccd3 含 UX �
 > **前端 Agent 啟動時必讀**（見 `frontend/CLAUDE.md` §1）。
 >
 > **修改規則**：前端 Agent **不修改本檔**；只讀。新版本由主 Agent 覆寫。
+
+---
+
+## ⏸️ 本任務已完成 — 目前無 active 前端任務（2026-05-18 工程師裁示）
+
+- task #9 全部 11 commits 已 push 至 `origin/master`、E2E 瀏覽器驗收 ✅、Stage C UX 缺口同步解決於 commit 7 (`40d766d` Fix-J)
+- **下個前端 dispatch 預告**：等主 Agent 完成 §5.4 後端 backfill（orphan instances 補 series_instance_uid + instance ID gap 來源澄清） + Phase 3 backend (AIResult model + Alembic migration + ai_service + 真實 PyTorch + `/ai/segment` + `/ai/result/{id}/mask` PNG endpoint)；屆時才會派下一個前端 dispatch（AIPanel mask overlay 真實渲染）
+- 本檔內容（下方任務說明）保留供歷史閱讀；不再 active
+
+---
 
 ---
 
