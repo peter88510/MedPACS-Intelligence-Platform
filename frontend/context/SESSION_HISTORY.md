@@ -83,11 +83,11 @@
 - **Stage C metadata dispatch `phase-2-task-8-stage-c-metadata` — gate 失敗（2026-05-16，未 commit）** — 加 `cornerstone.metaData.get('imagePlaneModule', imageId)` 動態取 rows/columns、設 container aspect-ratio、rAF 等 layout、`renderingEngine.resize` + `resetCameraForResize` + `render`。Container 與 canvas 兩者 aspect ratio 都對齊到 1640/1990，但 image actor 在 VTK scene 仍縮在角落（80% → 60% 黑底）。根因：Cornerstone 4.x GPU 模式底層 VTK actor 的 scene-space scale 在 setStack 時鎖定、後續 camera reset 動不到 actor scale。依 DISPATCH §「禁止」4 停下、寫 §4.4 Fix-2 詳記、待主 Agent 派新 dispatch（推薦方向 E：重 setStack）
 - **Stage C restack dispatch `phase-2-task-8-stage-c-restack` — gate 失敗（2026-05-16，未 commit）** — 在 metadata + rAF + resize 之後加二次 `await viewport.setStack([imageId])`。Network 0 GET（cache hit ✓）、Console 0 warning（metadata 主路成功 ✓）、setStack #2 確實執行；但影像仍未撐滿 canvas。Cornerstone source 分析：second setStack 確實走 full rebuild（stackInvalidated=true 強制）建新 actor + resetCameraNoEvent — 仍未填滿 → **Cornerstone 內部還有更深狀態綁在 enableElement 當下的 canvas 尺寸**（VTK offscreen render window / camera intrinsic 等）。依 DISPATCH §「主 Agent 已拍板的決策」5 停下、寫 §4.4 Fix-3 詳記、待主 Agent 派新 dispatch（推薦新方向 I：destroy+recreate engine）
 - **Stage C 完整版含 UX 缺口（2026-05-16, `13cccd3`）** — 主體 + Fix-1 (fit) + Fix-2 (metadata) + Fix-3 (restack) + Fix-4 (destroy+recreate engine) 全部 4 次嘗試已 commit；功能可用、影像未撐滿 container 的 UX 缺口未解，等主 Agent 拍板方向 J（CSS 層偵錯）或 H（暫退）
-- **Phase 2 task #9 — 業務元件層完工（2026-05-16 → 2026-05-18，commits `fb656c6` → 本 commit）** — 9 個 commit (含 commit 0 固化 codex Fix-J 嘗試) 完成 API client + VITE_API_BASE_URL env var 制度 + AppContext (5 fields) + Layout/TopBar/StudyList/MetadataPanel/AIPanel 全部業務元件 + DicomViewer ← AppContext + Vite scaffold 清掉。E2E 瀏覽器驗收通過（Layout、cascade、DICOM viewer、metadata、AI、env var fallback 全 ✅）。StudyList toggle 行為已補 (commit 8)。後端 audit 完成、寫進 PROGRESS §5.4 待主 Agent 處理 (orphan instances 1/3/4 + instance ID gap 來源澄清)
+- **Phase 2 task #9 — 業務元件層完工（2026-05-16 → 2026-05-18，commits `fb656c6` → `fa0dd34`）** — 11 個 commit (commit 0 固化 codex Fix-J + commits 1-8 業務 + commit 9 docs finalize + commit 10 hash 回填) 完成 API client + VITE_API_BASE_URL env var 制度 + AppContext (5 fields) + Layout/TopBar/StudyList/MetadataPanel/AIPanel 全部業務元件 + DicomViewer ← AppContext + Vite scaffold 清掉。E2E 瀏覽器驗收通過（Layout、cascade、DICOM viewer、metadata、AI、env var fallback 全 ✅）。StudyList toggle 行為已補 (commit 8)。後端 audit 完成、寫進 PROGRESS §5.4 待主 Agent 處理 (orphan instances 1/3/4 + instance ID gap 來源澄清)
 
 ### 上次 session 結尾狀態（2026-05-18）
 
-- **task #9 完成跨 session 工作 — 9 commits 全 push 完畢**：
+- **task #9 完成跨 session 工作 — 11 commits 全 push 完畢**（`fb656c6` → `fa0dd34`，皆在 `origin/master`）：
   - Commit 0 `fb656c6` 固化 codex 移除 outer div aspectRatio（Fix-J 根因之一）
   - Commit 1 `e4fd960` API client + .env.example + VITE_API_BASE_URL 制度
   - Commit 2 `2e1d9fb` AppContext (5 fields + cascade)
@@ -97,12 +97,12 @@
   - Commit 6 `d66b6ab` AIPanel
   - Commit 7 `40d766d` DicomViewer ← AppContext + App.tsx 改寫 + Vite scaffold 清掉 + Fix-J 嘗試
   - Commit 8 `4a016cd` StudyList toggle + ▶▼ icon（user 驗收回報補強）
-  - Commit 9（本 commit）PROGRESS §1/§2/§3 + §5.4 後端 audit + SESSION_HISTORY 同步
+  - Commit 9 `498a845` PROGRESS §1/§2/§3 finalize + §5.4 後端 audit + SESSION_HISTORY 同步
+  - Commit 10 `fa0dd34` 回填 commit 9 hash 至 PROGRESS §1（沿用 Stage B/C 兩 commit pattern）
 - **驗證歷程**：
   - 每個 commit 後 tsc 通過、push 到 `origin/master`
-  - End-to-end 瀏覽器驗收（user 報告）：Layout / cascade auto-select / DicomViewer 顯示 / MetadataPanel / AIPanel Run AI / VITE_API_BASE_URL fallback **全 ✅**
-  - **Fix-J 看似有效**：user「ok 在中央區顯示」(commit 0 移除 outer div aspectRatio + commit 7 codex CSS `html/body/#root 100%` + `.viewer/.viewport` wrapper 結構)；未 100% 確認「完全填滿」、保留 §4.4 為「待主 Agent 最終確認」
-  - StudyList toggle (commit 8) 是 user 驗收回報後補強
+  - End-to-end 瀏覽器驗收（user 2026-05-17 報告）：Layout / cascade auto-select / DicomViewer 顯示 / MetadataPanel / AIPanel Run AI / VITE_API_BASE_URL fallback **全 ✅**；user 後續要求補 StudyList toggle (commit 8)
+  - **Fix-J 看似有效**：user「ok 在中央區顯示」(commit 0 移除 outer div aspectRatio + commit 7 codex CSS `html/body/#root 100%` + `.viewer/.viewport` wrapper 結構)；user 未明示「完全填滿」、保留 §4.4 為「待主 Agent 最終確認」
 - **本 session 兩個重要技術 finding**：
   1. **TypeScript 6 `erasableSyntaxOnly`** 禁用 constructor parameter properties — `client.ts:ApiError` 必須用顯式 field declaration 才能編譯
   2. **Vite scaffold `#root max-width: 1126px`** 是 Fix-J 根因之一 — codex 已先排查、改為 `width: 100%; height: 100%`（commit 7 採納）
@@ -111,12 +111,13 @@
   - Instance ID gap (2/5/11+) 來源待澄清
   - Upload pipeline idempotency + grouping 都正確
   - 建議方向 (a) backfill script 解決 legacy orphan、(c) ID gap 來源澄清
-- **commit 狀態**：9 個 commits 已 push、工作樹乾淨
-- **背景任務**：user 自己的 dev server (PID 32648) 仍在跑、不關（屬 user）
+- **commit 狀態**：11 個 commits 已 push 至 `origin/master`、本地與 remote 同步、工作樹**乾淨**（`git status` empty）
+- **背景任務**：user 自己的 dev server (PID 32648) 仍在跑、不關（屬 user）；前端 Agent 本 session 沒啟動過 background dev server，無 zombie 需 TaskStop
 - **下次起手建議**：
   1. 等主 Agent 看 PROGRESS §5.4 audit findings + 給新 dispatch（推薦 Phase 3 真實 AI + mask、或先處理 §5.4 backend backfill）
   2. Stage C UX 缺口 §4.4：user 驗收「ok」但未明示「完全填滿」、保留待主 Agent 最終確認
   3. 後續若 DICOM 填滿仍有問題、再考慮方向 F/K/L (ResizeObserver / DOM 簡化 / 換 viewport type)
+  4. 上傳 DICOM 測試多 study/series 行為：需要用不同 StudyInstanceUID/SeriesInstanceUID 的 DICOM 檔（user 目前手上的都是同一檢查 UID、後端 upsert 都合併成 1+1+N）
 
 ---
 
