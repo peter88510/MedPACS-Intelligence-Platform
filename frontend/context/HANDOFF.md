@@ -171,6 +171,7 @@ Alembic 在 DB 多建一張 `alembic_version`（單欄、單列、記錄目前 m
 | 2026-05-14 | API spec / DB schema 改為 auto-generated（`docs/generated/`） | 前端應從 generated 檔讀完整 spec；本檔 §3 / §4 退化為「補充說明」，不再 duplicate spec |
 | 2026-05-14 | `POST /upload` response 加 `instance_id`（int、新建 instance 的 DB pk）| 前端任務 #9 的 upload UI（若日後實作）+ MVP 期間工程師驗收都能單一 round-trip 拿到 id，不用繞 psql |
 | 2026-05-15 | **Series 結構補完**（migration `e25c80289a9c`）：① `series.series_instance_uid` UNIQUE+NOT NULL ② `instances.series_instance_uid` ADD COLUMN+FK→series ③ upload pipeline 加 series upsert ④ 新 endpoints `GET /studies/{id}/series` + `GET /series/{id}/instances` | 解除前端 §6 兩個「不存在」endpoint 的阻擋；StudyList 完整版可實作；DicomViewer 可在同一 series 內切換 instance。**注意**：2026-05-15 前 upload 的 instances 與 series 都沒 series link，新 endpoints 對舊資料會回空陣列 |
+| 2026-05-18 | **§5.4 backfill apply** — `scripts/backfill_series_uid.py --apply` 補 3 個 pre-2026-05-15 orphan instances (id=1/3/4) 的 `series_instance_uid='...593537'` | 前端 StudyList 重整後會看到完整 8 個 instances（從 5 個變 8 個）；API `/series/1/instances` 從 5 筆 → 8 筆；schema 未變、API contract 未變 |
 
 > ⏸ **目前無 in-flight 後端變更**。下次更新時機：當主 Agent 在派發新前端任務前發現有新的 API、schema、env var、CORS 異動時（spec 變動會自動進 `docs/generated/`，本檔 §3.x / §4.x 只在「補充說明」需新增 / 修正時動）。
 

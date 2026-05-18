@@ -24,7 +24,7 @@
 ### 系統現況（2026-05-18）
 
 - **定位**：AI-ready Ultrasound DICOM 平台 MVP（非完整 PACS 替代）
-- **階段**：**Phase 2 完成** — 前端業務元件層 SPA 全 E2E 驗收 ✅（task #9 11 commits push 完畢）；Stage C UX 缺口已解決於 commit `40d766d` (Fix-J)。**下一步主軸**：Phase 2.5 §5.4 後端 backfill（工程師裁示優先處理 audit findings），完成後進 Phase 3 AI 整合
+- **階段**：**Phase 2 + Phase 2.5 完成** — 前端業務元件層 SPA 全 E2E 驗收 ✅（task #9 11 commits push 完畢）+ Stage C UX 缺口已解決於 commit `40d766d` (Fix-J) + §5.4 backend backfill 已 apply（2026-05-18，orphan instances 0、API `/series/1/instances` 5→8 筆）。**下一步主軸**：依工程師裁示「AI 真實功能優先序壓低、系統架構優先」 — 接下來可能項目（待工程師決定優先序）：①  Phase 3 backend scaffolding（AIResult model + ai_service signature、不接真實 PyTorch） ② Upload pipeline duplicate detection（§6.12） ③ Sample DICOM 多 study/series 準備 ④ 觀測性 / logging 落實（§6.3） ⑤ Production 部署準備
 - **Backend**：FastAPI + PostgreSQL + SQLAlchemy + pydicom，11 個 API endpoints 中 9 個完整實作（含 2026-05-15 新增 `/studies/{id}/series` + `/series/{id}/instances`）、2 個（`/ai/segment/{id}`、`/ai/result/{id}`）為 stub
 - **CORS**：✅ dev allow `http://localhost:5173`（Vite default）
 - **驗證層**：6 個必填欄位全部就位（PatientID / StudyInstanceUID / SeriesInstanceUID / SOPInstanceUID / Modality / PixelData）+ Modality 白名單（US）
@@ -33,7 +33,7 @@
 - **測試**：46 個測試（單元 9 / 整合 8 / API 29），用 in-memory SQLite + StaticPool 隔離。前端尚無測試套件
 - **儲存**：本地檔案系統（`storage/{patient}/{study}/{filename}.dcm`），已透過 `StorageBackend` 抽象預留 S3 接口
 - **DB Migration 工具**：✅ Alembic 已導入（2026-05-12），baseline `20809e26d134` + Series migration `e25c80289a9c` (2026-05-15) 涵蓋四表完整
-- **DB 資料狀態（2026-05-18 audit）**：1 study + 1 series + 8 instances；其中 id=1/3/4 是 pre-2026-05-15 orphan (`series_instance_uid=NULL`)、id=6-10 正確 link；ID gap (2/5/11+) 來源待澄清。詳 frontend/PROGRESS §5.4
+- **DB 資料狀態（2026-05-18 backfill 後）**：1 study + 1 series + 8 instances 全部 link 到 series 1 (uid `...593537`)；orphan count=0。Instance ID gap [2, 5] 已澄清為 PostgreSQL SERIAL sequence 在 IntegrityError rollback 後不 reset 的正常設計（不是 bug）。連帶發現 upload pipeline 缺 graceful duplicate detection → 新 known issue PROGRESS §6.12
 - **AI 操作規範**：CLAUDE.md **v1.2**（2026-05-14、commit `688f098`）— v1.1 之上再加 R3 Doc Impact 檢測 / R4 Stale Warning / §15.6 PROGRESS 觸發式 archive；§8 風險說明表格化
 - **文件結構（Hybrid）**：根目錄為跨專案文件、`docs/` 為後端深入文件（PLAN、IMPLEMENTATION）、`docs/generated/` 為 auto-gen 權威來源（api_spec.md / db_schema.md）、`docs/archive/` 為歷史備檔；frontend/ 鏡像同樣結構
 - **前後端分工**：完整檔案機制 — `frontend/CLAUDE.md` v1.1（前端規範）、`frontend/context/HANDOFF.md`（後端狀態鏡像、主 Agent 維護）、`frontend/context/DISPATCH.md`（覆寫式任務交付）、`frontend/PROGRESS.md`、`frontend/context/SESSION_HISTORY.md`（前端 Agent 維護）
@@ -43,8 +43,8 @@
 ### 進行中的任務
 
 - 無 in-flight 程式碼修改（主 Agent 端）
-- **前端**：task #9 已完成；目前無 active 前端 dispatch（`frontend/context/DISPATCH.md` status: completed）。下個前端 dispatch 等 Phase 3 backend 完成後才派
-- **主 Agent 下一步（2026-05-18 工程師裁示）**：先處理 Phase 2.5 §5.4 後端 backfill — (a) 寫 `scripts/backfill_series_uid.py` 修 orphan instances id=1/3/4；(c) 澄清 instance ID gap (2/5/11+) 來源。完成後進 Phase 3 backend（AIResult model + Alembic migration + ai_service + 真實 PyTorch + `/ai/segment` 真實實作 + `/ai/result/{id}/mask` PNG endpoint）
+- **前端**：task #9 已完成；目前無 active 前端 dispatch（`frontend/context/DISPATCH.md` status: completed）。下個前端 dispatch 等系統架構 / Phase 3 backend scaffolding 推進後才派（前端 AIPanel mask overlay 真實渲染等工程師接好真實 AI endpoint 後才動）
+- **主 Agent 下一步（2026-05-18 工程師裁示更新）**：AI 真實功能優先序壓低（工程師會自己接演算法/模型）、系統架構優先。可選方向（待工程師決定）：① Phase 3 backend scaffolding（AIResult model + Alembic migration + ai_service signature、不接真實 PyTorch） ② Upload pipeline duplicate detection (PROGRESS §6.12) ③ 觀測性 / logging 落實 (§6.3) ④ Sample DICOM 多 study/series 準備
 - **R4 stale check 規則調整**（2026-05-16，工程師授權）：主 Agent 改為 per-Read inline、active phase 不再做 blanket per-session 全掃；不動 CLAUDE.md 文字（仍符合 §10 R4 letter）
 
 ### 待決定事項
@@ -57,8 +57,10 @@
 | 4 | 前端 UI/UX / 瀏覽器相容 / 效能 / 無障礙規範 | 列於 `frontend/CLAUDE.md` §11 待補清單 | task #9 SPA 已驗收，現有風格是「深色主題 + Cornerstone 黑底」；Phase 4 demo 前若有正式 UX 規格再補 |
 | 5 | venv Python 版本 | 目前 3.8.8（Anaconda），系統有 3.12.2；用戶將其降為低優先 | 不阻擋；等真的踩到 3.8 限制再重建 |
 | 6 | 後端 endpoint 補完計畫 | ✅ Series 兩 endpoints 已於 2026-05-15 補完 (`9967f71`)；剩 AI mask 真實 PNG（Phase 3 範圍） | 已解決 series 部分 |
-| 7 | §5.4 backfill 走 (a) script 還是 (b) Alembic data migration | 工程師裁示先做 §5.4；推薦 (a) — 一次性 script、不動 schema、低風險；(b) 走 alembic data migration 留版本紀錄但較重 | 主 Agent 進入 §5.4 task 起手時需先確認 |
-| 8 | §5.4 (c) instance ID gap 處理深度 | 若是 DB rollback 殘留 → 是否要修 upload pipeline transaction handling？若是 explicit delete → 接受 | 等 (c) 分析結果後決定 |
+| 7 | ~~§5.4 backfill 走 (a) script 還是 (b) Alembic data migration~~ | ✅ 已決：(a) 一次性 script (2026-05-18) | — |
+| 8 | ~~§5.4 (c) instance ID gap 處理深度~~ | ✅ 已決：PostgreSQL SERIAL 設計、不是 bug、不修 transaction handling；連帶 issue「upload 缺 duplicate detection」記 §6.12 | — |
+| 9 | AI 真實功能何時接 | 工程師裁示「優先序低、系統架構完工後再接、由工程師親自串接」（2026-05-18） | 不再阻擋；Phase 3 backend scaffolding 仍可做但不接 PyTorch |
+| 10 | 系統架構優先項目排序 | 候選：① Phase 3 backend scaffolding ② Upload duplicate detection (§6.12) ③ Logging/audit (§6.3) ④ Sample DICOM ⑤ Production 準備 | 待工程師裁示下一步 |
 
 ---
 
@@ -153,7 +155,25 @@
 
 ---
 
-### 2026-05-18 session 結尾狀態（task #9 審查 + 下一步裁示 + 文件同步）
+### 2026-05-18 session 結尾狀態（§5.4 backend backfill 完工 + 工程師更新 AI 優先序）
+
+- **本次主 Agent 工作**：
+  - **§5.4 (a) backfill apply**：寫 `scripts/backfill_series_uid.py`（dry-run + `--apply`、重讀 DICOM 確認 SeriesUID + 不自行新建 series 安全機制）；dry-run 確認 3 個 orphan (id=1/3/4) 都對應現有 series 1 → `--apply` 寫入 → orphan count=0 + API `/series/1/instances` 5→8 筆。Schema 與 Series 表未動
+  - **§5.4 (c) ID gap 澄清**：結論為 PostgreSQL SERIAL sequence 設計（IntegrityError rollback 不 reset、預期行為）；推測 gap 來源為 upload 重傳同 SOP UID 被 UNIQUE constraint 擋；無需修 transaction handling。連帶發現 upload pipeline 回 500 + 裸 SQL error 不友善 → 新 known issue §6.12
+  - **工程師裁示更新（重要）**：AI 真實功能優先序壓低、系統架構優先、演算法與推論模型由工程師親自串接（主 Agent 不選型）→ 已存 project memory `project_ai_inference_priority.md`
+  - **文件同步**：
+    - `PROGRESS.md` §5 Phase 2.5 兩項 [x] 完成 + §6.12 加新 known issue + §7 加 backfill script 到 scripts/
+    - `frontend/PROGRESS.md` §5.4 標已解決於 `scripts/backfill_series_uid.py --apply`
+    - `frontend/context/HANDOFF.md` §7 加 2026-05-18 backfill apply 紀錄
+    - `context/SESSION_HISTORY.md` A 段系統現況 / 進行中 / 待決定 (#7-#10) + B 段本記錄
+- **新增檔案**：`scripts/backfill_series_uid.py`（179 行、安全 dry-run + --apply + post-apply 驗證）
+- **R3 Doc Impact**：純 script + docs、無動 main.py / models.py / alembic — 不 trigger pre-commit hook、不 regen `docs/generated/`
+- **下次 session 主 Agent 起手**：問工程師決定下一步（待決定 #10 — Phase 3 scaffolding vs upload duplicate detection vs logging vs sample DICOM）。AI 真實推論不在主 Agent scope（工程師親自接）
+- **commit 狀態**：本批 5 個檔變動待 commit；commit message 草稿 `feat: scripts/backfill_series_uid.py — §5.4 orphan instances 修舊資料`
+
+---
+
+### 2026-05-18 session 早段（task #9 審查 + 下一步裁示 + 文件同步）— commit `1969808`
 
 - **本 session 主 Agent 工作**：純文件審查與同步、未動程式碼
   - 讀 frontend PROGRESS / DISPATCH / HANDOFF / CLAUDE.md + 根 PROGRESS + 雙端 SESSION_HISTORY 確認 task #9 完工狀態（11 commits `fb656c6` → `fa0dd34` 已 push、E2E 驗收 ✅）

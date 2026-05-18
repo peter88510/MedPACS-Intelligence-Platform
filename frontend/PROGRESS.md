@@ -302,6 +302,8 @@ restack dispatch（Fix-3）失敗後，工程師基於「目標是處理影像�
 
 ### 5.4 後端 upload pipeline + orphan 修復需求（2026-05-18 audit）
 
+> ✅ **已解決於 `scripts/backfill_series_uid.py --apply`**（2026-05-18，主 Agent）。3 個 orphan instances (id=1/3/4) 已補 series_instance_uid `...593537`、orphan count=0、API `/series/1/instances` 從 5 筆 → 8 筆。ID gap (2/5/11+) 結論：PostgreSQL SERIAL 設計、不是 bug。連帶發現新 known issue「upload pipeline 缺 graceful duplicate detection」記於根 PROGRESS §6.12。前端 StudyList 重整後會看到完整 8 個 instances。
+
 工程師於 task #9 收尾時要求做後端全面 audit。發現後請主 Agent 評估處理。
 
 **當前資料狀態**（2026-05-18 probe via `GET /studies` + 8000 endpoints）：

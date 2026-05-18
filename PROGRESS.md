@@ -156,8 +156,8 @@
 **Phase 2 全部完成 — 後續進入 Phase 3（AI 整合）。**
 
 ### Phase 2.5：後端 audit findings 處理（task #9 §5.4 衍生，2026-05-18 工程師裁示先處理）
-- [ ] **§5.4 (a) 一次性 backfill script** — `scripts/backfill_series_uid.py`：掃 `instances` 表 `series_instance_uid IS NULL` 的記錄 (id=1, 3, 4)、用 `file_path` 重讀 DICOM header、補欄位 + 補建/掛 series
-- [ ] **§5.4 (c) Instance ID gap 來源澄清** — 跑 `SELECT MAX(id) FROM instances` 對照已存在 IDs、確認 sequence 跳號原因（DB rollback 殘留 / explicit delete / migration 副作用）；如果是 rollback → 確認 upload pipeline transaction handling 是否正確
+- [x] **§5.4 (a) 一次性 backfill script**（2026-05-18）— `scripts/backfill_series_uid.py` dry-run + `--apply`、安全機制（重讀 DICOM 確認 SeriesUID + 不自行新建 series）。Apply 結果：3 個 orphan instances (id=1/3/4) 全部補上 series_instance_uid `...593537`、orphan count=0、Series 表未動、API `/series/1/instances` 現在回 8 筆（從 5 筆）
+- [x] **§5.4 (c) Instance ID gap 來源澄清**（2026-05-18）— 結論：**PostgreSQL SERIAL sequence 設計、不是 bug**。`instances_id_seq.last_value=10` + 缺 id=[2, 5]，是 transaction rollback 後 sequence 不 reset 的預期行為（避免 race condition）。推測來源：upload 同 SOP UID 重傳被 UNIQUE constraint 擋下 → IntegrityError → rollback。無需修 transaction handling。但發現連帶 issue → 見 §6.12
 
 ### Phase 3：AI 整合（PLAN §9、§12）
 - [ ] `AIResult` model + Alembic migration
@@ -221,6 +221,13 @@
 - **缺什麼**：error response 在 production 可能洩漏內部細節（stack trace / SQL）
 - **什麼時候會痛**：production 上線、安全審查時
 - **相依**：CLAUDE.md 第 9 節已要求「Exception 訊息不可包含完整 SQL query 或 stack trace」，需落實
+
+### 6.12 Upload pipeline 缺 graceful duplicate detection（2026-05-18 §5.4 audit 連帶發現）
+- **缺什麼**：`POST /upload` 對重複 SOP UID（被 UNIQUE constraint 擋）回 HTTP 500 + 裸 SQL error string（`main.py:144-145` `except Exception as e: raise HTTPException(status_code=500, detail=str(e))`），不友善且洩漏 internal detail
+- **預期行為**：偵測 duplicate → 回 200 + 已存在的 `instance_id`（idempotent 上傳）或 409 Conflict + 友善訊息
+- **連帶影響**：每次 user 重傳同一 DICOM 都會留下 instance_id sequence gap（這本身不是 bug、是 PostgreSQL SERIAL 設計、見 §5 Phase 2.5 (c)）
+- **什麼時候會痛**：user / client 重傳同檔時收到 500、誤判系統壞；production 上線時 stack trace 洩漏屬 CLAUDE.md §9 違反
+- **相依**：在 upload pipeline 加 SOPInstanceUID-based dedupe check（query 既有 instance、若存在直接回現有 id）；或 catch `IntegrityError` → 回 409
 
 ### 6.11 DicomViewer 影像未填滿 container（Stage C UX 缺口、2026-05-16）
 > ✅ **已解決於 commit `40d766d` (Fix-J、task #9 commit 7、2026-05-18 工程師裁示)**。task #9 期間方向 J（CSS 層偵錯）由前端 Agent + codex 排查找到根因並修復：① outer div `aspectRatio` 設定衝突（commit 0 `fb656c6` 固化移除） ② Vite scaffold `#root max-width: 1126px` 改 `width:100% height:100%` ③ `html/body/#root` 100% chain + `.viewer/.viewport` wrapper 結構。user 驗收回報「ok 在中央區顯示」。Fix-1~Fix-4 詳細失敗歷史保留於 `frontend/PROGRESS.md` §4.4 供未來 Cornerstone 整合除錯參考。本條保留以供歷史追溯。
@@ -309,6 +316,7 @@ MedPACS Intelligence Platform/
 ├── scripts/                         # 工具腳本
 │   ├── gen_api_spec.py              # 產生 docs/generated/api_spec.md
 │   ├── gen_db_schema.py             # 產生 docs/generated/db_schema.md
+│   ├── backfill_series_uid.py       # 一次性 backfill — 補 pre-2026-05-15 orphan instances（2026-05-18）
 │   └── hooks/
 │       └── pre-commit               # git hook（偵測 source 變動 → 自動 regen）
 │
