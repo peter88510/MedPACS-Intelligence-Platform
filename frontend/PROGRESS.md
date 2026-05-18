@@ -43,6 +43,20 @@
   - `vite.config.ts` **未動**（Vite pre-bundle 自動處理 `@cornerstonejs/dicom-image-loader`，無 esbuild 衝突）
   - 驗證：`npm run dev` 啟動 329ms，無 error / warning；curl /、/src/main.tsx、/src/cornerstone/setup.ts 皆回 HTTP 200；Vite log 顯示 dicom-image-loader 成功 optimize
   - 瀏覽器 DevTools console 驗證**待工程師於瀏覽器確認**（Agent 無法存取瀏覽器）
+- [x] **Phase 2 task #9：業務元件層**（2026-05-16 → 2026-05-18，9 commits + 1 hash 回填）
+  - Commit 0 `fb656c6` — 固化 codex 移除 outer div aspectRatio 設定（Fix-J 根因之一）
+  - Commit 1 `e4fd960` — API client (`src/api/`) + `VITE_API_BASE_URL` env var 制度
+  - Commit 2 `2e1d9fb` — AppContext（5 fields + Provider + `useAppContext()` hook + cascade auto-select）
+  - Commit 3 `ea3cc1b` — Layout + TopBar 結構元件（CSS Grid 三欄 + 深色主題）
+  - Commit 4 `fec64f5` — StudyList 三層展開
+  - Commit 5 `7c8fe0b` — MetadataPanel（idle/loading/ok/error 四態）
+  - Commit 6 `d66b6ab` — AIPanel（Run AI 按鈕 + stub JSON 顯示；mask overlay 留 Phase 3）
+  - Commit 7 `40d766d` — DicomViewer ← AppContext + App.tsx 改寫（AppContextProvider+Layout）+ Vite scaffold 清掉（App.css/assets/public/*.svg）+ CSS Modules 整理 + Fix-J 嘗試
+  - Commit 8 `4a016cd` — StudyList toggle + ▶▼ icon（驗收回報補強）
+  - Commit 9（本 commit）— PROGRESS §1/§2/§3 finalize + §5.4 後端 audit findings + SESSION_HISTORY 同步
+  - 驗收狀態：Layout / Cascade auto-select / DicomViewer / MetadataPanel / AIPanel / VITE_API_BASE_URL fallback 全 ✅；**Fix-J 看似有效**（DICOM viewer 在中央區渲染、user 驗收「ok 在中央區顯示」）
+  - 已知 UX nuance：StudyList 只看到 5 個 instances（id 6-10），orphan instances (id 1, 3, 4) 透過 series tree 不可見 → 詳 §5.4 backend audit
+
 - [x] **Phase 2 task #8 Stage C：第一張 DICOM 渲染**（2026-05-15 → 2026-05-16，commit `13cccd3`，含 UX 缺口）
   - 主體（2026-05-15）：
     - 新增 `src/components/DicomViewer/DicomViewer.tsx` — props `instanceId: number`、`useRef<HTMLDivElement>` 容器、`useEffect` 內建 `RenderingEngine` + `StackViewport`、`wadouri:http://localhost:8000/instances/${id}/file`、cleanup `destroy()` + `cancelled` flag 防 StrictMode race
@@ -69,21 +83,7 @@
 
 ## 2. 進行中
 
-### Phase 2 task #9 — 業務元件層
-
-- **任務來源**：2026-05-16 DISPATCH.md（task_id: `phase-2-task-9-business-components`，supersedes Stage C restack）
-- **核心工作**（拆 7 個 commit + 1 hash 回填）：
-  - Commit 1：API client (`src/api/`) + `VITE_API_BASE_URL` env var 制度
-  - Commit 2：AppContext (5 fields + Provider + `useAppContext()` hook)
-  - Commit 3：Layout + TopBar 結構元件（CSS Grid 三欄）
-  - Commit 4：StudyList 元件（三層展開：study → series → instance）
-  - Commit 5：MetadataPanel 元件
-  - Commit 6：AIPanel 元件 + AI stub 接通
-  - Commit 7：DicomViewer 改造（移除 hardcoded INSTANCE_ID、改用 AppContext）+ App.tsx 改寫 + CSS Modules 樣式整理 + **方向 J (CSS 層偵錯 Stage C UX 缺口、30 分鐘 timebox)**
-  - Commit 8：Hash 回填
-- **完成標準**：所有元件 tsc 通過、dev server 乾淨、end-to-end 瀏覽器驗收（點 study → 渲染 → metadata → AI 觸發）
-- **重要禁忌**：不動 backend / `vite.config.ts:server.port` / `main.tsx` / `setup.ts`；不改 Stage C 既有 Cornerstone 邏輯；不做 AI mask overlay（Phase 3）/ multi-frame UI / upload UI；不引入 Redux / UI framework / 額外 HTTP library；Fix-J 30 分鐘 timebox 不可超時
-- **參考文件**：`frontend/context/DISPATCH.md`、`frontend/docs/IMPLEMENTATION.md` §10 / §架構圖、`frontend/context/HANDOFF.md`、`docs/generated/api_spec.md`、`docs/generated/db_schema.md`
+> **目前無進行中項目。** task #9 已完成（commits `fb656c6` → 本 commit）；等主 Agent 派下個 dispatch（預期 Phase 3：真實 AI 推論 + mask overlay，或 Stage C UX 缺口最終收尾 + 後端 §5.4 audit 處理）。
 
 ---
 
@@ -91,20 +91,18 @@
 
 > 順序見 [`IMPLEMENTATION.md`](./docs/IMPLEMENTATION.md) §10「開發順序建議」。
 
-### Phase 2 task #9 — 四個業務元件
+### Phase 3 — AI 推論 + Mask Overlay (預告)
 
-- [ ] **API Client (`src/api/`)**
-  - `client.ts`（fetch wrapper + ApiError）
-  - `types.ts`（Study / AIResult 等共享型別）
-  - `studies.ts` / `series.ts` / `instances.ts` / `ai.ts`
-- [ ] **AppContext (`src/context/AppContext.tsx`)**
-  - 5 個欄位：`studies` / `currentStudyId` / `currentSeriesId` / `currentInstanceId` / `aiResult`
-  - `useAppContext()` hook
-- [ ] **`<Layout />` + `<TopBar />`** — 結構元件、CSS Grid 三欄
-- [ ] **`<StudyList />`** — 左欄、列出 study、點擊切換
-- [ ] **`<MetadataPanel />`** — 右上、顯示 instance metadata
-- [ ] **`<AIPanel />`** — 右下、Run AI 按鈕 + 結果顯示
-- [ ] **CSS Modules 樣式整理** — 收尾、視覺微調
+- [ ] **Backend**：`AIResult` model + Alembic migration + `ai_service.py` + PyTorch 模型載入
+- [ ] **Backend**：`POST /ai/segment/{id}` 真實實作（取代 stub queued）
+- [ ] **Backend**：`GET /ai/result/{id}/mask` 真 PNG endpoint（取代 stub_mask_data 字串）
+- [ ] **Frontend**：AIPanel mask overlay 真渲染（取代目前的 stub JSON 顯示）
+- [ ] **Frontend**：可能順手收尾 Stage C UX 缺口（若 Fix-J 結果不完美）
+
+### Phase 4 — Demo 演練 (PLAN §13)
+
+- [ ] sample DICOM 準備
+- [ ] end-to-end demo 演練
 
 ---
 
@@ -302,6 +300,39 @@ restack dispatch（Fix-3）失敗後，工程師基於「目標是處理影像�
   - 用途：AIPanel mask overlay 渲染
   - 預期：`image/png` content-type、與原 DICOM 同尺寸
   - 阻擋：AIPanel mask 渲染
+
+### 5.4 後端 upload pipeline + orphan 修復需求（2026-05-18 audit）
+
+工程師於 task #9 收尾時要求做後端全面 audit。發現後請主 Agent 評估處理。
+
+**當前資料狀態**（2026-05-18 probe via `GET /studies` + 8000 endpoints）：
+- `studies` 表：1 筆（id=1，patient `1760679216609`，modality=US，study UID `...593536`）
+- `series` 表：1 筆（id=1，掛 study 1，series UID `...593537`）
+- `instances` 表：8 筆有效記錄
+  - id=1 (`Peter_Quiet_1.dcm`)、id=3 (`Peter_Quiet_2.dcm`)、id=4 (`Peter_Quiet_3.dcm`) — `series_instance_uid = NULL`（**orphan**，pre-2026-05-15 upload）
+  - id=6 ~ id=10 — `series_instance_uid` 正確 link 到 series 1（post-2026-05-15 upload）
+- ID gaps：id=2, 5, 11+ 為 HTTP 404 — 推測失敗上傳殘留 / 已刪除（待澄清）
+
+**Pre/Post migration `e25c80289a9c` (2026-05-15) 狀態**：
+- 該 migration 加 `instances.series_instance_uid` 欄 + FK→series
+- Pre-upgrade upload 沒寫該欄 → orphan
+- Post-upgrade upload 正常寫入
+
+**Upload pipeline audit findings**：
+1. ✅ **Idempotency 正確** — 同一組 (study_uid, series_uid, sop_uid) 重上傳會 upsert，無重複（8 instances 對應 8 個 unique SOP UID）
+2. ✅ **Grouping 正確** — 同 DICOM session（StudyInstanceUID `...593536` + SeriesInstanceUID `...593537`）→ 1 study + 1 series + N instances，符合 DICOM standard
+3. ❌ **Migration 後無 backfill** — pre-2026-05-15 instances (id 1, 3, 4) 仍是 NULL `series_instance_uid`；前端 StudyList 無法看到（`/series/1/instances` 只回 post-upgrade 5 筆）
+4. ⚠️ **Instance ID gap 來源不明** — id 2/5/11+ 應確認是「失敗上傳殘留 → DB rollback 後留 sequence gap」還是「被人工 delete」
+
+**建議給主 Agent 評估的後續處理**：
+- **(a) 推薦 — 一次性 backfill script**：寫 `scripts/backfill_series_uid.py`，掃 `instances` 表 `series_instance_uid IS NULL` 的記錄、用 `file_path` 重讀 DICOM header、補欄位 + 補建/掛 series。執行 → 解決 orphan 問題
+- **(b) 或 follow-up Alembic migration**：同上邏輯但走 alembic 流程、版本控制
+- **(c) ID gap 來源澄清**：跑 `SELECT MAX(id) FROM instances` 對照已存在 IDs、確認 sequence 跳號原因（DB rollback / explicit delete / migration 副作用）。如果是 rollback 殘留 → 確認 transaction handling 是否正確
+- **(d) Optional `/instances` 列全 endpoint**：給前端 admin / debug 用、可看 orphan；非 MVP 必要
+
+**前端影響說明**：
+- 工程師感受：「上傳多次但只看到 1 個 study/series」— **這是 DICOM standard 行為**（同 UID → 同 study/series），不是 bug。若要看到多 study，需要上傳不同 UID 的 DICOM 檔
+- 工程師感受：「instance 1/3/4 在 DB 內，前端看不到」— **這是 (a)/(b) 處理才能解的 legacy gap**；目前前端 StudyList 行為正確（顯示 series link 正常的 instances）
 
 ---
 
