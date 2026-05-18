@@ -53,7 +53,8 @@
   - Commit 6 `d66b6ab` — AIPanel（Run AI 按鈕 + stub JSON 顯示；mask overlay 留 Phase 3）
   - Commit 7 `40d766d` — DicomViewer ← AppContext + App.tsx 改寫（AppContextProvider+Layout）+ Vite scaffold 清掉（App.css/assets/public/*.svg）+ CSS Modules 整理 + Fix-J 嘗試
   - Commit 8 `4a016cd` — StudyList toggle + ▶▼ icon（驗收回報補強）
-  - Commit 9（本 commit）— PROGRESS §1/§2/§3 finalize + §5.4 後端 audit findings + SESSION_HISTORY 同步
+  - Commit 9 `498a845` — PROGRESS §1/§2/§3 finalize + §5.4 後端 audit findings + SESSION_HISTORY 同步
+  - Commit 10（hash 回填，本 commit）— 把 commit 9 自身 hash 填回 §1 條目（沿用 Stage B `8cd61f3` + `acd2ced` 兩 commit pattern）
   - 驗收狀態：Layout / Cascade auto-select / DicomViewer / MetadataPanel / AIPanel / VITE_API_BASE_URL fallback 全 ✅；**Fix-J 看似有效**（DICOM viewer 在中央區渲染、user 驗收「ok 在中央區顯示」）
   - 已知 UX nuance：StudyList 只看到 5 個 instances（id 6-10），orphan instances (id 1, 3, 4) 透過 series tree 不可見 → 詳 §5.4 backend audit
 
