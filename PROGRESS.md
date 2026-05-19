@@ -50,9 +50,10 @@
 - [x] Pydantic v2 Settings 環境配置
 - [x] StorageBackend 抽象層（為未來 S3 遷移預留）
 - [x] LocalStorageBackend 實作
-- [x] 自動 DB 初始化（`init_db()`，已被 Alembic 取代為 canonical 路徑，保留向後相容）
+- [x] 自動 DB 初始化（`init_db()`，已被 Alembic 取代為 canonical 路徑，保留向後相容） — ⚠️ 仍有 race condition with alembic、見 §6.13
 - [x] 驗證層模組化（`validation/`）
 - [x] **Alembic 導入 + baseline migration**（涵蓋 patients / studies / series / instances 四表，upgrade/downgrade 雙向已驗證）
+- [x] **AIResult model + Alembic migration `91725486ef55`**（Phase 3 task #10、2026-05-19）— PLAN §9.3 schema scaffolding；不接 PyTorch（工程師親自串接演算法/模型）；upgrade/downgrade round-trip 驗證通過
 
 ### 測試與品質
 - [x] 33 個測試案例（單元 / 整合 / API 三層）
@@ -100,7 +101,7 @@
 ## 3. 測試覆蓋簡況
 
 ### 總覽
-- **總測試數**：46 個
+- **總測試數**：49 個
 - **執行方式**：`pytest tests/ -v`
 - **隔離機制**：記憶體 SQLite + monkeypatch 臨時 storage，每個測試獨立
 
@@ -110,6 +111,7 @@
 |---|---|---|---|
 | 整合測試 | `tests/test_dicom_service.py` | 8 | 真實 SQLite 記憶體 DB + 臨時 storage（含 2026-05-15 加的 series upsert + upload-creates-series 兩項） |
 | API 測試 | `tests/test_query_api.py` | 29 | TestClient + mock `db_service`（含 2026-05-15 加的 /studies/{id}/series 與 /series/{id}/instances 各 4 cases） |
+| ORM 測試 | `tests/test_ai_result_model.py` | 3 | 純 SQLAlchemy model 層（Phase 3 task #10：AIResult CRUD + nullable + Instance.ai_results back-relationship） |
 | 單元測試 | `tests/test_validators.py` | 9 | 純邏輯，無 DB / HTTP |
 
 ### 已覆蓋路徑
@@ -160,11 +162,11 @@
 - [x] **§5.4 (c) Instance ID gap 來源澄清**（2026-05-18）— 結論：**PostgreSQL SERIAL sequence 設計、不是 bug**。`instances_id_seq.last_value=10` + 缺 id=[2, 5]，是 transaction rollback 後 sequence 不 reset 的預期行為（避免 race condition）。推測來源：upload 同 SOP UID 重傳被 UNIQUE constraint 擋下 → IntegrityError → rollback。無需修 transaction handling。但發現連帶 issue → 見 §6.12
 
 ### Phase 3：AI 整合（PLAN §9、§12）
-- [ ] `AIResult` model + Alembic migration
-- [ ] `ai_service.py` + PyTorch 模型載入（pretrained / mock fallback 路徑見 PLAN §9.4）
-- [ ] `/ai/segment/{id}` 同步實作（覆蓋現有 stub）
-- [ ] `/ai/result/{id}` + `/ai/result/{id}/mask` 實作（覆蓋現有 stub）
-- [ ] 前端 mask overlay 渲染
+- [x] **`AIResult` model + Alembic migration `91725486ef55`**（task #10、2026-05-19）— schema scaffolding only；PLAN §9.3 完整實作；3 個 ORM-level test 涵蓋 CRUD + nullable + relationship
+- [ ] `ai_service.py` + PyTorch 模型載入（pretrained / mock fallback 路徑見 PLAN §9.4）— ⏸ **工程師親自串接**（2026-05-18 裁示：AI 真實功能優先序低、演算法/模型由工程師接）
+- [ ] `/ai/segment/{id}` 同步實作（覆蓋現有 stub）— ⏸ 同上
+- [ ] `/ai/result/{id}` + `/ai/result/{id}/mask` 實作（覆蓋現有 stub）— ⏸ 同上
+- [ ] 前端 mask overlay 渲染 — ⏸ 等真實 AI endpoint 接通後才派 dispatch
 
 ### Phase 4：收尾（PLAN §12、§13）
 - [ ] Sample anonymized DICOM 測試資料準備
@@ -222,6 +224,14 @@
 - **什麼時候會痛**：production 上線、安全審查時
 - **相依**：CLAUDE.md 第 9 節已要求「Exception 訊息不可包含完整 SQL query 或 stack trace」，需落實
 
+### 6.13 init_db (Base.metadata.create_all) 與 Alembic race condition（2026-05-19 task #10 收尾發現）
+- **缺什麼**：`main.py:51-58 startup_event` 仍跑 `init_db()`（呼叫 `Base.metadata.create_all`），會在 backend dev server 重啟時搶先建出 model 對應的表、不更新 `alembic_version`、之後 `alembic upgrade head` 遇 `DuplicateTable` 失敗
+- **觸發情境**：開發者修改 `models.py` 加新 class 後重啟 backend → 新表透過 init_db 自動建出來 → 接著想跑 alembic migration 套用對應的 CREATE TABLE → 失敗
+- **本次 workaround**（2026-05-19）：DROP 該 empty 表 → 重跑 alembic upgrade head → alembic_version 正確升級
+- **根本解**：拿掉 `main.py:startup_event` 的 `init_db()` 呼叫、讓 alembic 獨享 schema canonical 路徑；同時確認 `tests/conftest.py:35` `Base.metadata.create_all` 改寫成跑 alembic 程式化 upgrade（或保留 in-memory SQLite 走 create_all、僅 production 走 alembic — 視需求）
+- **什麼時候會痛**：每次新增 model class（Phase 3 task #11 接 ai_service 若需要新表、未來任何 schema 變動）；production 部署時若有人「先 init_db 後 alembic」會 corrupt 流程
+- **相依**：CLAUDE.md §5 禁止「改變 db.py session management 機制（除非明確被要求修復 bug）」邊緣 — 本項屬 bug fix 性質、需工程師裁示動 init_db 行為
+
 ### 6.12 Upload pipeline 缺 graceful duplicate detection（2026-05-18 §5.4 audit 連帶發現）
 - **缺什麼**：`POST /upload` 對重複 SOP UID（被 UNIQUE constraint 擋）回 HTTP 500 + 裸 SQL error string（`main.py:144-145` `except Exception as e: raise HTTPException(status_code=500, detail=str(e))`），不友善且洩漏 internal detail
 - **預期行為**：偵測 duplicate → 回 200 + 已存在的 `instance_id`（idempotent 上傳）或 409 Conflict + 友善訊息
@@ -251,7 +261,9 @@ MedPACS Intelligence Platform/
 │   ├── env.py                       # 載入 config.settings.DATABASE_URL
 │   ├── script.py.mako               # Migration 模板
 │   └── versions/                    # Migration scripts
-│       └── 20809e26d134_baseline_*.py  # Baseline: 四表 CREATE
+│       ├── 20809e26d134_baseline_*.py        # Baseline: 四表 CREATE
+│       ├── e25c80289a9c_add_series_*.py      # 2026-05-15: Series UNIQUE+NOT NULL + Instance FK
+│       └── 91725486ef55_add_ai_results_*.py  # 2026-05-19: AIResult 表 (Phase 3 task #10)
 │
 ├── validation/                      # DICOM 驗證模組
 │   ├── __init__.py
@@ -262,8 +274,9 @@ MedPACS Intelligence Platform/
 │
 ├── tests/                           # 測試套件（Backend）
 │   ├── conftest.py                  # 共用 fixtures、工廠函式、TestClient
-│   ├── test_dicom_service.py        # 整合測試（6 個）
-│   ├── test_query_api.py            # API 端點測試（21 個）
+│   ├── test_dicom_service.py        # 整合測試（8 個）
+│   ├── test_query_api.py            # API 端點測試（29 個）
+│   ├── test_ai_result_model.py      # AIResult ORM 測試（3 個、Phase 3 task #10）
 │   └── test_validators.py           # 驗證單元測試（9 個）
 │
 ├── storage/                         # 本地 DICOM 檔案儲存（runtime 自動建立）

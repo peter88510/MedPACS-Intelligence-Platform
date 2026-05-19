@@ -1,16 +1,30 @@
 <!-- AUTO-GENERATED — DO NOT EDIT -->
 <!-- Source: models.py + alembic/versions/ -->
 <!-- Generator: scripts/gen_db_schema.py -->
-<!-- Last regenerated against git HEAD: a7e973e / alembic latest: e25c80289a9c -->
+<!-- Last regenerated against git HEAD: 671450a / alembic latest: 91725486ef55 -->
 
 # DB Schema (Generated)
 
 > 本檔由 `scripts/gen_db_schema.py` 從 `models.py + alembic/versions/` 自動產生。
 > **不要人工編輯**。修改 `models.py` 或 alembic migration 後再次執行（或由 pre-commit hook 自動觸發）。
 
-**最新 Alembic revision**：`e25c80289a9c`
+**最新 Alembic revision**：`91725486ef55`
 
 ---
+
+## `ai_results`
+
+| Column | Type | Nullable | PK | Unique | Index | FK |
+|---|---|---|---|---|---|---|
+| `id` | `INTEGER` | no | ✓ |  | ✓ |  |
+| `instance_id` | `INTEGER` | no |  |  | ✓ | → `instances.id` |
+| `model_name` | `VARCHAR(64)` | no |  |  |  |  |
+| `model_version` | `VARCHAR(32)` | no |  |  |  |  |
+| `status` | `VARCHAR(16)` | no |  |  |  |  |
+| `mask_path` | `VARCHAR(512)` | yes |  |  |  |  |
+| `confidence` | `FLOAT` | yes |  |  |  |  |
+| `error_message` | `TEXT` | yes |  |  |  |  |
+| `created_at` | `DATETIME` | yes |  |  |  |  |
 
 ## `instances`
 
@@ -52,4 +66,4 @@
 
 ---
 
-_Generated 4 tables._
+_Generated 5 tables._

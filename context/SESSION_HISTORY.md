@@ -24,15 +24,15 @@
 ### 系統現況（2026-05-18）
 
 - **定位**：AI-ready Ultrasound DICOM 平台 MVP（非完整 PACS 替代）
-- **階段**：**Phase 2 + Phase 2.5 完成** — 前端業務元件層 SPA 全 E2E 驗收 ✅（task #9 11 commits push 完畢）+ Stage C UX 缺口已解決於 commit `40d766d` (Fix-J) + §5.4 backend backfill 已 apply（2026-05-18，orphan instances 0、API `/series/1/instances` 5→8 筆）。**下一步主軸**：依工程師裁示「AI 真實功能優先序壓低、系統架構優先」 — 接下來可能項目（待工程師決定優先序）：①  Phase 3 backend scaffolding（AIResult model + ai_service signature、不接真實 PyTorch） ② Upload pipeline duplicate detection（§6.12） ③ Sample DICOM 多 study/series 準備 ④ 觀測性 / logging 落實（§6.3） ⑤ Production 部署準備
-- **Backend**：FastAPI + PostgreSQL + SQLAlchemy + pydicom，11 個 API endpoints 中 9 個完整實作（含 2026-05-15 新增 `/studies/{id}/series` + `/series/{id}/instances`）、2 個（`/ai/segment/{id}`、`/ai/result/{id}`）為 stub
+- **階段**：**Phase 2 + Phase 2.5 完成 + Phase 3 task #10 完成** — 前端 SPA E2E ✅ + Stage C UX 已解決 + §5.4 backfill 已 apply + AIResult model + Alembic migration `91725486ef55` 已 apply（2026-05-19；upgrade/downgrade round-trip 驗證、49 tests 全綠）。**下一步主軸**：仍是「AI 真實功能優先序壓低、系統架構優先」 — task #10 已完成 schema scaffolding、剩下 Phase 3 task #11/#12（ai_service + 真實 PyTorch）等工程師親接演算法。可選方向：① Upload pipeline duplicate detection (§6.12) ② init_db/alembic race condition 根治 (§6.13、本次 task #10 收尾新發現) ③ Sample DICOM 多 study/series (PLAN §14) ④ Logging/audit (§6.3) ⑤ Production 部署準備
+- **Backend**：FastAPI + PostgreSQL + SQLAlchemy + pydicom，11 個 API endpoints 中 9 個完整實作（含 2026-05-15 新增 `/studies/{id}/series` + `/series/{id}/instances`）、2 個（`/ai/segment/{id}`、`/ai/result/{id}`）為 stub；DB schema 新增 `ai_results` 表（5 tables 共 PLAN §9.3 涵蓋、待工程師接演算法時寫入）
 - **CORS**：✅ dev allow `http://localhost:5173`（Vite default）
 - **驗證層**：6 個必填欄位全部就位（PatientID / StudyInstanceUID / SeriesInstanceUID / SOPInstanceUID / Modality / PixelData）+ Modality 白名單（US）
 - **Frontend**：✅ **完整 SPA E2E 可用** — React 19 + Vite 8 + TS 6 + Cornerstone3D v4.22 + AppContext (5 fields + cascade) + Layout/TopBar/StudyList/MetadataPanel/AIPanel/DicomViewer 全業務元件 + API client + `VITE_API_BASE_URL` env var 制度。Stage C UX 缺口已解決
 - **AI 推論**：尚未實作（Phase 3 任務）
-- **測試**：46 個測試（單元 9 / 整合 8 / API 29），用 in-memory SQLite + StaticPool 隔離。前端尚無測試套件
+- **測試**：49 個測試（單元 9 / 整合 8 / API 29 / ORM 3），用 in-memory SQLite + StaticPool 隔離。前端尚無測試套件
 - **儲存**：本地檔案系統（`storage/{patient}/{study}/{filename}.dcm`），已透過 `StorageBackend` 抽象預留 S3 接口
-- **DB Migration 工具**：✅ Alembic 已導入（2026-05-12），baseline `20809e26d134` + Series migration `e25c80289a9c` (2026-05-15) 涵蓋四表完整
+- **DB Migration 工具**：✅ Alembic 已導入（2026-05-12），baseline `20809e26d134` + Series migration `e25c80289a9c` (2026-05-15) + AIResult migration `91725486ef55` (2026-05-19) 共 3 個 migration、五表完整；目前 alembic_version = `91725486ef55`
 - **DB 資料狀態（2026-05-18 backfill 後）**：1 study + 1 series + 8 instances 全部 link 到 series 1 (uid `...593537`)；orphan count=0。Instance ID gap [2, 5] 已澄清為 PostgreSQL SERIAL sequence 在 IntegrityError rollback 後不 reset 的正常設計（不是 bug）。連帶發現 upload pipeline 缺 graceful duplicate detection → 新 known issue PROGRESS §6.12
 - **AI 操作規範**：CLAUDE.md **v1.2**（2026-05-14、commit `688f098`）— v1.1 之上再加 R3 Doc Impact 檢測 / R4 Stale Warning / §15.6 PROGRESS 觸發式 archive；§8 風險說明表格化
 - **文件結構（Hybrid）**：根目錄為跨專案文件、`docs/` 為後端深入文件（PLAN、IMPLEMENTATION）、`docs/generated/` 為 auto-gen 權威來源（api_spec.md / db_schema.md）、`docs/archive/` 為歷史備檔；frontend/ 鏡像同樣結構
@@ -44,7 +44,7 @@
 
 - 無 in-flight 程式碼修改（主 Agent 端）
 - **前端**：task #9 已完成；目前無 active 前端 dispatch（`frontend/context/DISPATCH.md` status: completed）。下個前端 dispatch 等系統架構 / Phase 3 backend scaffolding 推進後才派（前端 AIPanel mask overlay 真實渲染等工程師接好真實 AI endpoint 後才動）
-- **主 Agent 下一步（2026-05-18 工程師裁示更新）**：AI 真實功能優先序壓低（工程師會自己接演算法/模型）、系統架構優先。可選方向（待工程師決定）：① Phase 3 backend scaffolding（AIResult model + Alembic migration + ai_service signature、不接真實 PyTorch） ② Upload pipeline duplicate detection (PROGRESS §6.12) ③ 觀測性 / logging 落實 (§6.3) ④ Sample DICOM 多 study/series 準備
+- **主 Agent 下一步**：task #10 (AIResult schema scaffolding) 已完成。Phase 3 task #11/#12 (ai_service + 真實 PyTorch) 工程師親自串接、不在主 Agent scope。剩餘候選（待工程師決定下個項目）：① Upload pipeline duplicate detection (§6.12) ② init_db/alembic race condition 根治 (§6.13、本次 task #10 連帶發現) ③ Sample DICOM 多 study/series (PLAN §14) ④ Logging/audit (§6.3) ⑤ Production 部署準備
 - **R4 stale check 規則調整**（2026-05-16，工程師授權）：主 Agent 改為 per-Read inline、active phase 不再做 blanket per-session 全掃；不動 CLAUDE.md 文字（仍符合 §10 R4 letter）
 
 ### 待決定事項
@@ -60,7 +60,8 @@
 | 7 | ~~§5.4 backfill 走 (a) script 還是 (b) Alembic data migration~~ | ✅ 已決：(a) 一次性 script (2026-05-18) | — |
 | 8 | ~~§5.4 (c) instance ID gap 處理深度~~ | ✅ 已決：PostgreSQL SERIAL 設計、不是 bug、不修 transaction handling；連帶 issue「upload 缺 duplicate detection」記 §6.12 | — |
 | 9 | AI 真實功能何時接 | 工程師裁示「優先序低、系統架構完工後再接、由工程師親自串接」（2026-05-18） | 不再阻擋；Phase 3 backend scaffolding 仍可做但不接 PyTorch |
-| 10 | 系統架構優先項目排序 | 候選：① Phase 3 backend scaffolding ② Upload duplicate detection (§6.12) ③ Logging/audit (§6.3) ④ Sample DICOM ⑤ Production 準備 | 待工程師裁示下一步 |
+| 10 | 系統架構優先項目排序 | task #10 (Phase 3 AIResult scaffolding) 已完成；剩餘候選：① Upload duplicate detection (§6.12) ② init_db/alembic race condition 根治 (§6.13) ③ Sample DICOM ④ Logging/audit (§6.3) ⑤ Production 準備 | 待工程師裁示下一步 |
+| 11 | init_db/alembic race condition 根治時機 (§6.13) | 拿掉 main.py:startup_event 的 init_db() — 屬 bug fix 性質、但動 db 啟動行為需慎重；同時 conftest.py:35 Base.metadata.create_all 走法可能需配套 | 等工程師裁示 |
 
 ---
 
@@ -155,7 +156,27 @@
 
 ---
 
-### 2026-05-18 session 結尾狀態（§5.4 backend backfill 完工 + 工程師更新 AI 優先序）
+### 2026-05-19 session 結尾狀態（Phase 3 task #10 完工 — AIResult schema scaffolding）
+
+- **本次主 Agent 工作**：
+  - **task #10 完工**：依 PLAN §9.3 加 `AIResult` model（classical SQLAlchemy 1.x style 與既有 models.py 一致）+ Alembic migration `91725486ef55_add_ai_results_table.py`（upgrade: CREATE TABLE + pkey index + instance_id index + FK；downgrade: drop in reverse order）
+  - **意外發現 + 處理**：alembic upgrade 遇 `DuplicateTable` — 根因為 `main.py:startup_event` 的 `init_db()` (Base.metadata.create_all) 副作用搶先建表、但不更新 `alembic_version`。Workaround：drop empty 表 + 重跑 alembic upgrade（user 授權）。根治列為 §6.13 known issue
+  - **完整驗證**：alembic current → 91725486ef55 (head) ✓；upgrade/downgrade round-trip ✓；pre-commit hook generator regen `docs/generated/db_schema.md`（4→5 tables、ai_results 欄位 / FK / index 全對）✓
+  - **新增 test**：`tests/test_ai_result_model.py` 3 個 ORM-level test — (1) 全欄位 CRUD + created_at default (2) nullable 欄位接受 None (3) `Instance.ai_results` back-relationship 雙向。pytest 49 全綠（46→49）
+  - **文件同步**：
+    - `PROGRESS.md` §1 加 AIResult model 條 + §3 測試三層分布加 ORM 測試列 (49 total) + §5 Phase 3 task #10 [x] + §6.13 新 known issue (init_db race) + §7 結構加 migration file + test file
+    - `context/SESSION_HISTORY.md` A 段系統現況 / 進行中 / 待決定 (#10/#11) + B 段本記錄
+  - **未動 HANDOFF.md §7**：本次 schema 新增對前端目前無影響（前端用 AI endpoint stub、不直接 query ai_results）；待 Phase 3 task #11/#12 工程師接演算法、AI endpoint 真實實作時再更新
+- **新增檔案**：`alembic/versions/91725486ef55_add_ai_results_table.py`、`tests/test_ai_result_model.py`
+- **修改檔案**：`models.py`（imports + AIResult class + Instance.ai_results relationship）、`docs/generated/db_schema.md`（generator 自動）、PROGRESS、SESSION_HISTORY
+- **R3 Doc Impact**：DB schema 變動 → pre-commit hook 自動 regen `docs/generated/db_schema.md`；API route 未變、env var 未變
+- **R4 Stale**：本 session 已 inline check 過、9 份 Tier 1 文件全在 30 天內
+- **下次 session 主 Agent 起手**：問工程師決定下一步（待決定 #10：剩餘候選 §6.12 upload duplicate / §6.13 init_db 根治 / PLAN §14 sample DICOM / §6.3 logging / production 準備）
+- **commit 狀態**：5 個檔變動 + 2 個新增待 commit；commit message 草稿 `feat(db): Phase 3 task #10 — AIResult model + Alembic migration 91725486ef55`
+
+---
+
+### 2026-05-18 session 結尾狀態（§5.4 backend backfill 完工 + 工程師更新 AI 優先序） — commit `671450a`
 
 - **本次主 Agent 工作**：
   - **§5.4 (a) backfill apply**：寫 `scripts/backfill_series_uid.py`（dry-run + `--apply`、重讀 DICOM 確認 SeriesUID + 不自行新建 series 安全機制）；dry-run 確認 3 個 orphan (id=1/3/4) 都對應現有 series 1 → `--apply` 寫入 → orphan count=0 + API `/series/1/instances` 5→8 筆。Schema 與 Series 表未動

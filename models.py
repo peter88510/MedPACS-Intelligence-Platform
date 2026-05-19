@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, ForeignKey, DateTime, UniqueConstraint
+from sqlalchemy import Column, Integer, String, ForeignKey, DateTime, Float, Text, UniqueConstraint
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
 from datetime import datetime
@@ -54,3 +54,20 @@ class Instance(Base):
 
     study = relationship("Study", back_populates="instances")
     series = relationship("Series", back_populates="instances")
+    ai_results = relationship("AIResult", back_populates="instance")
+
+
+class AIResult(Base):
+    __tablename__ = "ai_results"
+
+    id = Column(Integer, primary_key=True, index=True)
+    instance_id = Column(Integer, ForeignKey("instances.id"), nullable=False, index=True)
+    model_name = Column(String(64), nullable=False)
+    model_version = Column(String(32), nullable=False)
+    status = Column(String(16), nullable=False)
+    mask_path = Column(String(512), nullable=True)
+    confidence = Column(Float, nullable=True)
+    error_message = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    instance = relationship("Instance", back_populates="ai_results")
