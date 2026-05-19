@@ -51,7 +51,7 @@
 - [x] Pydantic v2 Settings 環境配置
 - [x] StorageBackend 抽象層（為未來 S3 遷移預留）
 - [x] LocalStorageBackend 實作
-- [x] 自動 DB 初始化（`init_db()`，已被 Alembic 取代為 canonical 路徑，保留向後相容） — ⚠️ 仍有 race condition with alembic、見 §6.13
+- [x] 自動 DB 初始化（`init_db()`，已被 Alembic 取代為 canonical 路徑） — **2026-05-19 §6.13 根治**：startup_event 不再自動呼叫 `init_db()`、避免 race condition；`init_db` function 保留供 emergency reset 手動 call
 - [x] 驗證層模組化（`validation/`）
 - [x] **Alembic 導入 + baseline migration**（涵蓋 patients / studies / series / instances 四表，upgrade/downgrade 雙向已驗證）
 - [x] **AIResult model + Alembic migration `91725486ef55`**（Phase 3 task #10、2026-05-19）— PLAN §9.3 schema scaffolding；不接 PyTorch（工程師親自串接演算法/模型）；upgrade/downgrade round-trip 驗證通過
@@ -225,13 +225,8 @@
 - **什麼時候會痛**：production 上線、安全審查時
 - **相依**：CLAUDE.md 第 9 節已要求「Exception 訊息不可包含完整 SQL query 或 stack trace」，需落實
 
-### 6.13 init_db (Base.metadata.create_all) 與 Alembic race condition（2026-05-19 task #10 收尾發現）
-- **缺什麼**：`main.py:51-58 startup_event` 仍跑 `init_db()`（呼叫 `Base.metadata.create_all`），會在 backend dev server 重啟時搶先建出 model 對應的表、不更新 `alembic_version`、之後 `alembic upgrade head` 遇 `DuplicateTable` 失敗
-- **觸發情境**：開發者修改 `models.py` 加新 class 後重啟 backend → 新表透過 init_db 自動建出來 → 接著想跑 alembic migration 套用對應的 CREATE TABLE → 失敗
-- **本次 workaround**（2026-05-19）：DROP 該 empty 表 → 重跑 alembic upgrade head → alembic_version 正確升級
-- **根本解**：拿掉 `main.py:startup_event` 的 `init_db()` 呼叫、讓 alembic 獨享 schema canonical 路徑；同時確認 `tests/conftest.py:35` `Base.metadata.create_all` 改寫成跑 alembic 程式化 upgrade（或保留 in-memory SQLite 走 create_all、僅 production 走 alembic — 視需求）
-- **什麼時候會痛**：每次新增 model class（Phase 3 task #11 接 ai_service 若需要新表、未來任何 schema 變動）；production 部署時若有人「先 init_db 後 alembic」會 corrupt 流程
-- **相依**：CLAUDE.md §5 禁止「改變 db.py session management 機制（除非明確被要求修復 bug）」邊緣 — 本項屬 bug fix 性質、需工程師裁示動 init_db 行為
+### 6.13 ~~init_db (Base.metadata.create_all) 與 Alembic race condition~~（2026-05-19 task #10 收尾發現）
+> ✅ **已解決於 2026-05-19**（commit pending、方案 A）。`main.py:startup_event` 移除 `init_db()` 呼叫、改 print「Schema managed by Alembic」訊息；alembic 獨享 schema canonical 路徑。`db.init_db` function 保留供 emergency reset 手動 call。README.md `Integration Notes` 同步更新行為描述。dev workflow 變動：新 clone / fresh DB 必須先跑 `alembic upgrade head` 才能啟 backend（既有 README Step 4 已要求此順序、本次只是真正落實）。`conftest.py:35` `Base.metadata.create_all` 不動（test 走獨立 in-memory SQLite engine、與 production DB 分離、52 test 全綠）。本條保留以供歷史追溯。
 
 ### 6.14 Conflict resolution UI / replace endpoint（2026-05-19 §6.12 收尾留下）
 - **缺什麼**：當 `/upload` 偵測到 SOP UID 命中但 bytes 不同（hash mismatch）時，目前回 409；但若用戶 / 管理者真的需要顯式覆蓋舊版（修補錯誤上傳、確認新版是正確版本），目前沒有 endpoint 可以做

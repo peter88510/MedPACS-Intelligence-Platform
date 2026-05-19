@@ -24,7 +24,7 @@
 ### 系統現況（2026-05-18）
 
 - **定位**：AI-ready Ultrasound DICOM 平台 MVP（非完整 PACS 替代）
-- **階段**：**Phase 2 + Phase 2.5 + Phase 3 task #10 + §6.12 dedup 完成** — 前端 SPA E2E ✅ + Stage C UX 已解決 + §5.4 backfill 已 apply + AIResult schema + `/upload` duplicate detection (idempotent 200 + 409 conflict)、52 tests 全綠。**下一步主軸**：「AI 真實功能優先序壓低、系統架構優先」 — 剩餘候選：① init_db/alembic race condition 根治 (§6.13) ② Conflict resolution UI / replace endpoint (§6.14、§6.12 收尾留下、需先等 §6.4 auth) ③ Sample DICOM 多 study/series (PLAN §14) ④ Logging/audit (§6.3) ⑤ Production 部署準備
+- **階段**：**Phase 2 + Phase 2.5 + Phase 3 task #10 + §6.12 dedup + §6.13 init_db race 根治 完成** — 前端 SPA E2E ✅ + Stage C UX 已解決 + §5.4 backfill 已 apply + AIResult schema + `/upload` duplicate detection + startup_event 不再呼叫 init_db；52 tests 全綠。**下一步主軸**：「AI 真實功能優先序壓低、系統架構優先」 — 剩餘候選：① Sample DICOM 多 study/series (PLAN §14) ② Logging/audit (§6.3) ③ Production 部署準備 ④ §6.14 Conflict UI (等 §6.4 auth)
 - **Backend**：FastAPI + PostgreSQL + SQLAlchemy + pydicom，11 個 API endpoints 中 9 個完整實作（含 2026-05-15 新增 `/studies/{id}/series` + `/series/{id}/instances`）、2 個（`/ai/segment/{id}`、`/ai/result/{id}`）為 stub；DB schema 5 tables（含 2026-05-19 新增 `ai_results`、待工程師接演算法時寫入）；`/upload` 2026-05-19 加 duplicate detection (idempotent 200 / 409 conflict / new SOP 新建)
 - **CORS**：✅ dev allow `http://localhost:5173`（Vite default）
 - **驗證層**：6 個必填欄位全部就位（PatientID / StudyInstanceUID / SeriesInstanceUID / SOPInstanceUID / Modality / PixelData）+ Modality 白名單（US）
@@ -44,7 +44,7 @@
 
 - 無 in-flight 程式碼修改（主 Agent 端）
 - **前端**：task #9 已完成；目前無 active 前端 dispatch（`frontend/context/DISPATCH.md` status: completed）。下個前端 dispatch 等系統架構 / Phase 3 backend scaffolding 推進後才派（前端 AIPanel mask overlay 真實渲染等工程師接好真實 AI endpoint 後才動）
-- **主 Agent 下一步**：§6.12 dedup 已完成（2026-05-19）。剩餘候選（待工程師決定下個項目）：① init_db/alembic race condition 根治 (§6.13) ② Conflict resolution UI / replace endpoint (§6.14、§6.12 收尾留下、需先等 §6.4 auth) ③ Sample DICOM 多 study/series (PLAN §14) ④ Logging/audit (§6.3) ⑤ Production 部署準備
+- **主 Agent 下一步**：§6.12 dedup + §6.13 init_db race 根治 均已完成（2026-05-19）。剩餘候選（待工程師決定下個項目）：① Sample DICOM 多 study/series (PLAN §14) ② Logging/audit (§6.3) ③ Production 部署準備 ④ §6.14 Conflict UI (等 §6.4 auth)
 - **R4 stale check 規則調整**（2026-05-16，工程師授權）：主 Agent 改為 per-Read inline、active phase 不再做 blanket per-session 全掃；不動 CLAUDE.md 文字（仍符合 §10 R4 letter）
 
 ### 待決定事項
@@ -60,8 +60,8 @@
 | 7 | ~~§5.4 backfill 走 (a) script 還是 (b) Alembic data migration~~ | ✅ 已決：(a) 一次性 script (2026-05-18) | — |
 | 8 | ~~§5.4 (c) instance ID gap 處理深度~~ | ✅ 已決：PostgreSQL SERIAL 設計、不是 bug、不修 transaction handling；連帶 issue「upload 缺 duplicate detection」記 §6.12 | — |
 | 9 | AI 真實功能何時接 | 工程師裁示「優先序低、系統架構完工後再接、由工程師親自串接」（2026-05-18） | 不再阻擋；Phase 3 backend scaffolding 仍可做但不接 PyTorch |
-| 10 | 系統架構優先項目排序 | task #10 + §6.12 dedup 已完成；剩餘候選：① init_db/alembic race condition 根治 (§6.13) ② Conflict resolution UI / replace endpoint (§6.14、§6.12 收尾留下、需 §6.4 auth) ③ Sample DICOM ④ Logging/audit (§6.3) ⑤ Production 準備 | 待工程師裁示下一步 |
-| 11 | init_db/alembic race condition 根治時機 (§6.13) | 拿掉 main.py:startup_event 的 init_db() — 屬 bug fix 性質、但動 db 啟動行為需慎重；同時 conftest.py:35 Base.metadata.create_all 走法可能需配套 | 等工程師裁示 |
+| 10 | 系統架構優先項目排序 | task #10 + §6.12 dedup + §6.13 init_db race 均已完成；剩餘候選：① Sample DICOM (PLAN §14) ② Logging/audit (§6.3) ③ Production 準備 ④ §6.14 Conflict UI (等 §6.4 auth) | 待工程師裁示下一步 |
+| 11 | ~~init_db/alembic race condition 根治時機 (§6.13)~~ | ✅ 已決 (2026-05-19)：方案 A、拿掉 startup_event 的 init_db() 呼叫、conftest 不動 | — |
 | 12 | §6.14 Conflict resolution UI / replace endpoint 何時實作 | §6.12 dedup 完成留下；需要 admin 概念 → 必須先做 §6.4 auth；MVP 階段不在 scope | 等 §6.4 auth 階段一起做 |
 
 ---
@@ -157,7 +157,29 @@
 
 ---
 
-### 2026-05-19 session 結尾狀態（§6.12 Upload duplicate detection 完工）
+### 2026-05-19 session 結尾狀態（§6.13 init_db/alembic race condition 根治）
+
+- **本次主 Agent 工作**：
+  - **§6.13 根治**：`main.py:startup_event` 移除 `init_db()` 呼叫、改 print 「Schema managed by Alembic」訊息（方案 A、工程師授權）
+  - **`db.init_db` function 保留**：供 emergency reset 手動 call、向後相容
+  - **dev workflow 變動**：新 clone / fresh DB 啟動前須先跑 `alembic upgrade head`（既有 README Step 4 已要求此順序、本次只是真正落實）
+  - **README.md `Integration Notes` 更新**：行為描述同步反映「no longer invoked at startup」+ 指向 PROGRESS §6.13
+  - **conftest.py 不動**：test 走獨立 in-memory SQLite engine + `Base.metadata.create_all`、與 production DB 分離；不受影響
+  - **52 test 全綠** — 確認 startup init_db() 移除對 test 無 regression
+  - **文件同步**：
+    - `PROGRESS.md` §1 init_db 行為註記改為「§6.13 根治」+ §6.13 標已解決
+    - `README.md` Integration Notes 一行更新
+    - `context/SESSION_HISTORY.md` A 段系統現況 / 進行中 / 待決定 (#10 / #11 已決) + B 段本記錄
+- **修改檔案**：`main.py` (startup_event body)、`README.md` (Integration Notes 一行)、`PROGRESS.md`、`context/SESSION_HISTORY.md`
+- **R3 Doc Impact**：main.py startup_event body 變動 → pre-commit hook 會 regen api_spec.md（startup_event 不在 API route 範圍、generator 預期不改 visible 內容、僅可能 line shift）
+- **R1 跨節一致性**：§6.13 標已解決 ↔ §1 init_db 註記「§6.13 根治」— 一致 ✓
+- **README 評估**：✅ 已更新（dev workflow 變動屬「使用者可見啟動指引」、CLAUDE.md §8 v1.1 規範符合）
+- **下次 session 主 Agent 起手**：問工程師決定下一步（待決定 #10 剩餘候選：PLAN §14 sample DICOM / §6.3 logging / production 準備；§6.14 / §6.4 屬中後期）
+- **commit 狀態**：4 個檔變動待 commit；commit message 草稿 `fix(api): §6.13 拿掉 startup init_db() — alembic 獨享 schema canonical 路徑`
+
+---
+
+### 2026-05-19 session 中段（§6.12 Upload duplicate detection 完工） — commit `e8d4250`
 
 - **本次主 Agent 工作**：
   - **§6.12 dedup 完工**：`main.py /upload` 加 SOP UID + SHA256 hash 三分支邏輯

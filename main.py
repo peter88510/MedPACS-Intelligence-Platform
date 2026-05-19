@@ -52,12 +52,14 @@ storage_service = StorageService(STORAGE_PATH)
 
 @app.on_event("startup")
 def startup_event():
-    """Initialize database on startup."""
-    try:
-        init_db()
-        print("✓ Database tables initialized")
-    except Exception as e:
-        print(f"⚠ Database initialization warning: {e}")
+    """
+    Schema 由 Alembic 統一管理 (PROGRESS §6.13 根治、2026-05-19)。
+    startup 不再呼叫 init_db() — 避免 Base.metadata.create_all 搶在 alembic 前建表
+    導致下次 `alembic upgrade head` 撞 DuplicateTable。
+    新 clone / fresh DB 啟動前須先跑：`alembic upgrade head`。
+    `db.init_db` 仍保留供 emergency reset 手動呼叫。
+    """
+    print("✓ FastAPI startup — schema managed by Alembic (run `alembic upgrade head` before launch)")
 
 
 @app.post("/upload")

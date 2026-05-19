@@ -633,7 +633,7 @@ To allow another origin during development (e.g., `http://localhost:3000`), appe
 
 - **API Contract**: The `/upload` response is identical to v1.0. Clients require no changes.
 - **Internal Changes**: File storage and database persistence are transparent to API consumers.
-- **Database Initialization**: Schema is built by Alembic (`alembic upgrade head`). The legacy `init_db()` in `db.py` is retained for backwards compatibility but is no longer the canonical path — new schema changes must go through migrations.
+- **Database Initialization**: Schema is built by Alembic (`alembic upgrade head` — required before first `uvicorn main:app` launch on a fresh DB). The legacy `init_db()` in `db.py` is retained as a callable for emergency reset but is **no longer invoked at startup** (since 2026-05-19, PROGRESS §6.13 root-cause fix to avoid `Base.metadata.create_all` racing alembic and causing DuplicateTable on next `alembic upgrade head`).
 - **CORS**: Dev origin is `http://localhost:5173`. See the **CORS (Dev)** section above to add more.
 - **Storage Directory**: The `./storage` directory is created automatically if it does not exist.
 
