@@ -1,3 +1,4 @@
+import hashlib
 import io
 import os
 from fastapi import FastAPI, File, UploadFile, Depends
@@ -20,6 +21,7 @@ from db_service import (
     get_all_studies,
     get_series_by_id,
     get_instance_by_id,
+    get_instance_by_sop_uid,
     get_instance_file_path,
     get_instance_metadata,
     get_series_by_study_id,
@@ -91,6 +93,58 @@ async def upload(file: UploadFile = File(...), db: Session = Depends(get_db)):
         modality = getattr(dicom_data, "Modality", None)
         sop_instance_uid = getattr(dicom_data, "SOPInstanceUID", None)
 
+        # Duplicate detection (PROGRESS §6.12) — must run BEFORE storage write
+        # so a conflicting upload leaves no orphan file. Idempotent path returns
+        # the existing instance unchanged; bytes-mismatch returns 409 per
+        # CLAUDE.md §13 (UID uniqueness violations must not be silently overwritten).
+        if sop_instance_uid:
+            existing = get_instance_by_sop_uid(db, sop_instance_uid)
+            if existing:
+                new_hash = hashlib.sha256(file_content).hexdigest()
+                existing_abs_path = storage_service.get_full_path(existing.file_path)
+                try:
+                    with open(existing_abs_path, "rb") as f:
+                        existing_bytes = f.read()
+                    existing_hash = hashlib.sha256(existing_bytes).hexdigest()
+                except FileNotFoundError:
+                    return JSONResponse(status_code=409, content={
+                        "detail": (
+                            f"SOPInstanceUID {sop_instance_uid} exists in DB "
+                            f"(instance_id={existing.id}) but the stored file is missing on disk; "
+                            f"manual cleanup required before re-uploading."
+                        ),
+                        "existing_instance_id": existing.id,
+                        "existing_file_missing": True,
+                    })
+
+                if new_hash == existing_hash:
+                    return {
+                        "instance_id": existing.id,
+                        "filename": file.filename,
+                        "patient_id": existing.study.patient_id if existing.study else patient_id,
+                        "study_instance_uid": existing.study_instance_uid,
+                        "modality": existing.study.modality if existing.study else modality,
+                        "message": "DICOM already exists with identical content; returning existing instance",
+                        "duplicate": True,
+                    }
+
+                return JSONResponse(status_code=409, content={
+                    "detail": (
+                        f"SOPInstanceUID {sop_instance_uid} already exists but the uploaded "
+                        f"file differs (content hash mismatch). DICOM standard requires "
+                        f"reassigning SOPInstanceUID before uploading a modified version. "
+                        f"See suggested_actions for resolution paths."
+                    ),
+                    "existing_instance_id": existing.id,
+                    "existing_hash": existing_hash,
+                    "new_hash": new_hash,
+                    "suggested_actions": {
+                        "keep_existing": "Take no action — existing DICOM is preserved",
+                        "save_as_new": "Reassign SOPInstanceUID in the source DICOM and re-upload (DICOM-standard path)",
+                        "manual_overwrite": "Not supported in MVP; pending §6.14 / auth (§6.4)",
+                    },
+                })
+
         # Step 1: Save to local storage
         relative_file_path = storage_service.save_dicom(
             file_content=file_content,
@@ -129,14 +183,16 @@ async def upload(file: UploadFile = File(...), db: Session = Depends(get_db)):
             series_instance_uid=series_instance_uid
         )
 
-        # Step 3: Return response (instance_id added 2026-05-14 for client drill-down)
+        # Step 3: Return response (instance_id added 2026-05-14 for client drill-down;
+        # duplicate flag added 2026-05-19 per PROGRESS §6.12 — false for new instances)
         return {
             "instance_id": instance.id,
             "filename": file.filename,
             "patient_id": patient_id,
             "study_instance_uid": study_instance_uid,
             "modality": modality,
-            "message": "DICOM file uploaded and processed successfully"
+            "message": "DICOM file uploaded and processed successfully",
+            "duplicate": False,
         }
 
     except pydicom.errors.InvalidDicomError:

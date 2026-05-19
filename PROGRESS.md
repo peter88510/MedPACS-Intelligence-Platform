@@ -24,11 +24,12 @@
 
 ### 核心業務
 - [x] DICOM 上傳 API（POST /upload）
+- [x] **Upload duplicate detection**（2026-05-19）— SOP UID + SHA256 hash 偵測；同 SOP+同 bytes → 200 idempotent + `duplicate=true`；同 SOP+不同 bytes → 409 + existing_instance_id/hashes/suggested_actions（CLAUDE.md §13 「不靜默覆蓋」遵循）
 - [x] DICOM magic bytes 驗證
 - [x] DICOM 必填欄位驗證（PatientID / StudyInstanceUID / SeriesInstanceUID / SOPInstanceUID / Modality / PixelData）
 - [x] Modality 白名單驗證（目前僅允許 `US`）
 - [x] Patient upsert（依 patient_id 唯一性）
-- [x] Study upsert（依 study_instance_uid 唯一性）
+- [x] Study upsert(依 study_instance_uid 唯一性)
 - [x] **Series upsert（依 series_instance_uid，2026-05-15 補完 — 此前 upload pipeline 跳過 series 表寫入）**
 - [x] Instance 建立（依 sop_instance_uid 唯一性 + 2026-05-15 加 series_instance_uid FK）
 - [x] DICOM 檔案本地儲存（路徑：`{storage}/{patient_id}/{study_uid}/{filename}.dcm`）
@@ -82,7 +83,7 @@
 
 | 方法 | 路徑 | 功能 | 狀態 | 備註 |
 |---|---|---|---|---|
-| POST | `/upload` | 上傳並處理 DICOM 檔案 | ✅ 完整 | response 含 `instance_id`（2026-05-14 加） |
+| POST | `/upload` | 上傳並處理 DICOM 檔案 | ✅ 完整 | response 含 `instance_id`（2026-05-14 加）+ `duplicate` 欄位（2026-05-19 加，dedup 結果指示）；409 表 SOP UID 衝突 |
 | GET | `/health` | 健康檢查 | ✅ 完整 | — |
 | GET | `/studies` | 列出所有研究 | ✅ 完整 | — |
 | GET | `/studies/{id}/series` | 列出該研究的所有系列 | ✅ 完整 | 2026-05-15 加；舊 study 可能回 `[]` |
@@ -101,7 +102,7 @@
 ## 3. 測試覆蓋簡況
 
 ### 總覽
-- **總測試數**：49 個
+- **總測試數**：52 個
 - **執行方式**：`pytest tests/ -v`
 - **隔離機制**：記憶體 SQLite + monkeypatch 臨時 storage，每個測試獨立
 
@@ -109,7 +110,7 @@
 
 | 層級 | 檔案 | 測試數 | 風格 |
 |---|---|---|---|
-| 整合測試 | `tests/test_dicom_service.py` | 8 | 真實 SQLite 記憶體 DB + 臨時 storage（含 2026-05-15 加的 series upsert + upload-creates-series 兩項） |
+| 整合測試 | `tests/test_dicom_service.py` | 11 | 真實 SQLite 記憶體 DB + 臨時 storage（含 2026-05-15 series upsert / upload-creates-series 兩項 + 2026-05-19 duplicate detection 三項：idempotent / 409 conflict / existing_file_missing） |
 | API 測試 | `tests/test_query_api.py` | 29 | TestClient + mock `db_service`（含 2026-05-15 加的 /studies/{id}/series 與 /series/{id}/instances 各 4 cases） |
 | ORM 測試 | `tests/test_ai_result_model.py` | 3 | 純 SQLAlchemy model 層（Phase 3 task #10：AIResult CRUD + nullable + Instance.ai_results back-relationship） |
 | 單元測試 | `tests/test_validators.py` | 9 | 純邏輯，無 DB / HTTP |
@@ -232,12 +233,14 @@
 - **什麼時候會痛**：每次新增 model class（Phase 3 task #11 接 ai_service 若需要新表、未來任何 schema 變動）；production 部署時若有人「先 init_db 後 alembic」會 corrupt 流程
 - **相依**：CLAUDE.md §5 禁止「改變 db.py session management 機制（除非明確被要求修復 bug）」邊緣 — 本項屬 bug fix 性質、需工程師裁示動 init_db 行為
 
-### 6.12 Upload pipeline 缺 graceful duplicate detection（2026-05-18 §5.4 audit 連帶發現）
-- **缺什麼**：`POST /upload` 對重複 SOP UID（被 UNIQUE constraint 擋）回 HTTP 500 + 裸 SQL error string（`main.py:144-145` `except Exception as e: raise HTTPException(status_code=500, detail=str(e))`），不友善且洩漏 internal detail
-- **預期行為**：偵測 duplicate → 回 200 + 已存在的 `instance_id`（idempotent 上傳）或 409 Conflict + 友善訊息
-- **連帶影響**：每次 user 重傳同一 DICOM 都會留下 instance_id sequence gap（這本身不是 bug、是 PostgreSQL SERIAL 設計、見 §5 Phase 2.5 (c)）
-- **什麼時候會痛**：user / client 重傳同檔時收到 500、誤判系統壞；production 上線時 stack trace 洩漏屬 CLAUDE.md §9 違反
-- **相依**：在 upload pipeline 加 SOPInstanceUID-based dedupe check（query 既有 instance、若存在直接回現有 id）；或 catch `IntegrityError` → 回 409
+### 6.14 Conflict resolution UI / replace endpoint（2026-05-19 §6.12 收尾留下）
+- **缺什麼**：當 `/upload` 偵測到 SOP UID 命中但 bytes 不同（hash mismatch）時，目前回 409；但若用戶 / 管理者真的需要顯式覆蓋舊版（修補錯誤上傳、確認新版是正確版本），目前沒有 endpoint 可以做
+- **MVP 階段不做的原因**：CLAUDE.md §13 「不靜默覆蓋」+ MVP 沒 auth (§6.4)、任何人能呼叫 replace endpoint 危險；replace 邏輯本身需要配套 audit log（誰、何時、原 hash、新 hash、舊 file archive 位置）
+- **正確順序**：等 §6.4 認證 / 授權建立 admin 概念後再實作 replace endpoint
+- **替代方案**：用戶遇到 409 → ① 接受現狀（舊版正確） ② DICOM 端重分配 SOPInstanceUID 後重傳（DICOM 標準做法、推薦） ③ 緊急情況工程師手動 SQL 操作（有人工 audit）
+
+### 6.12 ~~Upload pipeline 缺 graceful duplicate detection~~（2026-05-18 §5.4 audit 連帶發現）
+> ✅ **已解決於 2026-05-19**（commit pending）。`/upload` 加 SOPInstanceUID-based dedupe + SHA256 content hash 比對；三分支：① 同 SOP+同 bytes → 200 + `duplicate=true` + 既有 instance_id (idempotent) ② 同 SOP+不同 bytes → 409 + existing_instance_id/existing_hash/new_hash/suggested_actions ③ 新 SOP → 新建（既有行為）+ `duplicate=false`。Storage / DB 在 conflict 情境完全不動（無 orphan、無 sequence gap）。Conflict resolution UI 留 §6.14 等 auth 完成後實作。本條保留以供歷史追溯。
 
 ### 6.11 DicomViewer 影像未填滿 container（Stage C UX 缺口、2026-05-16）
 > ✅ **已解決於 commit `40d766d` (Fix-J、task #9 commit 7、2026-05-18 工程師裁示)**。task #9 期間方向 J（CSS 層偵錯）由前端 Agent + codex 排查找到根因並修復：① outer div `aspectRatio` 設定衝突（commit 0 `fb656c6` 固化移除） ② Vite scaffold `#root max-width: 1126px` 改 `width:100% height:100%` ③ `html/body/#root` 100% chain + `.viewer/.viewport` wrapper 結構。user 驗收回報「ok 在中央區顯示」。Fix-1~Fix-4 詳細失敗歷史保留於 `frontend/PROGRESS.md` §4.4 供未來 Cornerstone 整合除錯參考。本條保留以供歷史追溯。

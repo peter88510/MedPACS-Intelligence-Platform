@@ -136,6 +136,14 @@ def get_instance_by_id(db: Session, instance_id: int):
     return db.query(Instance).filter(Instance.id == instance_id).first()
 
 
+def get_instance_by_sop_uid(db: Session, sop_instance_uid: str) -> Optional[Instance]:
+    """
+    Lookup instance by SOPInstanceUID (DICOM-level unique identifier).
+    Used by /upload duplicate detection (PROGRESS §6.12).
+    """
+    return db.query(Instance).filter(Instance.sop_instance_uid == sop_instance_uid).first()
+
+
 def get_series_by_study_id(db: Session, study_id: int) -> Optional[list]:
     """
     Return all series for a given study DB id. Returns None if study doesn't exist
