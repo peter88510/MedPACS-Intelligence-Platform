@@ -1,0 +1,25 @@
+# Phase 3 AI inference dependencies — diaphragm_excursion vendored under AI/
+#
+# Install separately from requirements.txt:
+#     pip install -r requirements-ai.txt
+#
+# Notes:
+# - paddleseg itself is NOT in pip — vendored under AI/paddleseglibs/ (excluded
+#   from git, see README §"Optional: AI inference setup" for retrieval).
+# - paddlepaddle may need version pin matching CUDA / CPU; uncomment + adjust
+#   to your environment.
+# - Python 3.8 (matches MedPACS .venv).
+
+paddlepaddle
+pydicom
+numpy
+scipy
+scikit-image
+opencv-python
+Pillow
+PyWavelets
+bresenham
+matplotlib
+natsort
+imageio
+imageio-ffmpeg

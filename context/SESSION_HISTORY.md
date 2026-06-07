@@ -24,12 +24,12 @@
 ### 系統現況（2026-05-18）
 
 - **定位**：AI-ready Ultrasound DICOM 平台 MVP（非完整 PACS 替代）
-- **階段**：**Phase 2 + Phase 2.5 + Phase 3 task #10 + §6.12 dedup + §6.13 init_db race 根治 完成** — 前端 SPA E2E ✅ + Stage C UX 已解決 + §5.4 backfill 已 apply + AIResult schema + `/upload` duplicate detection + startup_event 不再呼叫 init_db；52 tests 全綠。**下一步主軸**：「AI 真實功能優先序壓低、系統架構優先」 — 剩餘候選：① Sample DICOM 多 study/series (PLAN §14) ② Logging/audit (§6.3) ③ Production 部署準備 ④ §6.14 Conflict UI (等 §6.4 auth)
+- **階段**：**Phase 3 AI 整合啟動（task #11 prep 完成、2026-06-06）** — 前端 SPA E2E ✅ + §5.4 backfill ✅ + AIResult schema ✅ + §6.12 dedup ✅ + §6.13 init_db race 根治 ✅ + **AI source vendored (peter88510/diaphragm_excursion @ `6139799`、2026-06-05)** ✅；52 tests 全綠。**下一步主軸**：Phase 3 AI 整合接續 — ai_service.py wrapper + Schema 對齊（excursion_cm vs mask）+ `/ai/segment` 真實實作；工程師已親接完整 AI 演算法、主 Agent 接整合層
 - **Backend**：FastAPI + PostgreSQL + SQLAlchemy + pydicom，11 個 API endpoints 中 9 個完整實作（含 2026-05-15 新增 `/studies/{id}/series` + `/series/{id}/instances`）、2 個（`/ai/segment/{id}`、`/ai/result/{id}`）為 stub；DB schema 5 tables（含 2026-05-19 新增 `ai_results`、待工程師接演算法時寫入）；`/upload` 2026-05-19 加 duplicate detection (idempotent 200 / 409 conflict / new SOP 新建)
 - **CORS**：✅ dev allow `http://localhost:5173`（Vite default）
 - **驗證層**：6 個必填欄位全部就位（PatientID / StudyInstanceUID / SeriesInstanceUID / SOPInstanceUID / Modality / PixelData）+ Modality 白名單（US）
 - **Frontend**：✅ **完整 SPA E2E 可用** — React 19 + Vite 8 + TS 6 + Cornerstone3D v4.22 + AppContext (5 fields + cascade) + Layout/TopBar/StudyList/MetadataPanel/AIPanel/DicomViewer 全業務元件 + API client + `VITE_API_BASE_URL` env var 制度。Stage C UX 缺口已解決
-- **AI 推論**：尚未實作（Phase 3 任務）
+- **AI 推論**：核心演算法 **已就緒**（工程師親接、vendored 進 `./AI/`、snapshot @ `6139799`）；MedPACS 整合層（ai_service.py wrapper + endpoint 真實實作）仍待做
 - **測試**：52 個測試（單元 9 / 整合 11 / API 29 / ORM 3；2026-05-19 加 3 個 dedup integration test），用 in-memory SQLite + StaticPool 隔離。前端尚無測試套件
 - **儲存**：本地檔案系統（`storage/{patient}/{study}/{filename}.dcm`），已透過 `StorageBackend` 抽象預留 S3 接口
 - **DB Migration 工具**：✅ Alembic 已導入（2026-05-12），baseline `20809e26d134` + Series migration `e25c80289a9c` (2026-05-15) + AIResult migration `91725486ef55` (2026-05-19) 共 3 個 migration、五表完整；目前 alembic_version = `91725486ef55`
@@ -44,7 +44,7 @@
 
 - 無 in-flight 程式碼修改（主 Agent 端）
 - **前端**：task #9 已完成；目前無 active 前端 dispatch（`frontend/context/DISPATCH.md` status: completed）。下個前端 dispatch 等系統架構 / Phase 3 backend scaffolding 推進後才派（前端 AIPanel mask overlay 真實渲染等工程師接好真實 AI endpoint 後才動）
-- **主 Agent 下一步**：§6.12 dedup + §6.13 init_db race 根治 均已完成（2026-05-19）。剩餘候選（待工程師決定下個項目）：① Sample DICOM 多 study/series (PLAN §14) ② Logging/audit (§6.3) ③ Production 部署準備 ④ §6.14 Conflict UI (等 §6.4 auth)
+- **主 Agent 下一步**：AI vendoring 完成（2026-06-06）。下個任務軸：Phase 3 整合 — ① `ai_service.py` wrapper 設計 ② Schema 對齊裁示（AIResult excursion_cm 欄位 vs 新表）③ `/ai/segment/{id}` 真實實作 ④ `/ai/result/{id}/mask` viz overlay PNG endpoint ⑤ 前端 AIPanel 接 mask overlay。其他候選暫降權：§6.3 logging / Production / §6.14 Conflict UI
 - **R4 stale check 規則調整**（2026-05-16，工程師授權）：主 Agent 改為 per-Read inline、active phase 不再做 blanket per-session 全掃；不動 CLAUDE.md 文字（仍符合 §10 R4 letter）
 
 ### 待決定事項
@@ -60,7 +60,9 @@
 | 7 | ~~§5.4 backfill 走 (a) script 還是 (b) Alembic data migration~~ | ✅ 已決：(a) 一次性 script (2026-05-18) | — |
 | 8 | ~~§5.4 (c) instance ID gap 處理深度~~ | ✅ 已決：PostgreSQL SERIAL 設計、不是 bug、不修 transaction handling；連帶 issue「upload 缺 duplicate detection」記 §6.12 | — |
 | 9 | AI 真實功能何時接 | 工程師裁示「優先序低、系統架構完工後再接、由工程師親自串接」（2026-05-18） | 不再阻擋；Phase 3 backend scaffolding 仍可做但不接 PyTorch |
-| 10 | 系統架構優先項目排序 | task #10 + §6.12 dedup + §6.13 init_db race 均已完成；剩餘候選：① Sample DICOM (PLAN §14) ② Logging/audit (§6.3) ③ Production 準備 ④ §6.14 Conflict UI (等 §6.4 auth) | 待工程師裁示下一步 |
+| 10 | 系統架構優先項目排序 | 工程師回歸 + AI vendoring 完成、進入 Phase 3 整合主線；其他候選 (§6.3 logging / Production / §6.14 Conflict UI / PLAN §14 跳過) 暫降權 | 整合完成後再回看 |
+| 13 | Phase 3 Schema 對齊：AIResult excursion_cm 怎麼存 | (a) 擴 AIResult 加臨床指標欄位 / (b) 新表 measurements 1:1 link / (c) 把 excursion_cm 塞 confidence 欄（語義錯）/ (d) 重新設計 | 整合 task 起手前必須先決 |
+| 14 | ai_service.py 執行模型 | (a) 同 process import (PLAN §9.1 同步、最快) / (b) subprocess 隔離 / (c) worker queue (PLAN §3 Non-goal) | 起手前確認；推薦 (a) |
 | 11 | ~~init_db/alembic race condition 根治時機 (§6.13)~~ | ✅ 已決 (2026-05-19)：方案 A、拿掉 startup_event 的 init_db() 呼叫、conftest 不動 | — |
 | 12 | §6.14 Conflict resolution UI / replace endpoint 何時實作 | §6.12 dedup 完成留下；需要 admin 概念 → 必須先做 §6.4 auth；MVP 階段不在 scope | 等 §6.4 auth 階段一起做 |
 
@@ -157,7 +159,38 @@
 
 ---
 
-### 2026-05-19 session 結尾狀態（§6.13 init_db/alembic race condition 根治）
+### 2026-06-06 session 結尾狀態（工程師回歸 + AI source vendoring 完工）
+
+- **背景**：工程師空檔約 18 天、期間在另一專案完成 AI diaphragm excursion 核心演算法整合（peter88510/diaphragm_excursion repo），回 MedPACS 後表示「對專案陌生」、問下一步發展
+- **本次主 Agent 工作**：
+  - **Audit `./AI/`**：發現工程師預先 commit 的是 docs (11 個 .md untracked)、source code 在獨立 GitHub repo
+  - **Design decisions (工程師裁示)**：
+    - 整合架構：**Vendored 進 MedPACS repo**（不走 submodule / subprocess）
+    - Vendored 範圍：source only、paddleseglibs/(27MB) + model weights gitignore
+    - Python deps：拆 **requirements-ai.txt**
+  - **執行 Vendoring (10 步)**：
+    1. backup 既有 `./AI/` 到 `.work/AI-backup-before-vendoring/`
+    2. `git clone --depth 1 https://github.com/peter88510/diaphragm_excursion` → `.work/`（48MB total / 21MB w/o paddleseglibs / 最新 commit `6139799` 2026-06-05）
+    3. `cp -r .work/diaphragm_excursion ./AI/` + `rm -rf AI/.git`
+    4. 既有 11 個 .md vs AI repo 對比：行數 0 差、md5 全異（LF/CRLF 差異、內容語意同）→ 安全覆蓋
+    5. 更新 root `.gitignore` 加 `AI/` 排除段（paddleseglibs / *.pdparams / output / run_config.py / .idea 等）+ `.work/` 排除
+    6. 建 root `requirements-ai.txt`（13 deps：paddlepaddle / pydicom / numpy / scipy / scikit-image / opencv-python / Pillow / PyWavelets / bresenham / matplotlib / natsort / imageio / imageio-ffmpeg）
+    7. 更新 root `README.md` 加 §Step 7 「Optional: AI inference setup」章節（clone paddleseglibs / 取 model weights / pip install / smoke test）
+    8. 更新 root `PROGRESS.md` §1 加 AI 整合段 + §5 Phase 3 task #11 [x] + Phase 3 schema 對齊待裁示 + §7 結構加 `AI/`
+    9. 更新 `context/SESSION_HISTORY.md` A/B 段（系統現況 + 進行中 + 待決定 #13/#14 + 本記錄）
+    10. cleanup `.work/`（即將）
+- **Imports 抓出的外部 deps**（grep AI source）：pydicom / numpy / scipy.{ndimage, optimize, signal} / skimage.morphology / cv2 / PIL.{Image, ImageDraw, ImageFont} / pywt / bresenham / matplotlib.{Figure, FigureCanvasAgg} / natsort / imageio / paddlepaddle（vendored paddleseg 透過 paddleseglibs/）
+- **3 個 design mismatch** 待 Phase 3 整合任務裁示（已記為待決定 #13 + #14；schema 對齊 / 執行模型 / 多 frame DICOM 單位處理）
+- **新增檔案**：`AI/` (~150-250 files / ~21 MB)、`requirements-ai.txt`
+- **修改檔案**：`.gitignore`、`README.md`、`PROGRESS.md`、`context/SESSION_HISTORY.md`
+- **R3 Doc Impact**：本次 vendor 不動 main.py / models.py / alembic、pre-commit hook 不 trigger generators；HANDOFF 不需更新（前端目前不直接接觸 ai_results / AI source）
+- **R1 跨節一致性**：PROGRESS §5 Phase 3 task #11 [x] ↔ §1 AI 整合段「Vendored 於 `./AI/`」— 一致 ✓
+- **下次 session 主 Agent 起手**：依工程師指示「後續還是需要規劃整合 API」、進入 Phase 3 整合 task：① Schema 對齊裁示 (待決定 #13) ② ai_service.py wrapper 設計 ③ `/ai/segment/{id}` 真實實作 ④ `/ai/result/{id}/mask` viz PNG ⑤ 前端 AIPanel
+- **commit 狀態**：vendor 改動 + 4 個文件同步待 commit；commit message 草稿 `feat: vendor AI/diaphragm_excursion source (snapshot @ 6139799)`
+
+---
+
+### 2026-05-19 session 結尾狀態（§6.13 init_db/alembic race condition 根治） — commit `0750dbc`
 
 - **本次主 Agent 工作**：
   - **§6.13 根治**：`main.py:startup_event` 移除 `init_db()` 呼叫、改 print 「Schema managed by Alembic」訊息（方案 A、工程師授權）

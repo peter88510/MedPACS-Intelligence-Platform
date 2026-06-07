@@ -267,6 +267,47 @@ Opens at `http://localhost:5173`. The backend's CORS middleware already allows t
 > Frontend developer guide: [`frontend/README.md`](./frontend/README.md)
 > Frontend architecture: [`frontend/docs/IMPLEMENTATION.md`](./frontend/docs/IMPLEMENTATION.md)
 
+### Step 7: Optional — AI inference setup (Phase 3 prep)
+
+The AI diaphragm-excursion inference pipeline is vendored under [`AI/`](./AI/) (source-only;
+heavy deps and model weights are excluded from git). Skip this section unless you plan to
+run real AI inference (Phase 3 backend integration; see PROGRESS §5 Phase 3).
+
+**1. Pull heavy artifacts** (excluded from this repo by `.gitignore`):
+
+```powershell
+# paddleseglibs/ — vendored PaddleSeg with Patch 2A-2C modifications (~27 MB)
+git clone --depth 1 https://github.com/peter88510/diaphragm_excursion.git temp-ai
+Copy-Item -Recurse temp-ai/paddleseglibs ./AI/
+Remove-Item -Recurse -Force temp-ai
+
+# Model weights (5 × 323 MB) — obtain from lab storage and place under:
+#     AI/paddleseglibs/output/model/<model_name>/best_model/model.pdparams
+```
+
+**2. Install AI Python deps** (separate from MedPACS backend):
+
+```powershell
+pip install -r requirements-ai.txt
+```
+
+> ⚠️ `paddlepaddle` may need a version pin matching your CUDA / CPU environment.
+> Edit `requirements-ai.txt` as needed.
+
+**3. Smoke test** the standalone AI pipeline:
+
+```powershell
+cd AI
+python main.py  # edit `image_path` at the bottom of main.py first
+```
+
+Expected: `[done] N frames, ..., excursion_runs=M` log line with `excursion_cm` values
+in the 1-7 cm range (typical diaphragm range). See [`AI/README.md`](./AI/README.md) §3
+for full Quick Start.
+
+> Backend integration (`/ai/segment/{id}` real implementation calling `AI.main`) is
+> the next Phase 3 task; see PROGRESS §5 Phase 3 and `docs/PLAN.md` §9.
+
 ## Frontend Overview
 
 The frontend is a single-page application (SPA) under `frontend/`:

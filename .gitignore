@@ -41,3 +41,26 @@ logs/
 
 # 個人學習筆記（非專案規範，不進 git）
 learning/
+
+# Vendoring 工作區
+.work/
+
+# AI/ vendored from peter88510/diaphragm_excursion (Phase 3 task #11 prep, 2026-06-06)
+# Heavy vendored deps / runtime artifacts / per-machine config 排除
+# 注意：gitignore 不認行內註解 (#)、所有註解必須獨立一行；trailing whitespace 也會壞 pattern
+# vendored PaddleSeg ~27MB (含 Patch 2A-2C 改動)、clone 後另取
+AI/paddleseglibs/
+# runtime viz output (PNG / mp4 / timing)
+AI/output/
+# per-machine 路徑 + 實驗 override (template 為 AI/run_config.example.py)
+AI/run_config.py
+AI/**/__pycache__/
+AI/.idea/
+AI/**/.idea/
+# Model weights (5×323MB、超 GitHub 100MB hard limit、從 lab storage 取得)
+AI/**/*.pdparams
+AI/**/*.pdmodel
+AI/**/*.pdiparams
+AI/**/*.pdopt
+AI/**/best_model/
+AI/**/vdlrecords.*.log

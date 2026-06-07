@@ -62,6 +62,9 @@
 - [x] pytest 配置（`pytest.ini`）
 - [x] 測試隔離機制（記憶體 SQLite + monkeypatch）
 
+### AI 整合（Phase 3 prep）
+- [x] **AI source vendored 於 `./AI/`**（2026-06-06、snapshot @ `6139799`、from github.com/peter88510/diaphragm_excursion）— diaphragm M-mode excursion 量測 pipeline（DICOM → motion curve → peak/trough → cm）；Python 3.8、PaddleSeg + numpy + scipy + pywt 等；4 層架構 (Input/Algorithm/Visualization/Profiling)；含 ARCHITECTURE/CLAUDE/PROGRESS/README + algorithm/config/input/visualization/tools/experiments/font/docs；paddleseglibs/(27MB) + model weights gitignore；`requirements-ai.txt` 13 deps；root README 加 §Step 7 setup 章節
+
 ### Frontend（Phase 2 進行中）
 - [x] React 19 + Vite 8 + TypeScript 6 專案骨架（2026-05-13、commit `2d055de`）
 - [x] Cornerstone3D v4.22 套件安裝（`@cornerstonejs/core` + `dicom-image-loader` + `tools` + `dicom-parser`）（Stage A、2026-05-13、commit `83b8c9a`）
@@ -164,9 +167,11 @@
 
 ### Phase 3：AI 整合（PLAN §9、§12）
 - [x] **`AIResult` model + Alembic migration `91725486ef55`**（task #10、2026-05-19）— schema scaffolding only；PLAN §9.3 完整實作；3 個 ORM-level test 涵蓋 CRUD + nullable + relationship
-- [ ] `ai_service.py` + PyTorch 模型載入（pretrained / mock fallback 路徑見 PLAN §9.4）— ⏸ **工程師親自串接**（2026-05-18 裁示：AI 真實功能優先序低、演算法/模型由工程師接）
-- [ ] `/ai/segment/{id}` 同步實作（覆蓋現有 stub）— ⏸ 同上
-- [ ] `/ai/result/{id}` + `/ai/result/{id}/mask` 實作（覆蓋現有 stub）— ⏸ 同上
+- [x] **AI source vendoring (task #11 prep、2026-06-06)** — peter88510/diaphragm_excursion @ `6139799` (2026-06-05) snapshot vendored 進 `./AI/`；paddleseglibs/ + model weights gitignore；`requirements-ai.txt` (13 deps) 拆出；README 加 setup 章節
+- [ ] `ai_service.py` wrapper — `AI.main.run_excursion(image_path) → (excursion_cm, viz_mask)`、`AIResult` 寫入流程；推論引擎工程師親接、本層為整合 surface
+- [ ] **Schema 對齊**：`ai_results` 表 PLAN §9.3 設計是 segmentation mask + confidence；AI 主要輸出是 `excursion_cm` 物理量測；需 (a) 擴 AIResult 加臨床指標欄位、(b) 新表 measurements 1:1 link、或 (c) 其他；待裁示
+- [ ] `/ai/segment/{id}` 同步實作（覆蓋現有 stub）
+- [ ] `/ai/result/{id}` + `/ai/result/{id}/mask` 實作（覆蓋現有 stub；mask = viz overlay PNG）
 - [ ] 前端 mask overlay 渲染 — ⏸ 等真實 AI endpoint 接通後才派 dispatch
 
 ### Phase 4：收尾（PLAN §12、§13）
@@ -330,6 +335,22 @@ MedPACS Intelligence Platform/
 │   ├── backfill_series_uid.py       # 一次性 backfill — 補 pre-2026-05-15 orphan instances（2026-05-18）
 │   └── hooks/
 │       └── pre-commit               # git hook（偵測 source 變動 → 自動 regen）
+│
+├── AI/                              # Phase 3 AI inference (vendored 2026-06-06、snapshot @ 6139799)
+│   ├── ARCHITECTURE.md / CLAUDE.md / PROGRESS.md / README.md   # AI sub-repo 自有文件
+│   ├── main.py                     # Orchestration (per-frame loop)
+│   ├── algorithm/                  # diaphragm_detection / excursion / motion_curve / multiframe / roi_band / segmentation / signal_processing
+│   ├── config/                     # dataclass cfg per-layer
+│   ├── input/                      # DCM/PNG reader + FrameSequence
+│   ├── visualization/              # debug + final overlay + REALTIME video
+│   ├── tools/                      # timing_report.py
+│   ├── experiments/                # 驗證 script
+│   ├── docs/                       # AI sub-repo docs (INDEX/api_reference/pipeline/modules/notes/STYLE)
+│   ├── font/                       # Altinn-DIN Bold.otf (viz 字型)
+│   ├── run_config.example.py       # per-machine cfg template
+│   └── paddleseglibs/              # [gitignored, 27MB] vendored PaddleSeg; clone from AI repo
+│
+├── requirements-ai.txt              # AI inference deps (paddlepaddle / pydicom / numpy / scipy / pywt 等 13 個)
 │
 ├── pytest.ini                       # pytest 配置
 ├── requirements.txt                 # Python 依賴清單

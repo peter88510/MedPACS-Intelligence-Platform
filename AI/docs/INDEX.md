@@ -1,0 +1,99 @@
+# docs/INDEX.md — Documentation Index
+
+> repo 全 markdown 文件索引，依 Tier 分組。
+> 用途：找文件、查 SNAPSHOT staleness 狀態。
+> Tier 定義見 [`CLAUDE.md`](../CLAUDE.md) §10；格式規範見 [`STYLE.md`](STYLE.md)。
+
+---
+
+## 文件元資料
+
+| 項目 | 值 |
+|---|---|
+| Tier | STABLE |
+| 版本 | v1.1 |
+| 最後更新 | 2026-06-03 |
+| 適用 | 全文件導航、SNAPSHOT 狀態 audit |
+
+---
+
+## §1 STABLE 文件
+
+長期穩定、規約 / 設計層級。
+
+| 文件 | 路徑 | 版本 | 最後更新 | 用途 |
+|---|---|---|---|---|
+| [README.md](../README.md) | repo root | v1.1 | 2026-06-03 | Onboarding 入口、快速上手 |
+| [CLAUDE.md](../CLAUDE.md) | repo root | v1.2 | 2026-05-23 | AI 行為合約、patch 流程、git 禁忌 |
+| [ARCHITECTURE.md](../ARCHITECTURE.md) | repo root | v1.1 | 2026-06-03 | 跨層架構、模組責任、設計決策 |
+| [STYLE.md](STYLE.md) | `docs/` | v1.0 | 2026-05-24 | markdown 文件格式規範 |
+| [pipeline.md](pipeline.md) | `docs/` | v1.0 | 2026-05-24 | per-frame data flow 對照 |
+| [modules/algorithm.md](modules/algorithm.md) | `docs/modules/` | v1.1 | 2026-06-03 | `algorithm/` 內部結構與 sub-package |
+| [modules/input.md](modules/input.md) | `docs/modules/` | v1.0 | 2026-05-24 | `input/` 內部結構與 reader dispatch |
+| [modules/visualization.md](modules/visualization.md) | `docs/modules/` | v1.1 | 2026-06-03 | `visualization/` 內部結構與五 track 設計 |
+| [INDEX.md](INDEX.md) | `docs/` | v1.0 | 2026-05-24 | 本檔 |
+
+---
+
+## §2 LIVING 文件
+
+跟隨 patch 進度持續更新，無版號。
+
+| 文件 | 路徑 | 用途 |
+|---|---|---|
+| [PROGRESS.md](../PROGRESS.md) | repo root | 階段進度、待辦、Session 重啟接續點 |
+
+---
+
+## §3 SNAPSHOT 文件
+
+時間點快照；版本選填、最後更新必填；header 含「狀態 / 過期條件」。
+
+| 文件 | 版本 | 最後更新 | 狀態 | 校對對象 / 範圍 |
+|---|---|---|---|---|
+| [notes/size_normalization_pre_ratio_audit.md](notes/size_normalization_pre_ratio_audit.md) | 0.4 | 2026-05-23 | snapshot | `algorithm/` `config/` 內所有 size-sensitive 預設值；含 Step 9 ratio 化進度 |
+| [notes/patch_11b_design_backup.md](notes/patch_11b_design_backup.md) | 0.3 | 2026-05-25 | implemented | `algorithm/multiframe/global_window.py`（已落地，含 11B' 兩段 stitching）；保留作設計史 |
+| [notes/model_load_caching.md](notes/model_load_caching.md) | 0.1 | 2026-05-24 | snapshot | `algorithm/segmentation/paddleseg_segmenter.py`、`paddleseglibs/paddleseg/core/predict.py` 的 `skip_model_load` 旗標 |
+| [api_reference.md](api_reference.md) | 0.13 | 2026-06-04 | snapshot | `config/*.py`、`algorithm/**/*.py`、`input/**/*.py`、`visualization/**/*.py`、`tools/timing_report.py` 的欄位 / 簽名 |
+
+---
+
+## §4 維護指引
+
+### 何時更新 INDEX
+
+| 觸發事件 | INDEX 動作 |
+|---|---|
+| 新增 STABLE / SNAPSHOT 文件 | 加一列 |
+| SNAPSHOT 版本 bump | 更新版本欄與「最後更新」 |
+| SNAPSHOT 狀態變 `stale` | 更新狀態欄；考慮在 PROGRESS.md 加待辦 |
+| 文件搬位置 / 改檔名 | 更新路徑連結 |
+
+### staleness audit
+
+定期（每階段收尾 / git tag release）掃過 §3 表，確認：
+
+- 「校對對象」欄列的 code 是否仍存在
+- 「狀態」欄是否仍是 `snapshot`（已被新 patch 改過頭就標 `stale`）
+
+---
+
+## §5 變更紀錄
+
+| 日期 | 版本 | 變更 | 動因 |
+|---|---|---|---|
+| 2026-05-24 | v1.0 | 初版建立；§1-§4 全部章節 + 12 份文件對照表 | CLAUDE.md §10.4 觸發（SNAPSHOT ≥ 3 份） |
+| 2026-05-24 | — | §3 加 `api_reference.md`（SNAPSHOT 0.1） | 進階文件化第 4 份 doc 落地 |
+| 2026-05-25 | — | `api_reference.md` 0.1 → 0.2；Last Updated bump | Patch 12A：cfg 結構整理連動 SNAPSHOT 同步 |
+| 2026-05-25 | — | `api_reference.md` 0.2 → 0.3；`patch_11b_design_backup.md` 0.1 → 0.2 標 implemented | Patch 11B 邏輯落地連動 SNAPSHOT 同步 |
+| 2026-05-25 | — | `api_reference.md` 0.3 → 0.4；`patch_11b_design_backup.md` 0.2 → 0.3 | Patch 11B'：兩段 stitching 連動 SNAPSHOT 同步 |
+| 2026-05-25 | — | `api_reference.md` 0.4 → 0.5；§3.9 加 `render_global_final` | Patch 11C-GW + 11D：main.py dispatch + global final viz |
+| 2026-05-25 | — | `api_reference.md` 0.5 → 0.6；§1.9 新增 `DicomCropConfig` | Patch 13A：dicom_crop 參數抽至 config |
+| 2026-05-25 | — | `api_reference.md` 0.6 → 0.7；§3.6 加 `aggregate_measurements`；§3.9 `excursion_info_display` 簽名變更 | Patch 13C：info_display 多 peak + ratio 化 + aggregator stub |
+| 2026-05-29 | — | `api_reference.md` 0.7 → 0.8；REALTIME 全套（cfg / RealtimeState / ShiftResult / estimate_shift / render_realtime_*）| Patch 14A-18：REALTIME mode 端到端 |
+| 2026-05-29 | — | `api_reference.md` 0.8 → 0.9（`curve_fit_maxfev` / `realtime_seg_refresh_max_n` / `ingest_frame` 簽名 / `timing` 參數）；`pipeline.md` 加分層 cadence 段 | Patch 19A + Patch 19 timing + Patch 20B |
+| 2026-06-03 | — | `api_reference.md` 0.9 → 0.10（§1.7 cfg 拆 `save_realtime_*` + 加 `save_timing_record`；§2.12 新增 `RealtimeTiming` + Layer 命名映射；§3.9 加 `RealtimeVideoWriter` / `record_run`）| Patch 22（mp4 視覺化重組）+ Patch 23（Layer 命名 refactor + JSONL run record + aggregation script）|
+| 2026-06-03 | — | `api_reference.md` 0.10 → 0.11（§1.3 `use_segment_label` 加 24A 跳過條件註；§3.4 `enhanced_search` 簽名加 `skip_detect`）；`pipeline.md` §5.2 同步 | Patch 24A：條件式跳過 pass2 detect（省 ~25-30 ms/heavy frame） |
+| 2026-06-03 | v1.1 | 全 STABLE tier 里程碑 sync：`README.md` / `ARCHITECTURE.md` / `modules/algorithm.md` / `modules/visualization.md` 全 v1.0 → v1.1（追上 Patch 22 mp4 + 23 timing record + 24A skip pass2）；INDEX 自身 bump | Patch 22-24 落地後跨 STABLE 文件總同步（CLAUDE.md §10.5 里程碑 review）|
+| 2026-06-04 | — | `api_reference.md` 0.11 → 0.12（§3.3 detect 加 25A short-circuit 註）；`modules/algorithm.md` §4.2 加 row | Patch 25A：唯一候選 short-circuit 跳過 curve_fit（byte-identical 省 ~50 ms/heavy frame）|
+| 2026-06-04 | — | `api_reference.md` 0.12 → 0.13（`tools/timing_report.py` 全面重設計） | Patch 26：報表呈現優化（即時性 / 層級驗證 / Count·Total·Avg 三聯 / 中文化 / chain 標註 / 條件式 ⚠️）|
