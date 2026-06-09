@@ -21,30 +21,30 @@
 
 ## A. 系統現況快照（必讀，每次 session 啟動）
 
-### 系統現況（2026-05-18）
+### 系統現況（2026-06-09）
 
 - **定位**：AI-ready Ultrasound DICOM 平台 MVP（非完整 PACS 替代）
-- **階段**：**Phase 3 AI 整合啟動（task #11 prep 完成、2026-06-06）** — 前端 SPA E2E ✅ + §5.4 backfill ✅ + AIResult schema ✅ + §6.12 dedup ✅ + §6.13 init_db race 根治 ✅ + **AI source vendored (peter88510/diaphragm_excursion @ `6139799`、2026-06-05)** ✅；52 tests 全綠。**下一步主軸**：Phase 3 AI 整合接續 — ai_service.py wrapper + Schema 對齊（excursion_cm vs mask）+ `/ai/segment` 真實實作；工程師已親接完整 AI 演算法、主 Agent 接整合層
-- **Backend**：FastAPI + PostgreSQL + SQLAlchemy + pydicom，11 個 API endpoints 中 9 個完整實作（含 2026-05-15 新增 `/studies/{id}/series` + `/series/{id}/instances`）、2 個（`/ai/segment/{id}`、`/ai/result/{id}`）為 stub；DB schema 5 tables（含 2026-05-19 新增 `ai_results`、待工程師接演算法時寫入）；`/upload` 2026-05-19 加 duplicate detection (idempotent 200 / 409 conflict / new SOP 新建)
+- **階段**：**Phase 3 AI 整合進行中** — AIResult schema 對齊 + Measurement Type resolver ✅(2026-06-09、commit `0961366`)、**後端模組分層整頓** ✅(2026-06-09、commit `dc0584c`、core/db/models/services)、CLAUDE.md v1.3 ✅；66 tests 全綠。前置(SPA E2E / §5.4 backfill / §6.12 dedup / §6.13 / AI vendored @`6139799`)皆完成。**下一步主軸**：ai_service.py wrapper 執行模型(待決定 #14) + `/ai/segment`、`/ai/result` 真實實作(覆蓋 stub) + mask PNG endpoint；工程師親接 AI 演算法、主 Agent 接整合層
+- **Backend**：FastAPI + PostgreSQL + SQLAlchemy + pydicom，11 個 API endpoints 中 9 完整、2（`/ai/segment`、`/ai/result`）為 stub；**後端已分層(2026-06-09 dc0584c)**：main.py=API root / `core/` 設定 / `db/` session / `models/` ORM / `services/` (db_service+storage+storage_backend+measurement_type) / `validation/`；DB schema 5 tables，`ai_results` +4 量測欄(measurement_type/result_json JSONB/primary_value/primary_unit)、`instances` +2 device 欄(2026-06-09)；`/upload` 抽 Manufacturer/ModelName + dedup (idempotent 200 / 409 conflict)
 - **CORS**：✅ dev allow `http://localhost:5173`（Vite default）
 - **驗證層**：6 個必填欄位全部就位（PatientID / StudyInstanceUID / SeriesInstanceUID / SOPInstanceUID / Modality / PixelData）+ Modality 白名單（US）
 - **Frontend**：✅ **完整 SPA E2E 可用** — React 19 + Vite 8 + TS 6 + Cornerstone3D v4.22 + AppContext (5 fields + cascade) + Layout/TopBar/StudyList/MetadataPanel/AIPanel/DicomViewer 全業務元件 + API client + `VITE_API_BASE_URL` env var 制度。Stage C UX 缺口已解決
 - **AI 推論**：核心演算法 **已就緒**（工程師親接、vendored 進 `./AI/`、snapshot @ `6139799`）；MedPACS 整合層（ai_service.py wrapper + endpoint 真實實作）仍待做
-- **測試**：52 個測試（單元 9 / 整合 11 / API 29 / ORM 3；2026-05-19 加 3 個 dedup integration test），用 in-memory SQLite + StaticPool 隔離。前端尚無測試套件
+- **測試**：66 個測試（單元 9 validators + 9 measurement_type resolver / 整合 13 / API 29 / ORM 6），in-memory SQLite + StaticPool 隔離。前端尚無測試套件
 - **儲存**：本地檔案系統（`storage/{patient}/{study}/{filename}.dcm`），已透過 `StorageBackend` 抽象預留 S3 接口
-- **DB Migration 工具**：✅ Alembic 已導入（2026-05-12），baseline `20809e26d134` + Series migration `e25c80289a9c` (2026-05-15) + AIResult migration `91725486ef55` (2026-05-19) 共 3 個 migration、五表完整；目前 alembic_version = `91725486ef55`
+- **DB Migration 工具**：✅ Alembic，baseline `20809e26d134` + Series `e25c80289a9c` + AIResult `91725486ef55` + measurement fields `7f3c9a2b1d04` (2026-06-09、instances +2 / ai_results +4) 共 4 個 migration；工程師已 `alembic upgrade head`、alembic_version = `7f3c9a2b1d04`
 - **DB 資料狀態（2026-05-18 backfill 後）**：1 study + 1 series + 8 instances 全部 link 到 series 1 (uid `...593537`)；orphan count=0。Instance ID gap [2, 5] 已澄清為 PostgreSQL SERIAL sequence 在 IntegrityError rollback 後不 reset 的正常設計（不是 bug）。連帶發現 upload pipeline 缺 graceful duplicate detection → 新 known issue PROGRESS §6.12
-- **AI 操作規範**：CLAUDE.md **v1.2**（2026-05-14、commit `688f098`）— v1.1 之上再加 R3 Doc Impact 檢測 / R4 Stale Warning / §15.6 PROGRESS 觸發式 archive；§8 風險說明表格化
+- **AI 操作規範**：CLAUDE.md **v1.3**（2026-06-09、commit `dc0584c`、工程師授權）— v1.2 之上 §6 分層落點更新 + §15.4 改為目錄結構規範(core/db/models/services)；v1.2 含 R3/R4/§15.6/§8 表格化
 - **文件結構（Hybrid）**：根目錄為跨專案文件、`docs/` 為後端深入文件（PLAN、IMPLEMENTATION）、`docs/generated/` 為 auto-gen 權威來源（api_spec.md / db_schema.md）、`docs/archive/` 為歷史備檔；frontend/ 鏡像同樣結構
 - **前後端分工**：完整檔案機制 — `frontend/CLAUDE.md` v1.1（前端規範）、`frontend/context/HANDOFF.md`（後端狀態鏡像、主 Agent 維護）、`frontend/context/DISPATCH.md`（覆寫式任務交付）、`frontend/PROGRESS.md`、`frontend/context/SESSION_HISTORY.md`（前端 Agent 維護）
-- **自動化機制**：`scripts/hooks/pre-commit`（git config core.hooksPath 已啟用）偵測 `main.py` / `models.py` / `alembic/versions/*.py` 變動 → 自動 regenerate `docs/generated/` 並 `git add`
+- **自動化機制**：`scripts/hooks/pre-commit`（git config core.hooksPath 已啟用）偵測 `main.py` / `models/*.py` / `alembic/versions/*.py` 變動 → 自動 regenerate `docs/generated/` 並 `git add`
 - **個人學習筆記**：`learning/` 資料夾（gitignored）— 主 Agent 解釋技術後可存檔
 
 ### 進行中的任務
 
 - 無 in-flight 程式碼修改（主 Agent 端）
 - **前端**：task #9 已完成；目前無 active 前端 dispatch（`frontend/context/DISPATCH.md` status: completed）。下個前端 dispatch 等系統架構 / Phase 3 backend scaffolding 推進後才派（前端 AIPanel mask overlay 真實渲染等工程師接好真實 AI endpoint 後才動）
-- **主 Agent 下一步**：AI vendoring 完成（2026-06-06）。下個任務軸：Phase 3 整合 — ① `ai_service.py` wrapper 設計 ② Schema 對齊裁示（AIResult excursion_cm 欄位 vs 新表）③ `/ai/segment/{id}` 真實實作 ④ `/ai/result/{id}/mask` viz overlay PNG endpoint ⑤ 前端 AIPanel 接 mask overlay。其他候選暫降權：§6.3 logging / Production / §6.14 Conflict UI
+- **主 Agent 下一步**：Schema 對齊(#13)✅ + 後端分層✅ 完成。剩 Phase 3 整合：① `ai_service.py` wrapper 執行模型(待決定 #14、推薦同 process import) ② `/ai/segment/{id}` 真實實作(resolver→AI Phase→寫 ai_results；unknown→422 / thickness→501) ③ `/ai/result/{id}` + mask PNG ④ 前端 AIPanel 接 mask。**MACHINE_MODEL_MAP 仍空、待工程師填機型→量測類型對照表**。其他候選暫降權：§6.3 logging / Production / §6.14 Conflict UI
 - **R4 stale check 規則調整**（2026-05-16，工程師授權）：主 Agent 改為 per-Read inline、active phase 不再做 blanket per-session 全掃；不動 CLAUDE.md 文字（仍符合 §10 R4 letter）
 
 ### 待決定事項
@@ -61,7 +61,7 @@
 | 8 | ~~§5.4 (c) instance ID gap 處理深度~~ | ✅ 已決：PostgreSQL SERIAL 設計、不是 bug、不修 transaction handling；連帶 issue「upload 缺 duplicate detection」記 §6.12 | — |
 | 9 | AI 真實功能何時接 | 工程師裁示「優先序低、系統架構完工後再接、由工程師親自串接」（2026-05-18） | 不再阻擋；Phase 3 backend scaffolding 仍可做但不接 PyTorch |
 | 10 | 系統架構優先項目排序 | 工程師回歸 + AI vendoring 完成、進入 Phase 3 整合主線；其他候選 (§6.3 logging / Production / §6.14 Conflict UI / PLAN §14 跳過) 暫降權 | 整合完成後再回看 |
-| 13 | Phase 3 Schema 對齊：AIResult excursion_cm 怎麼存 | (a) 擴 AIResult 加臨床指標欄位 / (b) 新表 measurements 1:1 link / (c) 把 excursion_cm 塞 confidence 欄（語義錯）/ (d) 重新設計 | 整合 task 起手前必須先決 |
+| 13 | ~~Phase 3 Schema 對齊：AIResult excursion_cm 怎麼存~~ | ✅ 已決 (2026-06-09)：統一 header + JSON payload — `ai_results` +`measurement_type`/`result_json`(JSONB)/`primary_value`/`primary_unit`；新增量測類型零 migration。設計 `.work/ai_result_design.md` | — |
 | 14 | ai_service.py 執行模型 | (a) 同 process import (PLAN §9.1 同步、最快) / (b) subprocess 隔離 / (c) worker queue (PLAN §3 Non-goal) | 起手前確認；推薦 (a) |
 | 11 | ~~init_db/alembic race condition 根治時機 (§6.13)~~ | ✅ 已決 (2026-05-19)：方案 A、拿掉 startup_event 的 init_db() 呼叫、conftest 不動 | — |
 | 12 | §6.14 Conflict resolution UI / replace endpoint 何時實作 | §6.12 dedup 完成留下；需要 admin 概念 → 必須先做 §6.4 auth；MVP 階段不在 scope | 等 §6.4 auth 階段一起做 |
@@ -156,6 +156,22 @@
   4. **評估後端補完**：依前端回報的後端需求（最可能：`/studies/{id}/series` + `/series/{id}/instances`）決定是否派 backend task
   5. **派 Phase 2 task #9 dispatch**：API client + AppContext + 4 業務元件 + `VITE_API_BASE_URL` env var 制度
   6. **修 `frontend/PROGRESS.md` lines 5, 64 的 `./IMPLEMENTATION.md` stale link**（→ `./docs/IMPLEMENTATION.md`）— 屬前端 Agent territory，但若前端 Agent 沒順手修，下次 session 可標 §9.5 結構性修正例外動一下並在 commit message 註明
+
+---
+
+### 2026-06-09 session 結尾狀態（AIResult schema/resolver + 後端分層整頓 + CLAUDE.md v1.3）
+
+- **本次兩個任務（皆已 commit + push、工程師親自 /commit）**：
+  1. **AIResult schema 對齊 + Measurement Type resolver**（commit `0961366`；generated docs `48d4662`；設計 `.work/ai_result_design.md`）：
+     - `models/orm.py`：`Instance` +`device_manufacturer`/`device_model`；`AIResult` +`measurement_type`(server_default excursion)/`result_json`(JSONB↔SQLite JSON variant)/`primary_value`/`primary_unit`
+     - `services/measurement_type.py`：`MeasurementType` enum + Resolver Protocol + `MachineModelResolver`(mapping 可注入、空 `MACHINE_MODEL_MAP`) + `ImageContentResolver` stub
+     - Alembic `7f3c9a2b1d04`(additive)；upload 抽 device tag；+14 tests
+     - **endpoint 仍 stub**（真實實作屬下游 task）；待決定 #13 已決、#14 仍開
+  2. **後端模組分層整頓 relocate-only**（commit `dc0584c`）：config→`core/`、db→`db/session.py`、models→`models/orm.py`、db_service/storage/storage_backend→`services/`；`db/`+`models/` 用 `__init__` re-export → `from db/models import` 照舊；`main.py` 留 root(`uvicorn main:app` 不變)；git mv 保歷史；CLAUDE.md §6+§15.4+v1.3(工程師授權)；README/PROGRESS/IMPLEMENTATION/PLAN/HANDOFF 同步；66 tests 綠
+- **工程師已 `alembic upgrade head`** → dev DB alembic_version = `7f3c9a2b1d04`（含新欄）
+- **背景工作模式踩雷紀錄**：本 session 為 background job、harness 強制 worktree 隔離；worktree 無 `.venv`/`.env`、pre-commit hook 因 dubious-ownership 不觸發 → 需手動 regen / PATH 指 venv / cherry-pick -n 交 staged。**結論：互動式日常工作直接用前景 `claude`、勿用 worktree**（工程師已知悉）
+- **殘留**：gitignored 空資料夾 `.claude/worktrees/reorg-layers/`、`.claude/worktrees/session-history/`（無害、可手動清）
+- **下次 session 起手**：Phase 3 整合主線 — 待決定 #14(ai_service 執行模型) 起手前確認；先請工程師提供 `MACHINE_MODEL_MAP` 機型表
 
 ---
 
