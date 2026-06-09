@@ -104,21 +104,21 @@ async def upload(file: UploadFile = File(...), db: Session = Depends(get_db)):
 
 ## Module Responsibilities
 
-### models.py
+### models/ (orm.py)
 
 - **Patient**: Stores unique `patient_id`; has a one-to-many relationship with studies.
 - **Study**: Stores unique `study_instance_uid`; has a foreign key to patient; stores modality.
 - **Series**: Stores series-level grouping with **unique `series_instance_uid`** (constraint added 2026-05-15); FK to study via `study_instance_uid`. One study has many series.
 - **Instance**: Represents an individual DICOM file record; FK to study via `study_instance_uid`; **FK to series via `series_instance_uid` (added 2026-05-15)**; stores `file_path`. Legacy rows from before 2026-05-15 have NULL `series_instance_uid`.
 
-### db.py
+### db/ (session.py)
 
 - Creates the SQLAlchemy engine with a PostgreSQL connection.
 - Provides the `get_db()` dependency for FastAPI.
 - `init_db()` creates all tables on startup (idempotent).
 - Uses `NullPool` to avoid connection pooling complexity.
 
-### db_service.py
+### services/db_service.py
 
 - `upsert_patient()`: Inserts a patient if not exists; returns the existing record on duplicate.
 - `upsert_study()`: Inserts a study if not exists, keyed by `study_instance_uid`.
@@ -126,7 +126,7 @@ async def upload(file: UploadFile = File(...), db: Session = Depends(get_db)):
 - `create_instance()`: Creates a new instance record. Signature gained `series_instance_uid` parameter (Optional) on 2026-05-15.
 - `get_series_by_study_id()` / `get_instances_by_series_id()` (added 2026-05-15): Power the new listing endpoints. Return `None` if the parent doesn't exist (handler emits 404), `[]` if parent exists but has no children.
 
-### storage.py
+### services/storage.py
 
 - `save_dicom()`: Writes the DICOM file to `storage/{patient_id}/{study_uid}/{filename}`.
 - Handles missing metadata with `"unknown_patient"` and `"unknown_study"` fallbacks.
@@ -170,7 +170,7 @@ CREATE TABLE instances (
 );
 ```
 
-> **Authoritative source**: `docs/generated/db_schema.md` (auto-regenerated from `models.py` + alembic by pre-commit hook). The SQL above is illustrative and may lag. Migration history: `20809e26d134` (baseline) → `e25c80289a9c` (Series 補完, 2026-05-15).
+> **Authoritative source**: `docs/generated/db_schema.md` (auto-regenerated from `models/` + alembic by pre-commit hook). The SQL above is illustrative and may lag. Migration history: `20809e26d134` (baseline) → `e25c80289a9c` (Series 補完, 2026-05-15).
 
 ## Upload Workflow
 

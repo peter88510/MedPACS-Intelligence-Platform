@@ -9,15 +9,15 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 import pydicom
 from db import get_db, init_db
-from db_service import DatabaseService
-from storage import StorageService
+from services.db_service import DatabaseService
+from services.storage import StorageService
 from dotenv import load_dotenv
 
 from validation.dicom_validator import validate_dicom
 from validation.exceptions import ValidationError
 
 from fastapi import HTTPException
-from db_service import (
+from services.db_service import (
     get_all_studies,
     get_series_by_id,
     get_instance_by_id,
@@ -27,8 +27,8 @@ from db_service import (
     get_series_by_study_id,
     get_instances_by_series_id,
 )
-from storage_backend import LocalStorageBackend
-from config import settings
+from services.storage_backend import LocalStorageBackend
+from core.config import settings
 
 load_dotenv()
 

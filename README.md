@@ -37,8 +37,11 @@ A two-tier system for ultrasound DICOM workflow:
 
 ```text
 MedPACS Intelligence Platform/
-├── main.py / config.py / db.py / db_service.py / models.py
-├── storage.py / storage_backend.py
+├── main.py                          # API layer entrypoint (uvicorn main:app)
+├── core/                            # config (settings)
+├── db/                              # session / engine
+├── models/                          # SQLAlchemy ORM
+├── services/                        # db_service / storage / storage_backend / measurement_type
 ├── requirements.txt / pytest.ini / alembic.ini
 ├── alembic/                          # DB migration scripts (env.py + versions/)
 ├── storage/                          # Physical DICOM storage (runtime-created)
@@ -66,7 +69,7 @@ MedPACS Intelligence Platform/
 │   ├── IMPLEMENTATION.md             # System architecture (backend internals + frontend overview)
 │   ├── generated/                    # 🤖 auto-generated (do not hand-edit)
 │   │   ├── api_spec.md               # FastAPI routes (from main.py)
-│   │   └── db_schema.md              # DB schema (from models.py + alembic)
+│   │   └── db_schema.md              # DB schema (from models/ + alembic)
 │   └── archive/                      # Low-traffic archived docs
 │       ├── QUICKSTART.md             # 5-min API walkthrough
 │       ├── STORAGE_BACKEND.md        # Storage backend design
@@ -637,13 +640,13 @@ alembic current
 # Show migration history
 alembic history
 
-# Generate a new migration after editing models.py
+# Generate a new migration after editing models/orm.py
 alembic revision --autogenerate -m "describe change"
 ```
 
 ### Authoring a new migration
 
-1. Edit `models.py` (add column / table)
+1. Edit `models/orm.py` (add column / table)
 2. Run `alembic revision --autogenerate -m "<short description>"`
 3. **Open the generated script in `alembic/versions/` and review it** — autogenerate is not perfect (it misses CHECK constraints, ENUM changes, server defaults, etc.)
 4. Verify both `upgrade()` and `downgrade()` work on a scratch DB
@@ -651,7 +654,7 @@ alembic revision --autogenerate -m "describe change"
 
 ### Notes
 
-- `alembic.ini` does **not** contain credentials; `alembic/env.py` injects `DATABASE_URL` from `config.settings` (loaded from `.env`).
+- `alembic.ini` does **not** contain credentials; `alembic/env.py` injects `DATABASE_URL` from `core.config.settings` (loaded from `.env`).
 - Tests use in-memory SQLite + `Base.metadata.create_all()` (see `tests/conftest.py`) — they bypass Alembic for speed and isolation.
 
 ## CORS (Dev)
@@ -674,7 +677,7 @@ To allow another origin during development (e.g., `http://localhost:3000`), appe
 
 - **API Contract**: The `/upload` response is identical to v1.0. Clients require no changes.
 - **Internal Changes**: File storage and database persistence are transparent to API consumers.
-- **Database Initialization**: Schema is built by Alembic (`alembic upgrade head` — required before first `uvicorn main:app` launch on a fresh DB). The legacy `init_db()` in `db.py` is retained as a callable for emergency reset but is **no longer invoked at startup** (since 2026-05-19, PROGRESS §6.13 root-cause fix to avoid `Base.metadata.create_all` racing alembic and causing DuplicateTable on next `alembic upgrade head`).
+- **Database Initialization**: Schema is built by Alembic (`alembic upgrade head` — required before first `uvicorn main:app` launch on a fresh DB). The legacy `init_db()` in `db/session.py` is retained as a callable for emergency reset but is **no longer invoked at startup** (since 2026-05-19, PROGRESS §6.13 root-cause fix to avoid `Base.metadata.create_all` racing alembic and causing DuplicateTable on next `alembic upgrade head`).
 - **CORS**: Dev origin is `http://localhost:5173`. See the **CORS (Dev)** section above to add more.
 - **Storage Directory**: The `./storage` directory is created automatically if it does not exist.
 

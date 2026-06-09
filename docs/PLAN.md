@@ -160,7 +160,7 @@ MinIO / S3、Celery / Redis、pynetdicom、Docker、CI/CD。
 
 ## 6. Ingestion Architecture
 
-目前 ingestion 流程整合於 `main.py` + `storage.py` + `db_service.py` + `validation/`。
+目前 ingestion 流程整合於 `main.py` + `services/storage.py` + `services/db_service.py` + `validation/`。
 
 未來模組化方向（**MVP 不重構**）：
 

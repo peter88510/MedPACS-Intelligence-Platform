@@ -98,7 +98,7 @@
 
 ## 4. DB Schema
 
-> **完整 schema**（欄位、型別、PK / Unique / Index / FK、最新 Alembic revision）由 generator 自動從 `models.py` + alembic 抓出：
+> **完整 schema**（欄位、型別、PK / Unique / Index / FK、最新 Alembic revision）由 generator 自動從 `models/` + alembic 抓出：
 > → [`../../docs/generated/db_schema.md`](../../docs/generated/db_schema.md)（**權威來源、自動產生**）
 >
 > 本節僅補充 generator 抓不到的設計細節。

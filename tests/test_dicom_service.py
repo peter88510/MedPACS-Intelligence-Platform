@@ -4,7 +4,7 @@ import tempfile
 from pathlib import Path
 
 from main import app, get_db, storage_service
-from db_service import DatabaseService
+from services.db_service import DatabaseService
 from unittest.mock import patch, MagicMock
 from validation.exceptions import ValidationError
 from conftest import make_mock_ds

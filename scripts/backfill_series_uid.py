@@ -31,7 +31,7 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from db import SessionLocal
 from models import Instance, Series
-from config import settings
+from core.config import settings
 
 
 def audit_orphans(db):

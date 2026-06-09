@@ -19,7 +19,7 @@ while IFS= read -r f; do
     main.py)
       api_changed=true
       ;;
-    models.py|alembic/versions/*.py)
+    models/*.py|alembic/versions/*.py)
       schema_changed=true
       ;;
   esac

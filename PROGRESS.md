@@ -253,21 +253,26 @@
 
 ```
 MedPACS Intelligence Platform/
-├── main.py                          # FastAPI 應用主入口（API layer）
-├── config.py                        # Pydantic Settings 環境配置
-├── db.py                            # SQLAlchemy 引擎與 session 管理
-├── db_service.py                    # 資料庫 CRUD 服務（service layer）
-├── models.py                        # SQLAlchemy ORM 模型（model layer）
-├── storage.py                       # 檔案儲存服務介面
-├── storage_backend.py               # 儲存後端實作（Local / S3 預留）
-│
-├── services/                        # Service layer 套件（business logic、不 import FastAPI）
+├── main.py                          # FastAPI 應用主入口（API layer、entrypoint）
+├── core/                            # 設定層
 │   ├── __init__.py
+│   └── config.py                    # Pydantic Settings 環境配置
+├── db/                              # DB 層（session / engine）
+│   ├── __init__.py                  # re-export（from db import get_db... 照舊）
+│   └── session.py                   # SQLAlchemy 引擎與 session 管理
+├── models/                          # Model 層（SQLAlchemy ORM）
+│   ├── __init__.py                  # re-export（from models import ... 照舊）
+│   └── orm.py                       # ORM 模型定義
+├── services/                        # Service 層（business logic、不 import FastAPI）
+│   ├── __init__.py
+│   ├── db_service.py                # 資料庫 CRUD 服務
+│   ├── storage.py                   # 檔案儲存服務介面
+│   ├── storage_backend.py           # 儲存後端實作（Local / S3 預留）
 │   └── measurement_type.py          # MeasurementType enum + Resolver plugin（2026-06-09）
 │
 ├── alembic.ini                      # Alembic 設定（credentials 由 env.py 注入）
 ├── alembic/                         # DB migration 目錄
-│   ├── env.py                       # 載入 config.settings.DATABASE_URL
+│   ├── env.py                       # 載入 core.config.settings.DATABASE_URL
 │   ├── script.py.mako               # Migration 模板
 │   └── versions/                    # Migration scripts
 │       ├── 20809e26d134_baseline_*.py        # Baseline: 四表 CREATE

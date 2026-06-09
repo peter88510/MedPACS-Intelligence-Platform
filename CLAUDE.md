@@ -175,16 +175,16 @@
 │  - 參數驗證（Pydantic）          │
 │  - 呼叫 service layer           │
 ├─────────────────────────────────┤
-│  Service Layer                  │  db_service.py / storage.py
+│  Service Layer                  │  services/（db_service / storage / storage_backend / measurement_type）
 │  - Business logic               │
 │  - 跨 model 操作                 │
 │  - 非 HTTP 概念（不知道 request）│
 ├─────────────────────────────────┤
-│  Model Layer                    │  SQLAlchemy models
+│  Model Layer                    │  models/（SQLAlchemy ORM）
 │  - 資料結構定義                  │
 │  - Relationship 定義             │
 ├─────────────────────────────────┤
-│  DB Layer                       │  db.py
+│  DB Layer                       │  db/（session / engine）
 │  - Session management           │
 │  - Connection pool               │
 └─────────────────────────────────┘
@@ -570,11 +570,20 @@ except Exception:
 # - HL7 / FHIR 整合規範（如有）
 ```
 
-### 15.4 Additional Protected Modules（保留）
+### 15.4 目錄結構（分層落點，2026-06-09 relocate-only 整頓後）
 
-```
-# TODO: 隨系統成長，在此列出新增的關鍵保護模組
-```
+後端模組依 §6 四層落在對應資料夾，不再平鋪 root：
+
+| 層 | 資料夾 | 內容 |
+|---|---|---|
+| API | `main.py`（root、entrypoint，`uvicorn main:app`） | FastAPI app + 路由 |
+| 設定 | `core/` | `config.py`（Pydantic Settings） |
+| DB | `db/` | `session.py`（engine / session）；`__init__.py` re-export 保留 `from db import ...` |
+| Model | `models/` | `orm.py`（SQLAlchemy ORM）；`__init__.py` re-export 保留 `from models import ...` |
+| Service | `services/` | `db_service` / `storage` / `storage_backend` / `measurement_type` |
+| 驗證 | `validation/` | DICOM 驗證規則 |
+
+規範：新增後端模組一律放對應層資料夾，不再新增 root 平鋪 `.py`（`main.py` 除外）。
 
 ### 15.5 前後端分工機制
 
@@ -682,8 +691,8 @@ status: active
 
 | 項目 | 說明                                 |
 |---|------------------------------------|
-| 文件版本 | v1.2                               |
-| 建立日期 | 2026-05-07（v1.1 修訂於 2026-05-12、v1.2 於 2026-05-14） |
+| 文件版本 | v1.3                               |
+| 建立日期 | 2026-05-07（v1.1 修訂於 2026-05-12、v1.2 於 2026-05-14、v1.3 於 2026-06-09 目錄分層） |
 | 適用對象 | 所有 AI coding agents 與參與此 repo 的工程師 |
 | 更新觸發條件 | 架構變更、新增關鍵模組、規範調整                   |
 | 更新方式 | PR + 工程師 review，不可由 AI 自行修改本文件     |
