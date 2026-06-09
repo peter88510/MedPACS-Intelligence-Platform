@@ -64,6 +64,7 @@
 
 ### AI 整合（Phase 3 prep）
 - [x] **AI source vendored 於 `./AI/`**（2026-06-06、snapshot @ `6139799`、from github.com/peter88510/diaphragm_excursion）— diaphragm M-mode excursion 量測 pipeline（DICOM → motion curve → peak/trough → cm）；Python 3.8、PaddleSeg + numpy + scipy + pywt 等；4 層架構 (Input/Algorithm/Visualization/Profiling)；含 ARCHITECTURE/CLAUDE/PROGRESS/README + algorithm/config/input/visualization/tools/experiments/font/docs；paddleseglibs/(27MB) + model weights gitignore；`requirements-ai.txt` 13 deps；root README 加 §Step 7 setup 章節
+- [x] **AIResult schema 對齊 + Measurement Type resolver 架構**（2026-06-09、設計見 `.work/ai_result_design.md`）— `ai_results` +4 欄 (`measurement_type` server_default='excursion' / `result_json` JSONB(SQLite variant JSON) / `primary_value` / `primary_unit`)、`instances` +2 欄 (`device_manufacturer` / `device_model`)；Alembic migration `7f3c9a2b1d04`（全 additive、upgrade/downgrade 雙向）；`services/measurement_type.py`（MeasurementType enum + Resolver Protocol + MachineModelResolver[mapping 可注入] + 空 MACHINE_MODEL_MAP + ImageContentResolver stub）；upload flow 抽 Manufacturer(0008,0070)/ModelName(0008,1090) 存 Instance。**endpoint 仍為 stub**（真實實作屬下游 task）；MACHINE_MODEL_MAP 內容待工程師提供機型表
 
 ### Frontend（Phase 2 進行中）
 - [x] React 19 + Vite 8 + TypeScript 6 專案骨架（2026-05-13、commit `2d055de`）
@@ -86,7 +87,7 @@
 
 | 方法 | 路徑 | 功能 | 狀態 | 備註 |
 |---|---|---|---|---|
-| POST | `/upload` | 上傳並處理 DICOM 檔案 | ✅ 完整 | response 含 `instance_id`（2026-05-14 加）+ `duplicate` 欄位（2026-05-19 加，dedup 結果指示）；409 表 SOP UID 衝突 |
+| POST | `/upload` | 上傳並處理 DICOM 檔案 | ✅ 完整 | response 含 `instance_id`（2026-05-14 加）+ `duplicate` 欄位（2026-05-19 加，dedup 結果指示）；409 表 SOP UID 衝突；2026-06-09 起額外抽 Manufacturer/ModelName 存 Instance（response 不變） |
 | GET | `/health` | 健康檢查 | ✅ 完整 | — |
 | GET | `/studies` | 列出所有研究 | ✅ 完整 | — |
 | GET | `/studies/{id}/series` | 列出該研究的所有系列 | ✅ 完整 | 2026-05-15 加；舊 study 可能回 `[]` |
@@ -105,7 +106,7 @@
 ## 3. 測試覆蓋簡況
 
 ### 總覽
-- **總測試數**：52 個
+- **總測試數**：66 個
 - **執行方式**：`pytest tests/ -v`
 - **隔離機制**：記憶體 SQLite + monkeypatch 臨時 storage，每個測試獨立
 
@@ -113,10 +114,11 @@
 
 | 層級 | 檔案 | 測試數 | 風格 |
 |---|---|---|---|
-| 整合測試 | `tests/test_dicom_service.py` | 11 | 真實 SQLite 記憶體 DB + 臨時 storage（含 2026-05-15 series upsert / upload-creates-series 兩項 + 2026-05-19 duplicate detection 三項：idempotent / 409 conflict / existing_file_missing） |
+| 整合測試 | `tests/test_dicom_service.py` | 13 | 真實 SQLite 記憶體 DB + 臨時 storage（含 2026-05-15 series upsert / upload-creates-series 兩項 + 2026-05-19 duplicate detection 三項 + 2026-06-09 device tag 抽取兩項：有 tag / 無 tag null） |
 | API 測試 | `tests/test_query_api.py` | 29 | TestClient + mock `db_service`（含 2026-05-15 加的 /studies/{id}/series 與 /series/{id}/instances 各 4 cases） |
-| ORM 測試 | `tests/test_ai_result_model.py` | 3 | 純 SQLAlchemy model 層（Phase 3 task #10：AIResult CRUD + nullable + Instance.ai_results back-relationship） |
+| ORM 測試 | `tests/test_ai_result_model.py` | 6 | 純 SQLAlchemy model 層（task #10：CRUD + nullable + relationship；2026-06-09：measurement_type default + result_json round-trip + 新欄 nullable） |
 | 單元測試 | `tests/test_validators.py` | 9 | 純邏輯，無 DB / HTTP |
+| 單元測試 | `tests/test_measurement_type.py` | 9 | MeasurementType resolver（known/unknown/missing device、whitespace 正規化、空 production map、enum str、ImageContentResolver stub） |
 
 ### 已覆蓋路徑
 - ✅ DICOM 上傳完整流程（解析 / 儲存 / DB 寫入）
@@ -168,9 +170,9 @@
 ### Phase 3：AI 整合（PLAN §9、§12）
 - [x] **`AIResult` model + Alembic migration `91725486ef55`**（task #10、2026-05-19）— schema scaffolding only；PLAN §9.3 完整實作；3 個 ORM-level test 涵蓋 CRUD + nullable + relationship
 - [x] **AI source vendoring (task #11 prep、2026-06-06)** — peter88510/diaphragm_excursion @ `6139799` (2026-06-05) snapshot vendored 進 `./AI/`；paddleseglibs/ + model weights gitignore；`requirements-ai.txt` (13 deps) 拆出；README 加 setup 章節
-- [ ] `ai_service.py` wrapper — `AI.main.run_excursion(image_path) → (excursion_cm, viz_mask)`、`AIResult` 寫入流程；推論引擎工程師親接、本層為整合 surface
-- [ ] **Schema 對齊**：`ai_results` 表 PLAN §9.3 設計是 segmentation mask + confidence；AI 主要輸出是 `excursion_cm` 物理量測；需 (a) 擴 AIResult 加臨床指標欄位、(b) 新表 measurements 1:1 link、或 (c) 其他；待裁示
-- [ ] `/ai/segment/{id}` 同步實作（覆蓋現有 stub）
+- [x] **Schema 對齊 + Measurement Type resolver 架構**（2026-06-09、設計 `.work/ai_result_design.md`）— 裁示方案：統一 header + JSON payload（`ai_results` +`measurement_type`/`result_json`(JSONB)/`primary_value`/`primary_unit`；新增量測類型零 migration）。`instances` +`device_manufacturer`/`device_model`（上傳時抽、懶解析）。`services/measurement_type.py` plugin 架構（MVP MachineModelResolver、未來可換 ImageContentResolver）。Alembic `7f3c9a2b1d04` additive。66 tests 全綠。**endpoint 仍 stub**
+- [ ] `ai_service.py` wrapper — `AI.main.run(...) → FrameResult[]` → `result_json` envelope + `primary_value`、`AIResult` 寫入流程；推論引擎工程師親接、本層為整合 surface（待決定 #14：同 process import vs subprocess）
+- [ ] `/ai/segment/{id}` 真實實作（覆蓋現有 stub）— resolver 解析 measurement_type（unknown→422 / thickness→501）→ map AI Phase → 跑模型 → 寫 ai_results；response 加 `measurement_type`
 - [ ] `/ai/result/{id}` + `/ai/result/{id}/mask` 實作（覆蓋現有 stub；mask = viz overlay PNG）
 - [ ] 前端 mask overlay 渲染 — ⏸ 等真實 AI endpoint 接通後才派 dispatch
 
@@ -259,6 +261,10 @@ MedPACS Intelligence Platform/
 ├── storage.py                       # 檔案儲存服務介面
 ├── storage_backend.py               # 儲存後端實作（Local / S3 預留）
 │
+├── services/                        # Service layer 套件（business logic、不 import FastAPI）
+│   ├── __init__.py
+│   └── measurement_type.py          # MeasurementType enum + Resolver plugin（2026-06-09）
+│
 ├── alembic.ini                      # Alembic 設定（credentials 由 env.py 注入）
 ├── alembic/                         # DB migration 目錄
 │   ├── env.py                       # 載入 config.settings.DATABASE_URL
@@ -266,7 +272,8 @@ MedPACS Intelligence Platform/
 │   └── versions/                    # Migration scripts
 │       ├── 20809e26d134_baseline_*.py        # Baseline: 四表 CREATE
 │       ├── e25c80289a9c_add_series_*.py      # 2026-05-15: Series UNIQUE+NOT NULL + Instance FK
-│       └── 91725486ef55_add_ai_results_*.py  # 2026-05-19: AIResult 表 (Phase 3 task #10)
+│       ├── 91725486ef55_add_ai_results_*.py  # 2026-05-19: AIResult 表 (Phase 3 task #10)
+│       └── 7f3c9a2b1d04_add_measurement_*.py # 2026-06-09: instances +2 device 欄 / ai_results +4 量測欄
 │
 ├── validation/                      # DICOM 驗證模組
 │   ├── __init__.py
@@ -279,7 +286,8 @@ MedPACS Intelligence Platform/
 │   ├── conftest.py                  # 共用 fixtures、工廠函式、TestClient
 │   ├── test_dicom_service.py        # 整合測試（8 個）
 │   ├── test_query_api.py            # API 端點測試（29 個）
-│   ├── test_ai_result_model.py      # AIResult ORM 測試（3 個、Phase 3 task #10）
+│   ├── test_ai_result_model.py      # AIResult ORM 測試（6 個、task #10 + 2026-06-09 量測欄）
+│   ├── test_measurement_type.py     # MeasurementType resolver 單元測試（9 個、2026-06-09）
 │   └── test_validators.py           # 驗證單元測試（9 個）
 │
 ├── storage/                         # 本地 DICOM 檔案儲存（runtime 自動建立）

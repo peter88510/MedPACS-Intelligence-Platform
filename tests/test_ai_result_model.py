@@ -97,3 +97,80 @@ def test_ai_result_relationship_with_instance(db):
     failed = [r for r in instance.ai_results if r.status == "failed"][0]
     assert failed.instance.id == instance_id
     assert failed.error_message == "cuda oom"
+
+
+# --- Measurement-result fields (added 2026-06-09, design §3.1/§4) ---
+
+def test_measurement_type_defaults_to_excursion(db):
+    """server_default='excursion' applies when measurement_type omitted."""
+    instance_id = _seed_instance(db)
+    result = AIResult(
+        instance_id=instance_id,
+        model_name="diaphragm_excursion",
+        model_version="6139799",
+        status="completed",
+    )
+    db.add(result)
+    db.commit()
+    db.refresh(result)
+    assert result.measurement_type == "excursion"
+
+
+def test_result_json_round_trips_as_dict(db):
+    """JSONB/JSON variant must store and return a nested dict unchanged."""
+    instance_id = _seed_instance(db)
+    envelope = {
+        "schema_version": 1,
+        "measurement_type": "excursion",
+        "pipeline_mode": "global_window",
+        "model_name": "diaphragm_excursion",
+        "model_version": "6139799",
+        "measurements": [
+            {
+                "batch_index": 0,
+                "excursion_cm": 2.31,
+                "excursion_pixel": 120,
+                "time_pixel": 45,
+                "time_sec": None,
+                "velocity": None,
+                "crest": [320, 110],
+                "trough": [365, 230],
+            }
+        ],
+        "primary": {"label": "excursion_cm", "value": 2.31, "unit": "cm"},
+    }
+    result = AIResult(
+        instance_id=instance_id,
+        model_name="diaphragm_excursion",
+        model_version="6139799",
+        status="completed",
+        measurement_type="excursion",
+        result_json=envelope,
+        primary_value=2.31,
+        primary_unit="cm",
+    )
+    db.add(result)
+    db.commit()
+    db.refresh(result)
+
+    assert result.result_json == envelope
+    assert result.result_json["measurements"][0]["excursion_cm"] == 2.31
+    assert result.primary_value == 2.31
+    assert result.primary_unit == "cm"
+
+
+def test_result_json_nullable_when_queued(db):
+    """status='queued' has no result yet — measurement fields are nullable."""
+    instance_id = _seed_instance(db)
+    result = AIResult(
+        instance_id=instance_id,
+        model_name="diaphragm_excursion",
+        model_version="6139799",
+        status="queued",
+    )
+    db.add(result)
+    db.commit()
+    db.refresh(result)
+    assert result.result_json is None
+    assert result.primary_value is None
+    assert result.primary_unit is None

@@ -94,6 +94,11 @@ async def upload(file: UploadFile = File(...), db: Session = Depends(get_db)):
         study_instance_uid = getattr(dicom_data, "StudyInstanceUID", "unknown_study")
         modality = getattr(dicom_data, "Modality", None)
         sop_instance_uid = getattr(dicom_data, "SOPInstanceUID", None)
+        # Device tags (added 2026-06-09) — raw signal for the measurement-type
+        # resolver, captured at upload for auditability. Safe access (§13);
+        # absent tags simply stay None. Resolved lazily at /ai/segment time.
+        device_manufacturer = getattr(dicom_data, "Manufacturer", None)
+        device_model = getattr(dicom_data, "ManufacturerModelName", None)
 
         # Duplicate detection (PROGRESS §6.12) — must run BEFORE storage write
         # so a conflicting upload leaves no orphan file. Idempotent path returns
@@ -182,7 +187,9 @@ async def upload(file: UploadFile = File(...), db: Session = Depends(get_db)):
             file_path=relative_file_path,
             study_instance_uid=study_instance_uid,
             sop_instance_uid=sop_instance_uid,
-            series_instance_uid=series_instance_uid
+            series_instance_uid=series_instance_uid,
+            device_manufacturer=device_manufacturer,
+            device_model=device_model
         )
 
         # Step 3: Return response (instance_id added 2026-05-14 for client drill-down;

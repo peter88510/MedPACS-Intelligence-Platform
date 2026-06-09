@@ -371,5 +371,69 @@ def test_upload_duplicate_existing_file_missing_returns_409(tmp_path, monkeypatc
     assert "manual cleanup required" in d["detail"]
 
 
+def test_upload_extracts_device_tags(tmp_path, monkeypatch, db_client, db):
+    """Upload captures Manufacturer/ModelName onto the Instance (design §3.2/§6)."""
+    import pydicom
+    from pydicom.dataset import FileDataset
+    from models import Instance
+    monkeypatch.setattr(storage_service, "base_path", tmp_path)
+
+    file_meta = pydicom.dataset.FileMetaDataset()
+    file_meta.MediaStorageSOPClassUID = "1.2.840.10008.5.1.4.1.1.2"
+    file_meta.MediaStorageSOPInstanceUID = "1.2.3.4"
+    file_meta.TransferSyntaxUID = pydicom.uid.ImplicitVRLittleEndian
+
+    ds = FileDataset(str(tmp_path / "device.dcm"), {}, file_meta=file_meta, preamble=b"\0" * 128)
+    ds.PatientID = "DEVICE_TEST_PATIENT"
+    ds.StudyInstanceUID = "7.7.7.7"
+    ds.SeriesInstanceUID = "7.7.7.7.1"
+    ds.SOPInstanceUID = "7.7.7.7.1.1"
+    ds.Modality = "US"
+    ds.Manufacturer = "AcmeUS"
+    ds.ManufacturerModelName = "DiaphragmScan 3000"
+    ds.Rows = 1
+    ds.Columns = 1
+    ds.BitsAllocated = 8
+    ds.BitsStored = 8
+    ds.HighBit = 7
+    ds.PixelRepresentation = 0
+    ds.SamplesPerPixel = 1
+    ds.PhotometricInterpretation = "MONOCHROME2"
+    ds.PixelData = b"\x00"
+
+    test_file_path = tmp_path / "device.dcm"
+    ds.save_as(test_file_path)
+
+    with open(test_file_path, "rb") as f:
+        response = db_client.post(
+            "/upload",
+            files={"file": ("device.dcm", f, "application/dicom")}
+        )
+    assert response.status_code == 200
+    instance_id = response.json()["instance_id"]
+
+    instance = db.query(Instance).filter(Instance.id == instance_id).first()
+    assert instance.device_manufacturer == "AcmeUS"
+    assert instance.device_model == "DiaphragmScan 3000"
+
+
+def test_upload_without_device_tags_leaves_them_null(tmp_path, monkeypatch, db_client, db):
+    """Absent Manufacturer/ModelName → device fields stay None (no crash, §13 safe access)."""
+    from models import Instance
+    monkeypatch.setattr(storage_service, "base_path", tmp_path)
+
+    # _build_minimal_dicom sets no Manufacturer/ModelName tags.
+    sop_uid = "8.8.8.8.NO_DEVICE"
+    path = _build_minimal_dicom(tmp_path, "nodevice.dcm", sop_uid)
+    with open(path, "rb") as f:
+        response = db_client.post("/upload", files={"file": ("nodevice.dcm", f, "application/dicom")})
+    assert response.status_code == 200
+    instance_id = response.json()["instance_id"]
+
+    instance = db.query(Instance).filter(Instance.id == instance_id).first()
+    assert instance.device_manufacturer is None
+    assert instance.device_model is None
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

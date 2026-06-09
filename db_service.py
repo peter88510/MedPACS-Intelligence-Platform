@@ -94,7 +94,9 @@ class DatabaseService:
             file_path: str,
             study_instance_uid: str,
             sop_instance_uid: Optional[str] = None,
-            series_instance_uid: Optional[str] = None
+            series_instance_uid: Optional[str] = None,
+            device_manufacturer: Optional[str] = None,
+            device_model: Optional[str] = None
     ) -> Instance:
         """
         Create instance record (always new, never update).
@@ -106,6 +108,9 @@ class DatabaseService:
             sop_instance_uid: Optional SOPInstanceUID from DICOM
             series_instance_uid: Optional SeriesInstanceUID (FK to series.series_instance_uid).
                                  Added 2026-05-15 along with Series upsert pipeline.
+            device_manufacturer: Optional Manufacturer (0008,0070). Added 2026-06-09 for
+                                 the measurement-type resolver (raw, auditable signal).
+            device_model: Optional ManufacturerModelName (0008,1090). Added 2026-06-09.
 
         Returns:
             Instance object
@@ -114,7 +119,9 @@ class DatabaseService:
             file_path=file_path,
             study_instance_uid=study_instance_uid,
             sop_instance_uid=sop_instance_uid,
-            series_instance_uid=series_instance_uid
+            series_instance_uid=series_instance_uid,
+            device_manufacturer=device_manufacturer,
+            device_model=device_model
         )
         db.add(instance)
         db.commit()
