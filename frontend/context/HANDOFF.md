@@ -81,14 +81,32 @@
 
 前端錯誤處理要區分這三類欄位結構。
 
-### 3.3 Stub endpoints 限制（Phase 3 才會接通）
+### 3.3 AI endpoints 真實實作（2026-06-10，取代 stub）
 
-| Endpoint | 目前行為 |
-|---|---|
-| `POST /ai/segment/{id}` | 不實際做事，僅回 `{"instance_id": id, "status": "queued", "message": "Segmentation job accepted (stub)"}` |
-| `GET /ai/result/{id}` | 永遠回固定 mock：`{"instance_id": id, "status": "completed", "result": {"mask": "stub_mask_data", "confidence": 0.95}}` |
+`/ai/segment`·`/ai/result` 已從 stub 升為真實整合層。**端到端真實推論**仍需後端工程師在 dev 裝 paddle + model weights 才會跑出真資料；整合層（資料流 / status code / DB 寫入）已完整可整合。
 
-⚠️ `result.mask` 是**字串** `"stub_mask_data"`，**不是真實 PNG URL**。前端 mask overlay 渲染卡在這（見 §6）。
+**`POST /ai/segment/{id}`** — 同步觸發量測、結果寫入 `ai_results`：
+
+| 情境 | HTTP | 說明 |
+|---|---|---|
+| 成功（excursion / sniff） | 200 | `{instance_id, ai_result_id, status:"completed", measurement_type, primary_value, primary_unit, measurement_count}` |
+| 機型未在對照表（device model 未知） | 422 | 拒絕猜測；前端應提示「無法判定量測類型」 |
+| Thickness 機型（L154，演算法未就緒） | 501 | forward-design；前端應提示「尚未支援」 |
+| AI 引擎相依未安裝（paddle/weights） | 503 | dev 未裝 AI 環境；非永久錯誤 |
+| 推論失敗 | 500 | 已留一筆 `status:"error"` 結果供查 |
+| instance 不存在 | 404 | — |
+
+**`GET /ai/result/{id}`** — 回最新一筆量測結果：
+
+| 情境 | HTTP | 回傳 |
+|---|---|---|
+| 已跑過 | 200 | `{instance_id, ai_result_id, status, measurement_type, model_name, model_version, primary_value, primary_unit, confidence, mask_url, result, error_message, created_at}` |
+| 尚未跑過（無結果） | 404 | 提示先 `POST /ai/segment/{id}` |
+| instance 不存在 | 404 | — |
+
+- `result` 欄為完整 envelope（`{schema_version, measurement_type, pipeline_mode, model_name, model_version, measurements:[...], primary:{label,value,unit}}`）。
+- ⚠️ `mask_url` 目前**固定為 `null`** — mask PNG endpoint 屬下游（見 §6）。前端 mask overlay 仍卡在這；但**量測數值（primary_value/unit + measurements）已可顯示**。
+- `measurement_type` 值域：`excursion` / `sniff` / `thickness` / `unknown`。
 
 ### 3.4 Upload UI 不在 MVP 範圍
 
@@ -155,10 +173,10 @@ Alembic 在 DB 多建一張 `alembic_version`（單欄、單列、記錄目前 m
 |---|---|---|
 | `GET /studies/{id}/series` | 列出該 study 的所有 series | ✅ **已實作（2026-05-15）**；response `{"series": [...]}`；2026-05-15 前 upload 沒寫 series 表，舊 study 會回 `[]` 直到累積新上傳資料 |
 | `GET /series/{id}/instances` | 列出該 series 的所有 instance | ✅ **已實作（2026-05-15）**；response `{"instances": [...]}`；2026-05-15 前 upload 的 instances `series_instance_uid` 為 NULL、無法被新 endpoint 匹配（legacy gap，MVP 接受） |
-| `GET /ai/result/{id}/mask` | 回真實 PNG mask（含 `image/png` content-type）| ❌ 不存在；現有 `/ai/result/{id}` 僅回 stub JSON |
-| 真實 AI 推論（背後機制） | `POST /ai/segment/{id}` 實際跑 PyTorch | ❌ 僅 stub 回 `queued` |
-| Cancel running AI job | 中止已觸發的 AI | ❌ Out of scope（MVP） |
-| Server-Sent Events / WebSocket for AI progress | 串流推論進度 | ❌ Out of scope（MVP 同步推論） |
+| `GET /ai/result/{id}/mask` | 回真實 PNG mask（含 `image/png` content-type）| ❌ 不存在；`/ai/result/{id}` 的 `mask_url` 固定 null。engine 已預留 `mask_path`，下游 task |
+| 真實 AI 推論（背後機制） | `POST /ai/segment/{id}` 實際跑模型 | ⚠️ 整合層已接通（2026-06-10）；但 dev 需裝 paddle+weights 才會跑真資料，否則回 503 |
+| Cancel running AI job | 中止已觸發的 AI | ❌ Out of scope（MVP 同步） |
+| Server-Sent Events / WebSocket for AI progress | 串流推論進度（realtime demo 候選）| ❌ Out of scope（同步 LEGACY 已足；realtime 串流為未來 demo 候選） |
 
 ---
 
@@ -180,6 +198,7 @@ Alembic 在 DB 多建一張 `alembic_version`（單欄、單列、記錄目前 m
 | 2026-05-18 | **§5.4 backfill apply** — `scripts/backfill_series_uid.py --apply` 補 3 個 pre-2026-05-15 orphan instances (id=1/3/4) 的 `series_instance_uid='...593537'` | 前端 StudyList 重整後會看到完整 8 個 instances（從 5 個變 8 個）；API `/series/1/instances` 從 5 筆 → 8 筆；schema 未變、API contract 未變 |
 | 2026-05-19 | **Phase 3 task #10：AIResult 表** (Alembic migration `91725486ef55`) | DB schema 新增 `ai_results` 表（5 tables total）；前端目前不直接 query、僅當 `/ai/result/{id}` endpoint 真實實作後才會反映；schema 詳細見 `docs/generated/db_schema.md` |
 | 2026-05-19 | **`POST /upload` duplicate detection** (PROGRESS §6.12 修復) | response 新增 `duplicate` bool；新增 409 conflict status code；若前端日後加 upload UI，需處理 200+duplicate / 409 兩個新分支。詳 §3.1 / §3.2 |
+| 2026-06-10 | **`/ai/segment`·`/ai/result` 真實實作**（取代 stub、Phase 3 #2/#3） | AIPanel 可改接真實回應：segment 回 `measurement_type`/`primary_value` 等、result 回完整 envelope；新 status code 語義 422(未知機型)/501(thickness)/503(引擎未裝)/404(未跑過)。**量測數值已可顯示；mask overlay 仍卡**（`mask_url=null`、mask PNG 屬下游）。詳 §3.3。⚠️ dev 端要看真資料需先裝 paddle+weights，否則 503 |
 
 > ⏸ **目前無 in-flight 後端變更**。下次更新時機：當主 Agent 在派發新前端任務前發現有新的 API、schema、env var、CORS 異動時（spec 變動會自動進 `docs/generated/`，本檔 §3.x / §4.x 只在「補充說明」需新增 / 修正時動）。
 

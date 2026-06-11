@@ -57,14 +57,15 @@
 - [x] **AIResult model + Alembic migration `91725486ef55`**（Phase 3 task #10、2026-05-19）— PLAN §9.3 schema scaffolding；不接 PyTorch（工程師親自串接演算法/模型）；upgrade/downgrade round-trip 驗證通過
 
 ### 測試與品質
-- [x] 33 個測試案例（單元 / 整合 / API 三層）
+- [x] 82 個測試案例（單元 / 整合 / API / ORM 多層）
 - [x] 共用 fixtures（`tests/conftest.py`）
 - [x] pytest 配置（`pytest.ini`）
 - [x] 測試隔離機制（記憶體 SQLite + monkeypatch）
 
 ### AI 整合（Phase 3 prep）
 - [x] **AI source vendored 於 `./AI/`**（2026-06-06、snapshot @ `6139799`、from github.com/peter88510/diaphragm_excursion）— diaphragm M-mode excursion 量測 pipeline（DICOM → motion curve → peak/trough → cm）；Python 3.8、PaddleSeg + numpy + scipy + pywt 等；4 層架構 (Input/Algorithm/Visualization/Profiling)；含 ARCHITECTURE/CLAUDE/PROGRESS/README + algorithm/config/input/visualization/tools/experiments/font/docs；paddleseglibs/(27MB) + model weights gitignore；`requirements-ai.txt` 13 deps；root README 加 §Step 7 setup 章節
-- [x] **AIResult schema 對齊 + Measurement Type resolver 架構**（2026-06-09、設計見 `.work/ai_result_design.md`）— `ai_results` +4 欄 (`measurement_type` server_default='excursion' / `result_json` JSONB(SQLite variant JSON) / `primary_value` / `primary_unit`)、`instances` +2 欄 (`device_manufacturer` / `device_model`)；Alembic migration `7f3c9a2b1d04`（全 additive、upgrade/downgrade 雙向）；`services/measurement_type.py`（MeasurementType enum + Resolver Protocol + MachineModelResolver[mapping 可注入] + 空 MACHINE_MODEL_MAP + ImageContentResolver stub）；upload flow 抽 Manufacturer(0008,0070)/ModelName(0008,1090) 存 Instance。**endpoint 仍為 stub**（真實實作屬下游 task）；MACHINE_MODEL_MAP 內容待工程師提供機型表
+- [x] **AIResult schema 對齊 + Measurement Type resolver 架構**（2026-06-09、設計見 `.work/ai_result_design.md`）— `ai_results` +4 欄 (`measurement_type` server_default='excursion' / `result_json` JSONB(SQLite variant JSON) / `primary_value` / `primary_unit`)、`instances` +2 欄 (`device_manufacturer` / `device_model`)；Alembic migration `7f3c9a2b1d04`（全 additive、upgrade/downgrade 雙向）；`services/measurement_type.py`（MeasurementType enum + Resolver Protocol + MachineModelResolver[mapping 可注入] + 空 MACHINE_MODEL_MAP + ImageContentResolver stub）；upload flow 抽 Manufacturer(0008,0070)/ModelName(0008,1090) 存 Instance
+- [x] **AI engine 整合層 + `/ai/segment`·`/ai/result` 真實實作**（2026-06-10、Phase 3 #2/#3）— 可替換式 `services/ai_engine/`（抽象 `DiaphragmEngine` ABC + 平台中立 `EngineResult`/`Measurement` + paddle 的 `DiaphragmExcursionEngine` wrapper + `get_engine()` factory 唯一替換點 + serialize → design §4 envelope）。`#14` 採同 process import（lazy import `AI.main.run`、缺 paddle → 503、66-test 不受影響）；LEGACY mode、viz 關閉。`/ai/segment/{id}` 真實流程：resolver 解析（C62→excursion / L154→thickness）→ unknown 422 / thickness 501 / excursion·sniff 跑引擎 → 寫 ai_results；`/ai/result/{id}` 回最新結果（未跑→404）。`MACHINE_MODEL_MAP` 填 C62/L154（key 改 model-only，工程師 2026-06-10 裁示）。82 tests 全綠（含 fake-engine 注入、不碰 paddle）。**真實推論端到端待工程師裝 paddle + weights 驗證**；mask PNG endpoint + 前端 overlay 屬下游
 
 ### Frontend（Phase 2 進行中）
 - [x] React 19 + Vite 8 + TypeScript 6 專案骨架（2026-05-13、commit `2d055de`）
@@ -96,17 +97,17 @@
 | GET | `/instances/{id}` | 取得指定實例 | ✅ 完整 | — |
 | GET | `/instances/{id}/file` | 下載原始 DICOM 檔案 | ✅ 完整 | 透過 FileResponse |
 | GET | `/instances/{id}/metadata` | 取得實例 metadata | ✅ 完整 | — |
-| POST | `/ai/segment/{id}` | 觸發 AI 分割 | ⚠️ **Stub** | 僅回傳 `{"status": "queued"}`，無實作 |
-| GET | `/ai/result/{id}` | 取得 AI 分割結果 | ⚠️ **Stub** | 僅回傳 mock 結果 |
+| POST | `/ai/segment/{id}` | 觸發 AI 量測 | ✅ 完整 | 2026-06-10 真實實作（取代 stub）；resolver→422(unknown)/501(thickness)/200(excursion·sniff)；engine 缺 paddle→503、推論失敗→500（留 error 結果）；回 `{instance_id, ai_result_id, status, measurement_type, primary_value, primary_unit, measurement_count}`。**端到端真實推論待 paddle+weights 驗證** |
+| GET | `/ai/result/{id}` | 取得 AI 量測結果 | ✅ 完整 | 2026-06-10 真實實作（取代 stub）；回最新一筆 ai_results（含 `measurement_type`/`result`(envelope)/`primary_value`/`primary_unit`/`mask_url`=null）；尚未跑過→404 |
 
-**完整度**：9/11 完整實作，2/11 為 stub。
+**完整度**：11/11 完整實作（AI 兩端為整合層完整、端到端真實推論待 paddle 環境驗證）。
 
 ---
 
 ## 3. 測試覆蓋簡況
 
 ### 總覽
-- **總測試數**：66 個
+- **總測試數**：82 個
 - **執行方式**：`pytest tests/ -v`
 - **隔離機制**：記憶體 SQLite + monkeypatch 臨時 storage，每個測試獨立
 
@@ -115,17 +116,19 @@
 | 層級 | 檔案 | 測試數 | 風格 |
 |---|---|---|---|
 | 整合測試 | `tests/test_dicom_service.py` | 13 | 真實 SQLite 記憶體 DB + 臨時 storage（含 2026-05-15 series upsert / upload-creates-series 兩項 + 2026-05-19 duplicate detection 三項 + 2026-06-09 device tag 抽取兩項：有 tag / 無 tag null） |
-| API 測試 | `tests/test_query_api.py` | 29 | TestClient + mock `db_service`（含 2026-05-15 加的 /studies/{id}/series 與 /series/{id}/instances 各 4 cases） |
+| API 測試 | `tests/test_query_api.py` | 31 | TestClient + mock `db_service`（含 /studies/{id}/series 與 /series/{id}/instances 各 4；2026-06-10 AI 兩端真實實作：segment 422/501/200/503/404、result 命中/未跑 404/instance 404，引擎走 DI fake 不碰 paddle） |
 | ORM 測試 | `tests/test_ai_result_model.py` | 6 | 純 SQLAlchemy model 層（task #10：CRUD + nullable + relationship；2026-06-09：measurement_type default + result_json round-trip + 新欄 nullable） |
 | 單元測試 | `tests/test_validators.py` | 9 | 純邏輯，無 DB / HTTP |
-| 單元測試 | `tests/test_measurement_type.py` | 9 | MeasurementType resolver（known/unknown/missing device、whitespace 正規化、空 production map、enum str、ImageContentResolver stub） |
+| 單元測試 | `tests/test_measurement_type.py` | 13 | MeasurementType resolver（model-only key、known/unknown/missing、whitespace 正規化、manufacturer 缺值仍命中、production map C62→excursion/L154→thickness、enum str、ImageContentResolver stub） |
+| 單元測試 | `tests/test_ai_engine.py` | 10 | AI engine 抽象層（serialize envelope / primary value-unit / engine guard 不載 paddle / get_engine singleton） |
 
 ### 已覆蓋路徑
 - ✅ DICOM 上傳完整流程（解析 / 儲存 / DB 寫入）
 - ✅ Patient / Study upsert 行為
 - ✅ Instance 建立行為
 - ✅ 所有查詢端點（成功、404、空集合）
-- ✅ AI stub 端點回傳格式
+- ✅ AI 端點真實流程（resolver 分支 422/501、引擎成功寫入、503 不可用；fake engine 注入）
+- ✅ AI engine 抽象層（envelope 序列化、guard、factory）
 - ✅ 驗證層所有規則（必填、Modality 白名單）
 
 ### 尚未覆蓋的路徑
@@ -171,10 +174,10 @@
 - [x] **`AIResult` model + Alembic migration `91725486ef55`**（task #10、2026-05-19）— schema scaffolding only；PLAN §9.3 完整實作；3 個 ORM-level test 涵蓋 CRUD + nullable + relationship
 - [x] **AI source vendoring (task #11 prep、2026-06-06)** — peter88510/diaphragm_excursion @ `6139799` (2026-06-05) snapshot vendored 進 `./AI/`；paddleseglibs/ + model weights gitignore；`requirements-ai.txt` (13 deps) 拆出；README 加 setup 章節
 - [x] **Schema 對齊 + Measurement Type resolver 架構**（2026-06-09、設計 `.work/ai_result_design.md`）— 裁示方案：統一 header + JSON payload（`ai_results` +`measurement_type`/`result_json`(JSONB)/`primary_value`/`primary_unit`；新增量測類型零 migration）。`instances` +`device_manufacturer`/`device_model`（上傳時抽、懶解析）。`services/measurement_type.py` plugin 架構（MVP MachineModelResolver、未來可換 ImageContentResolver）。Alembic `7f3c9a2b1d04` additive。66 tests 全綠。**endpoint 仍 stub**
-- [ ] `ai_service.py` wrapper — `AI.main.run(...) → FrameResult[]` → `result_json` envelope + `primary_value`、`AIResult` 寫入流程；推論引擎工程師親接、本層為整合 surface（待決定 #14：同 process import vs subprocess）
-- [ ] `/ai/segment/{id}` 真實實作（覆蓋現有 stub）— resolver 解析 measurement_type（unknown→422 / thickness→501）→ map AI Phase → 跑模型 → 寫 ai_results；response 加 `measurement_type`
-- [ ] `/ai/result/{id}` + `/ai/result/{id}/mask` 實作（覆蓋現有 stub；mask = viz overlay PNG）
-- [ ] 前端 mask overlay 渲染 — ⏸ 等真實 AI endpoint 接通後才派 dispatch
+- [x] **AI engine wrapper（`services/ai_engine/`）+ `/ai/segment`·`/ai/result` 真實實作**（2026-06-10）— 可替換式 `DiaphragmEngine` ABC + paddle `DiaphragmExcursionEngine`（#14 同 process import、lazy、缺 paddle→503）+ serialize → design §4 envelope + `get_engine()` factory；resolver 接通（C62→excursion / L154→thickness、unknown 422 / thickness 501）；ai_results 寫入 + 查詢。82 tests 全綠（fake-engine 注入）。**端到端真實推論待工程師裝 paddle+weights 驗證**
+- [ ] `/ai/result/{id}/mask` — mask = viz overlay PNG endpoint（本輪未做；engine 已預留 `mask_path`，需開 `viz.save_final` 或專用 render 路徑）
+- [ ] **Realtime 串流 demo endpoint**（候選）— REALTIME mode 逐 frame 推 excursion + video artifact；正解活在 run-loop state（run() 不回傳）→ 需另設 streaming endpoint，工程師 territory
+- [ ] 前端 mask overlay / 量測結果渲染 — ⏸ 等真實 AI endpoint 端到端驗證後才派 dispatch
 
 ### Phase 4：收尾（PLAN §12、§13）
 - [ ] Sample anonymized DICOM 測試資料準備
@@ -186,10 +189,8 @@
 
 > 以下為「知道缺、但尚未排入近期計畫」的項目。納入 PLAN.md 後即升格為「下一步」。
 
-### 6.1 AI 分割功能（業務）
-- **缺什麼**：`/ai/segment/{id}` 與 `/ai/result/{id}` 目前是 stub，無實際分割邏輯、無結果儲存表、無任務佇列
-- **什麼時候會痛**：當前端 / 客戶要求 AI 結果可用時，整條鏈都缺
-- **相依**：分割模型、結果 schema 設計、任務佇列（Celery / RQ）的選型
+### 6.1 AI 量測功能（業務）
+> ✅ **整合層已完成（2026-06-10）**：`/ai/segment`·`/ai/result` 真實實作、ai_results 寫入/查詢、可替換式 engine（design §4 envelope）。**剩餘缺口**：① 端到端真實推論需工程師在 dev 裝 paddle+model weights 驗證（66-test 不涵蓋） ② thickness 演算法本體未存在（L154 目前 501 forward-design） ③ mask PNG endpoint + 前端 overlay 渲染 ④ realtime 串流 demo endpoint（候選）。任務佇列（Celery / RQ）MVP 階段不需（同步 LEGACY 已足）。本條保留追蹤剩餘缺口。
 
 ### 6.2 Database Migration 框架（基礎設施）
 > ✅ **已完成（2026-05-12）**。Alembic 已導入，baseline migration 涵蓋現有四表，upgrade/downgrade 雙向驗證通過。後續所有 schema 變更走 migration script（CLAUDE.md §12 強制）。本條保留以供歷史追溯。
@@ -268,7 +269,12 @@ MedPACS Intelligence Platform/
 │   ├── db_service.py                # 資料庫 CRUD 服務
 │   ├── storage.py                   # 檔案儲存服務介面
 │   ├── storage_backend.py           # 儲存後端實作（Local / S3 預留）
-│   └── measurement_type.py          # MeasurementType enum + Resolver plugin（2026-06-09）
+│   ├── measurement_type.py          # MeasurementType enum + Resolver plugin（2026-06-09；key model-only 2026-06-10）
+│   └── ai_engine/                   # AI 推論引擎抽象層（可替換式、2026-06-10）
+│       ├── __init__.py              # get_engine() factory（唯一替換點）+ re-export
+│       ├── base.py                  # DiaphragmEngine ABC + EngineResult/Measurement + Errors
+│       ├── diaphragm_excursion_engine.py  # paddle wrapper（lazy import AI.main.run）
+│       └── serialize.py             # EngineResult → result_json envelope（design §4）
 │
 ├── alembic.ini                      # Alembic 設定（credentials 由 env.py 注入）
 ├── alembic/                         # DB migration 目錄
@@ -292,7 +298,8 @@ MedPACS Intelligence Platform/
 │   ├── test_dicom_service.py        # 整合測試（8 個）
 │   ├── test_query_api.py            # API 端點測試（29 個）
 │   ├── test_ai_result_model.py      # AIResult ORM 測試（6 個、task #10 + 2026-06-09 量測欄）
-│   ├── test_measurement_type.py     # MeasurementType resolver 單元測試（9 個、2026-06-09）
+│   ├── test_measurement_type.py     # MeasurementType resolver 單元測試（13 個、2026-06-10 model-only key）
+│   ├── test_ai_engine.py            # AI engine 抽象層測試（10 個、2026-06-10、不載 paddle）
 │   └── test_validators.py           # 驗證單元測試（9 個）
 │
 ├── storage/                         # 本地 DICOM 檔案儲存（runtime 自動建立）

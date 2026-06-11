@@ -10,7 +10,7 @@ status: "update"
 
 A two-tier system for ultrasound DICOM workflow:
 
-- **Backend** — FastAPI + PostgreSQL + SQLAlchemy + pydicom. DICOM upload, parsing, validation, persistence, and stub AI inference endpoints.
+- **Backend** — FastAPI + PostgreSQL + SQLAlchemy + pydicom. DICOM upload, parsing, validation, persistence, and AI measurement endpoints (diaphragm excursion, paddle; real inference needs the AI runtime — see Step 7).
 - **Frontend** — React 19 + Vite + TypeScript + CornerstoneJS. Single-page DICOM viewer with metadata panel and AI overlay.
 
 > See [`docs/PLAN.md`](./docs/PLAN.md) for MVP scope and roadmap, [`PROGRESS.md`](./PROGRESS.md) for current status.
@@ -23,7 +23,7 @@ A two-tier system for ultrasound DICOM workflow:
 - Modality whitelist (`US` only)
 - Local file storage (hierarchical by `PatientID` → `StudyInstanceUID`)
 - PostgreSQL persistence with Alembic migrations
-- Stub AI segmentation endpoints (real inference is Phase 3)
+- AI measurement endpoints (`/ai/segment`, `/ai/result`) — swappable engine layer wrapping the vendored `./AI` diaphragm pipeline; end-to-end inference needs the AI runtime (Step 7)
 - CORS middleware for `http://localhost:5173` dev origin
 
 ### Frontend (Phase 2, in progress)
@@ -308,8 +308,9 @@ Expected: `[done] N frames, ..., excursion_runs=M` log line with `excursion_cm` 
 in the 1-7 cm range (typical diaphragm range). See [`AI/README.md`](./AI/README.md) §3
 for full Quick Start.
 
-> Backend integration (`/ai/segment/{id}` real implementation calling `AI.main`) is
-> the next Phase 3 task; see PROGRESS §5 Phase 3 and `docs/PLAN.md` §9.
+> Backend integration is done (2026-06-10): `/ai/segment/{id}` calls `AI.main.run`
+> via the swappable `services/ai_engine` layer. Once this AI runtime is installed,
+> `/ai/segment` runs real inference; otherwise it returns 503. See PROGRESS §5 Phase 3.
 
 ## Frontend Overview
 
@@ -484,11 +485,18 @@ Returns all metadata fields for the specified instance.
 { "detail": "Instance with id 99 not found" }
 ```
 
-## AI Endpoints (Stub)
+## AI Endpoints
+
+> Real integration layer since 2026-06-10 (replaces the previous stubs). The
+> **end-to-end inference** requires the AI runtime (paddle + model weights, see
+> [Step 7](#step-7-optional--ai-inference-setup-phase-3-prep)); without it
+> `/ai/segment` returns **503**. The measurement type is resolved from the DICOM
+> device model (`ManufacturerModelName`): `C62` → excursion, `L154` → thickness.
 
 ### POST /ai/segment/{id}
 
-Triggers AI segmentation for the specified instance. Currently implemented as a stub.
+Runs diaphragm measurement for the instance (synchronous, LEGACY mode) and writes
+a row into `ai_results`.
 
 | Parameter | Type | Description |
 |---|---|---|
@@ -497,18 +505,22 @@ Triggers AI segmentation for the specified instance. Currently implemented as a 
 **Response (200 OK):**
 
 ```json
-{ "instance_id": 1, "status": "queued", "message": "Segmentation job accepted (stub)" }
+{ "instance_id": 1, "ai_result_id": 42, "status": "completed",
+  "measurement_type": "excursion", "primary_value": 2.31, "primary_unit": "cm",
+  "measurement_count": 1 }
 ```
 
-**Response (404 Not Found):**
-
-```json
-{ "detail": "Instance with id 99 not found" }
-```
+| Status | When |
+|---|---|
+| 422 | Device model not in the machine-model map (cannot resolve type — refuses to guess) |
+| 501 | Thickness measurement (forward-design; algorithm not implemented) |
+| 503 | AI runtime deps not installed (install `requirements-ai.txt` + Step 7) |
+| 500 | Inference attempted but failed (an `error` row is recorded) |
+| 404 | Instance not found |
 
 ### GET /ai/result/{id}
 
-Returns the AI segmentation result for the specified instance. Currently implemented as a stub.
+Returns the latest AI result for the instance.
 
 | Parameter | Type | Description |
 |---|---|---|
@@ -517,10 +529,17 @@ Returns the AI segmentation result for the specified instance. Currently impleme
 **Response (200 OK):**
 
 ```json
-{ "instance_id": 1, "status": "completed", "result": { "mask": "stub_mask_data", "confidence": 0.95 } }
+{ "instance_id": 1, "ai_result_id": 42, "status": "completed",
+  "measurement_type": "excursion", "model_name": "diaphragm_excursion",
+  "model_version": "6139799", "primary_value": 2.31, "primary_unit": "cm",
+  "confidence": null, "mask_url": null,
+  "result": { "schema_version": 1, "measurements": [ ... ], "primary": { ... } },
+  "error_message": null, "created_at": "..." }
 ```
 
-**Response (404 Not Found):**
+> `mask_url` is currently `null` — the mask PNG endpoint is a downstream task.
+
+**Response (404 Not Found):** instance missing, or no AI result yet (run `POST /ai/segment/{id}` first).
 
 ```json
 { "detail": "Instance with id 99 not found" }
