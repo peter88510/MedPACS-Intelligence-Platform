@@ -24,12 +24,13 @@
 ### 系統現況（2026-06-11）
 
 - **定位**：AI-ready Ultrasound DICOM 平台 MVP（非完整 PACS 替代）
-- **階段**：**Phase 3 AI 整合 — 端到端已打通** — AIResult schema/resolver ✅(0961366) + 後端分層 ✅(dc0584c) + **AI engine 整合層 + `/ai/segment`·`/ai/result` 真實實作 ✅(2026-06-10、`e934025`)** + **端到端真實推論驗證 ✅(2026-06-11、200 OK + ai_results 寫入)**；82 tests 全綠。**下一步主軸**：AI 整合介面瘦身（facade re-vendor、Option 1、契約 `docs/ai_inference_contract.md`）→ 等上游 `inference.py` → re-vendor + engine 簡化；其後 mask PNG endpoint + 前端接數值。工程師親接 AI 演算法、主 Agent 接整合層
+- **階段**：**Phase 3 AI 整合 — 端到端打通 + facade 瘦身 + GPU 提速完成** — AI engine 整合層 ✅(2026-06-10、`e934025`) + 端到端驗證 ✅(2026-06-11) + **facade re-vendor @`5340456` ✅(`8f15e18`) + engine 簡化接 facade ✅(`bca26ab`、~250→~150 行) + GPU 環境 `medpacs_gpu` ✅**；82 tests 全綠。**剩**：Phase 2b trim(viz/tools/experiments/font + 砍 visualdl、需 GPU env 實測) + startup warmup（皆保留）→ 其後 mask PNG endpoint + 前端接數值。工程師親接 AI 演算法、主 Agent 接整合層
 - **Backend**：FastAPI + PostgreSQL + SQLAlchemy + pydicom，**11 個 API endpoints 全完整**（AI 兩端 2026-06-10 真實實作、端到端 2026-06-11 驗證）；分層：main.py=API root / `core/` 設定 / `db/` session / `models/` ORM / `services/`(db_service+storage+storage_backend+measurement_type+**ai_engine/**) / `validation/`；DB schema 5 tables，`ai_results` +4 量測欄、`instances` +2 device 欄；`/upload` 抽 Manufacturer/ModelName + dedup
 - **CORS**：✅ dev allow `http://localhost:5173`（Vite default）
 - **驗證層**：6 個必填欄位全部就位（PatientID / StudyInstanceUID / SeriesInstanceUID / SOPInstanceUID / Modality / PixelData）+ Modality 白名單（US）
 - **Frontend**：✅ **完整 SPA E2E 可用** — React 19 + Vite 8 + TS 6 + Cornerstone3D v4.22 + AppContext (5 fields + cascade) + Layout/TopBar/StudyList/MetadataPanel/AIPanel/DicomViewer 全業務元件 + API client + `VITE_API_BASE_URL` env var 制度。Stage C UX 缺口已解決
-- **AI 推論**：核心演算法 **已就緒**（vendored `./AI/` @ `6139799`）；MedPACS 整合層 **已完成 + 端到端驗證**（`services/ai_engine/` 可替換式 engine、paddle wrapper、resolver C62→excursion/L154→thickness、design §4 envelope）。**run_config 共用調參已接（Option A、tuning 100% 上游 run_config）**。剩維護性瘦身（facade）
+- **AI 推論**：核心演算法 vendored `./AI/` **@ `5340456`**（含上游 `inference.py` facade + `algorithm/single_frame.py`）；MedPACS 整合層 engine 改呼叫 `inference.analyze`（去 importlib hack/reach-in/numpy 正規化、接 warm segmenter）。tuning 100% 上游 `run_config`。resolver C62→excursion/L154→thickness、design §4 envelope
+- **執行環境**：**改用 conda `medpacs_gpu`**（clone 自 CLI `diaphragmalgo_env`、Python 3.10.18 + paddlepaddle-gpu 3.2.0/cu118 + 後端 web 依賴）— GPU 提速已驗證。舊 `.venv`(3.8/CPU paddle) 退役。啟動：`conda activate medpacs_gpu` → `uvicorn main:app --reload`；pytest 需 `PYTHONUTF8=1`（pytest.ini 中文、cp950 locale）
 - **測試**：82 個測試（單元 9 validators + 13 measurement_type + 10 ai_engine / 整合 13 / API 31 / ORM 6），in-memory SQLite + StaticPool 隔離；AI engine 走 DI fake、不碰 paddle。前端尚無測試套件
 - **儲存**：本地檔案系統（`storage/{patient}/{study}/{filename}.dcm`），已透過 `StorageBackend` 抽象預留 S3 接口
 - **DB Migration 工具**：✅ Alembic，baseline `20809e26d134` + Series `e25c80289a9c` + AIResult `91725486ef55` + measurement fields `7f3c9a2b1d04` (2026-06-09、instances +2 / ai_results +4) 共 4 個 migration；工程師已 `alembic upgrade head`、alembic_version = `7f3c9a2b1d04`
@@ -55,7 +56,7 @@
 | 2 | Sample DICOM 來源 | PLAN §14：① pydicom-data ② TCIA ③ 自製 synthetic | Phase 4 demo 之前要決定；可順帶用於驗證 §5.4 backfill |
 | 3 | README env var 稽核 | 是否需要在 §15.2 新規範生效後做一次補登 | 待工程師確認是否有遺漏的 env var |
 | 4 | 前端 UI/UX / 瀏覽器相容 / 效能 / 無障礙規範 | 列於 `frontend/CLAUDE.md` §11 待補清單 | task #9 SPA 已驗收，現有風格是「深色主題 + Cornerstone 黑底」；Phase 4 demo 前若有正式 UX 規格再補 |
-| 5 | venv Python 版本 | 目前 3.8.8（Anaconda），系統有 3.12.2；用戶將其降為低優先 | 不阻擋；等真的踩到 3.8 限制再重建 |
+| 5 | ~~venv Python 版本~~ | ✅ 已決 (2026-06-11)：踩到 3.8 限制（GPU paddle 3.2.0 無 cp38 wheel）→ 改用 conda `medpacs_gpu`(Python 3.10.18 + GPU paddle)。舊 .venv 退役 | — |
 | 6 | 後端 endpoint 補完計畫 | ✅ Series 兩 endpoints 已於 2026-05-15 補完 (`9967f71`)；剩 AI mask 真實 PNG（Phase 3 範圍） | 已解決 series 部分 |
 | 7 | ~~§5.4 backfill 走 (a) script 還是 (b) Alembic data migration~~ | ✅ 已決：(a) 一次性 script (2026-05-18) | — |
 | 8 | ~~§5.4 (c) instance ID gap 處理深度~~ | ✅ 已決：PostgreSQL SERIAL 設計、不是 bug、不修 transaction handling；連帶 issue「upload 缺 duplicate detection」記 §6.12 | — |
@@ -63,7 +64,7 @@
 | 10 | 系統架構優先項目排序 | 工程師回歸 + AI vendoring 完成、進入 Phase 3 整合主線；其他候選 (§6.3 logging / Production / §6.14 Conflict UI / PLAN §14 跳過) 暫降權 | 整合完成後再回看 |
 | 13 | ~~Phase 3 Schema 對齊：AIResult excursion_cm 怎麼存~~ | ✅ 已決 (2026-06-09)：統一 header + JSON payload — `ai_results` +`measurement_type`/`result_json`(JSONB)/`primary_value`/`primary_unit`；新增量測類型零 migration。設計 `.work/ai_result_design.md` | — |
 | 14 | ~~ai_service.py 執行模型~~ | ✅ 已決 + 已實作 + 已驗證 (2026-06-10/11)：(a) 同 process import（lazy、缺 paddle→503）。run_config 共用調參走 Option A | — |
-| 15 | AI 整合介面瘦身策略 | ✅ 已決 (2026-06-11)：Option 1 上游 facade `inference.py` + re-vendor；tuning 100% 上游 run_config。契約 `docs/ai_inference_contract.md` | 等上游實作 inference.py |
+| 15 | ~~AI 整合介面瘦身策略~~ | ✅ 已決 + 已落地 (2026-06-11)：Option 1 上游 facade `inference.py` + re-vendor @`5340456` + engine 簡化。剩 Phase 2b trim + startup warmup（保留） | — |
 | 11 | ~~init_db/alembic race condition 根治時機 (§6.13)~~ | ✅ 已決 (2026-05-19)：方案 A、拿掉 startup_event 的 init_db() 呼叫、conftest 不動 | — |
 | 12 | §6.14 Conflict resolution UI / replace endpoint 何時實作 | §6.12 dedup 完成留下；需要 admin 概念 → 必須先做 §6.4 auth；MVP 階段不在 scope | 等 §6.4 auth 階段一起做 |
 
@@ -157,6 +158,19 @@
   4. **評估後端補完**：依前端回報的後端需求（最可能：`/studies/{id}/series` + `/series/{id}/instances`）決定是否派 backend task
   5. **派 Phase 2 task #9 dispatch**：API client + AppContext + 4 業務元件 + `VITE_API_BASE_URL` env var 制度
   6. **修 `frontend/PROGRESS.md` lines 5, 64 的 `./IMPLEMENTATION.md` stale link**（→ `./docs/IMPLEMENTATION.md`）— 屬前端 Agent territory，但若前端 Agent 沒順手修，下次 session 可標 §9.5 結構性修正例外動一下並在 commit message 註明
+
+---
+
+### 2026-06-11 session 結尾狀態（續：facade re-vendor + engine 簡化 + GPU 環境收斂）
+
+- **接續同日**：契約交付上游後，上游 agent 完成 facade（commits `8f15e18`/`bca26ab`/`972ae4e`、本機 commit）：
+  1. **re-vendor @`5340456`**（`8f15e18`）：clone 上游 diff（自基準 `6139799`，僅 8 檔變動）→ file-level copy 進 `./AI/`（保留 gitignored paddleseglibs/weights/run_config.py）。新增 `inference.py`(facade) + `algorithm/single_frame.py`(抽核心)；`main.py` 改薄包；`paddleseg_segmenter.py` +`configure_output`(warm)。facade 回全 native 型別
+  2. **engine 簡化**（`bca26ab`）：`DiaphragmExcursionEngine` 改呼叫 `inference.analyze`，~250→~150 行；去 importlib hack/`_build_bundle` reach-in/numpy 正規化；接 warm segmenter（lazy `prepare_segmenter()` 載一次重用）。82 tests 綠
+  3. **requirements-ai GPU 調整**（`972ae4e`）：移除 CPU paddle 行、改 GPU 分裝指引 + Python 3.10 註記
+- **GPU 環境收斂（重大）**：診斷出 per-frame 慢主因 = `.venv` paddle 是 **CPU-only build**（`compiled_with_cuda=False`）。CLI 原系統 = Python 3.10.18 + paddle-gpu 3.2.0/cu118。GPU paddle 3.2.0 無 cp38 wheel → 不能只換 paddle、.venv(3.8) 不可用。**解法**：`conda create --clone diaphragmalgo_env`(CLI 的 GPU env) → `medpacs_gpu` + 裝後端 web 依賴(requirements.txt)。GPU 提速經 `/ai/segment/12` 驗證。解掉待決定 #5
+- **踩雷補充**：① clone repo 在 Windows 撞 git "dubious ownership" → `safe.directory` 例外 ② GPU paddle 不在一般 PyPI、要走 paddle 官方 index(cu118)；cu118 能在本機 CUDA 12.0 driver 上跑（向下相容）
+- **保留未做**：startup warmup（消第一次 cold start、~10 行）、Phase 2b trim（砍 viz/tools/experiments/font + 測 visualdl 等能否移除、需 GPU env 實測）
+- **下次起手**：① 決定 startup warmup ② Phase 2b trim ③ mask PNG endpoint(`/ai/result/{id}/mask`，engine 已預留 mask_path + facade `save_mask_dir`) ④ 前端 AIPanel 接真實量測數值
 
 ---
 
