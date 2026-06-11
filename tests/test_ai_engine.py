@@ -98,7 +98,9 @@ def test_engine_missing_file_raises_before_loading_ai():
 def test_engine_metadata():
     engine = DiaphragmExcursionEngine()
     assert engine.model_name == "diaphragm_excursion"
-    assert engine.model_version == "6139799"
+    # model_version 改由 facade(inference.MODEL_VERSION) 提供；未載入前回 "unknown"
+    # （載入需 paddle，不在單元測試範圍）。
+    assert engine.model_version == "unknown"
 
 
 # --- factory ---
