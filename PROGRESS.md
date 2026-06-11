@@ -174,10 +174,12 @@
 - [x] **`AIResult` model + Alembic migration `91725486ef55`**（task #10、2026-05-19）— schema scaffolding only；PLAN §9.3 完整實作；3 個 ORM-level test 涵蓋 CRUD + nullable + relationship
 - [x] **AI source vendoring (task #11 prep、2026-06-06)** — peter88510/diaphragm_excursion @ `6139799` (2026-06-05) snapshot vendored 進 `./AI/`；paddleseglibs/ + model weights gitignore；`requirements-ai.txt` (13 deps) 拆出；README 加 setup 章節
 - [x] **Schema 對齊 + Measurement Type resolver 架構**（2026-06-09、設計 `.work/ai_result_design.md`）— 裁示方案：統一 header + JSON payload（`ai_results` +`measurement_type`/`result_json`(JSONB)/`primary_value`/`primary_unit`；新增量測類型零 migration）。`instances` +`device_manufacturer`/`device_model`（上傳時抽、懶解析）。`services/measurement_type.py` plugin 架構（MVP MachineModelResolver、未來可換 ImageContentResolver）。Alembic `7f3c9a2b1d04` additive。66 tests 全綠。**endpoint 仍 stub**
-- [x] **AI engine wrapper（`services/ai_engine/`）+ `/ai/segment`·`/ai/result` 真實實作**（2026-06-10）— 可替換式 `DiaphragmEngine` ABC + paddle `DiaphragmExcursionEngine`（#14 同 process import、lazy、缺 paddle→503）+ serialize → design §4 envelope + `get_engine()` factory；resolver 接通（C62→excursion / L154→thickness、unknown 422 / thickness 501）；ai_results 寫入 + 查詢。82 tests 全綠（fake-engine 注入）。**端到端真實推論待工程師裝 paddle+weights 驗證**
-- [ ] `/ai/result/{id}/mask` — mask = viz overlay PNG endpoint（本輪未做；engine 已預留 `mask_path`，需開 `viz.save_final` 或專用 render 路徑）
+- [x] **AI engine wrapper（`services/ai_engine/`）+ `/ai/segment`·`/ai/result` 真實實作**（2026-06-10）— 可替換式 `DiaphragmEngine` ABC + paddle `DiaphragmExcursionEngine`（#14 同 process import、lazy、缺 paddle→503）+ serialize → design §4 envelope + `get_engine()` factory；resolver 接通（C62→excursion / L154→thickness、unknown 422 / thickness 501）；ai_results 寫入 + 查詢。82 tests 全綠（fake-engine 注入）。commit `e934025`/`22101af`/`f7f16de`
+- [x] **端到端真實推論驗證 + run_config 共用調參**（2026-06-11）— 工程師裝 paddle+weights，`POST /ai/segment/12` 跑完 150-frame model → **200 OK + ai_results 寫入**。途中修：① requirements-ai 缺 paddleseg 相依(pyyaml/visualdl/filelock/requests) + cp950 encoding ② 邊界 numpy→native 正規化(result_json JSON-serializable) ③ engine `_build_bundle` 接 `run_config.build_bundle()`（Option A：tuning 100% 上游 run_config、API 強制 LEGACY/viz-off）。整合 Option A 已驗證
+- [ ] **AI 整合介面瘦身（facade re-vendor、Option 1）** — 上游 `diaphragm_excursion` repo 加 `inference.py` 乾淨入口（契約 `docs/ai_inference_contract.md`、commit pending）→ re-vendor(trim viz/tools/experiments/font) → engine 簡化(去 importlib hack + reach-in + numpy 正規化、~250→十幾行)。Phase 0 契約✅ / Phase 1 上游實作⏳ / Phase 2 re-vendor⏸ / Phase 3 engine 簡化⏸
+- [ ] `/ai/result/{id}/mask` — mask PNG endpoint（engine 預留 `mask_path`；與 facade `save_mask_dir` 合一設計，見契約 §4.3）
 - [ ] **Realtime 串流 demo endpoint**（候選）— REALTIME mode 逐 frame 推 excursion + video artifact；正解活在 run-loop state（run() 不回傳）→ 需另設 streaming endpoint，工程師 territory
-- [ ] 前端 mask overlay / 量測結果渲染 — ⏸ 等真實 AI endpoint 端到端驗證後才派 dispatch
+- [ ] 前端 mask overlay / 量測結果渲染 — ⏸ 數值層可先接（後端已就緒）、mask overlay 等 mask endpoint
 
 ### Phase 4：收尾（PLAN §12、§13）
 - [ ] Sample anonymized DICOM 測試資料準備
@@ -190,7 +192,7 @@
 > 以下為「知道缺、但尚未排入近期計畫」的項目。納入 PLAN.md 後即升格為「下一步」。
 
 ### 6.1 AI 量測功能（業務）
-> ✅ **整合層已完成（2026-06-10）**：`/ai/segment`·`/ai/result` 真實實作、ai_results 寫入/查詢、可替換式 engine（design §4 envelope）。**剩餘缺口**：① 端到端真實推論需工程師在 dev 裝 paddle+model weights 驗證（66-test 不涵蓋） ② thickness 演算法本體未存在（L154 目前 501 forward-design） ③ mask PNG endpoint + 前端 overlay 渲染 ④ realtime 串流 demo endpoint（候選）。任務佇列（Celery / RQ）MVP 階段不需（同步 LEGACY 已足）。本條保留追蹤剩餘缺口。
+> ✅ **整合層完成 + 端到端已驗證（2026-06-11）**：`/ai/segment`·`/ai/result` 真實實作、ai_results 寫入/查詢、可替換式 engine（design §4 envelope）；工程師 dev 裝 paddle+weights、`POST /ai/segment` 跑出真實 excursion → 200 OK。**剩餘缺口**：① AI 整合介面瘦身（facade re-vendor、見 §5 + `docs/ai_inference_contract.md`） ② thickness 演算法本體未存在（L154 目前 501 forward-design） ③ mask PNG endpoint + 前端 overlay 渲染 ④ realtime 串流 demo endpoint（候選）。任務佇列（Celery / RQ）MVP 階段不需（同步 LEGACY 已足）。本條保留追蹤剩餘缺口。
 
 ### 6.2 Database Migration 框架（基礎設施）
 > ✅ **已完成（2026-05-12）**。Alembic 已導入，baseline migration 涵蓋現有四表，upgrade/downgrade 雙向驗證通過。後續所有 schema 變更走 migration script（CLAUDE.md §12 強制）。本條保留以供歷史追溯。
@@ -341,6 +343,7 @@ MedPACS Intelligence Platform/
 ├── docs/                            # 詳細文件（按需查閱、非啟動必讀）
 │   ├── PLAN.md                      # MVP 開發規劃
 │   ├── IMPLEMENTATION.md            # 系統架構（backend 內部 + frontend 摘要）
+│   ├── ai_inference_contract.md     # AI inference facade 契約（上游 inference.py 施工圖，2026-06-11）
 │   ├── generated/                   # 🤖 自動生成（禁人工編輯）
 │   │   ├── api_spec.md              # FastAPI routes（from main.py）
 │   │   └── db_schema.md             # DB schema（from models.py + alembic）

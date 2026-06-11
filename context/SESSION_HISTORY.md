@@ -21,16 +21,16 @@
 
 ## A. 系統現況快照（必讀，每次 session 啟動）
 
-### 系統現況（2026-06-09）
+### 系統現況（2026-06-11）
 
 - **定位**：AI-ready Ultrasound DICOM 平台 MVP（非完整 PACS 替代）
-- **階段**：**Phase 3 AI 整合進行中** — AIResult schema 對齊 + Measurement Type resolver ✅(2026-06-09、commit `0961366`)、**後端模組分層整頓** ✅(2026-06-09、commit `dc0584c`、core/db/models/services)、CLAUDE.md v1.3 ✅；66 tests 全綠。前置(SPA E2E / §5.4 backfill / §6.12 dedup / §6.13 / AI vendored @`6139799`)皆完成。**下一步主軸**：ai_service.py wrapper 執行模型(待決定 #14) + `/ai/segment`、`/ai/result` 真實實作(覆蓋 stub) + mask PNG endpoint；工程師親接 AI 演算法、主 Agent 接整合層
-- **Backend**：FastAPI + PostgreSQL + SQLAlchemy + pydicom，11 個 API endpoints 中 9 完整、2（`/ai/segment`、`/ai/result`）為 stub；**後端已分層(2026-06-09 dc0584c)**：main.py=API root / `core/` 設定 / `db/` session / `models/` ORM / `services/` (db_service+storage+storage_backend+measurement_type) / `validation/`；DB schema 5 tables，`ai_results` +4 量測欄(measurement_type/result_json JSONB/primary_value/primary_unit)、`instances` +2 device 欄(2026-06-09)；`/upload` 抽 Manufacturer/ModelName + dedup (idempotent 200 / 409 conflict)
+- **階段**：**Phase 3 AI 整合 — 端到端已打通** — AIResult schema/resolver ✅(0961366) + 後端分層 ✅(dc0584c) + **AI engine 整合層 + `/ai/segment`·`/ai/result` 真實實作 ✅(2026-06-10、`e934025`)** + **端到端真實推論驗證 ✅(2026-06-11、200 OK + ai_results 寫入)**；82 tests 全綠。**下一步主軸**：AI 整合介面瘦身（facade re-vendor、Option 1、契約 `docs/ai_inference_contract.md`）→ 等上游 `inference.py` → re-vendor + engine 簡化；其後 mask PNG endpoint + 前端接數值。工程師親接 AI 演算法、主 Agent 接整合層
+- **Backend**：FastAPI + PostgreSQL + SQLAlchemy + pydicom，**11 個 API endpoints 全完整**（AI 兩端 2026-06-10 真實實作、端到端 2026-06-11 驗證）；分層：main.py=API root / `core/` 設定 / `db/` session / `models/` ORM / `services/`(db_service+storage+storage_backend+measurement_type+**ai_engine/**) / `validation/`；DB schema 5 tables，`ai_results` +4 量測欄、`instances` +2 device 欄；`/upload` 抽 Manufacturer/ModelName + dedup
 - **CORS**：✅ dev allow `http://localhost:5173`（Vite default）
 - **驗證層**：6 個必填欄位全部就位（PatientID / StudyInstanceUID / SeriesInstanceUID / SOPInstanceUID / Modality / PixelData）+ Modality 白名單（US）
 - **Frontend**：✅ **完整 SPA E2E 可用** — React 19 + Vite 8 + TS 6 + Cornerstone3D v4.22 + AppContext (5 fields + cascade) + Layout/TopBar/StudyList/MetadataPanel/AIPanel/DicomViewer 全業務元件 + API client + `VITE_API_BASE_URL` env var 制度。Stage C UX 缺口已解決
-- **AI 推論**：核心演算法 **已就緒**（工程師親接、vendored 進 `./AI/`、snapshot @ `6139799`）；MedPACS 整合層（ai_service.py wrapper + endpoint 真實實作）仍待做
-- **測試**：66 個測試（單元 9 validators + 9 measurement_type resolver / 整合 13 / API 29 / ORM 6），in-memory SQLite + StaticPool 隔離。前端尚無測試套件
+- **AI 推論**：核心演算法 **已就緒**（vendored `./AI/` @ `6139799`）；MedPACS 整合層 **已完成 + 端到端驗證**（`services/ai_engine/` 可替換式 engine、paddle wrapper、resolver C62→excursion/L154→thickness、design §4 envelope）。**run_config 共用調參已接（Option A、tuning 100% 上游 run_config）**。剩維護性瘦身（facade）
+- **測試**：82 個測試（單元 9 validators + 13 measurement_type + 10 ai_engine / 整合 13 / API 31 / ORM 6），in-memory SQLite + StaticPool 隔離；AI engine 走 DI fake、不碰 paddle。前端尚無測試套件
 - **儲存**：本地檔案系統（`storage/{patient}/{study}/{filename}.dcm`），已透過 `StorageBackend` 抽象預留 S3 接口
 - **DB Migration 工具**：✅ Alembic，baseline `20809e26d134` + Series `e25c80289a9c` + AIResult `91725486ef55` + measurement fields `7f3c9a2b1d04` (2026-06-09、instances +2 / ai_results +4) 共 4 個 migration；工程師已 `alembic upgrade head`、alembic_version = `7f3c9a2b1d04`
 - **DB 資料狀態（2026-05-18 backfill 後）**：1 study + 1 series + 8 instances 全部 link 到 series 1 (uid `...593537`)；orphan count=0。Instance ID gap [2, 5] 已澄清為 PostgreSQL SERIAL sequence 在 IntegrityError rollback 後不 reset 的正常設計（不是 bug）。連帶發現 upload pipeline 缺 graceful duplicate detection → 新 known issue PROGRESS §6.12
@@ -42,9 +42,9 @@
 
 ### 進行中的任務
 
-- 無 in-flight 程式碼修改（主 Agent 端）
-- **前端**：task #9 已完成；目前無 active 前端 dispatch（`frontend/context/DISPATCH.md` status: completed）。下個前端 dispatch 等系統架構 / Phase 3 backend scaffolding 推進後才派（前端 AIPanel mask overlay 真實渲染等工程師接好真實 AI endpoint 後才動）
-- **主 Agent 下一步**：Schema 對齊(#13)✅ + 後端分層✅ 完成。剩 Phase 3 整合：① `ai_service.py` wrapper 執行模型(待決定 #14、推薦同 process import) ② `/ai/segment/{id}` 真實實作(resolver→AI Phase→寫 ai_results；unknown→422 / thickness→501) ③ `/ai/result/{id}` + mask PNG ④ 前端 AIPanel 接 mask。**MACHINE_MODEL_MAP 仍空、待工程師填機型→量測類型對照表**。其他候選暫降權：§6.3 logging / Production / §6.14 Conflict UI
+- 無 in-flight 程式碼修改（主 Agent 端）；3 個本地 commit 未 push（`f7f16de`/`22101af`/`e934025`）+ facade 契約 commit（已 /commit）
+- **前端**：task #9 已完成；無 active 前端 dispatch。**現可派**：AIPanel 接真實 `/ai/segment`·`/ai/result`（數值層、後端已就緒）；mask overlay 等 mask PNG endpoint
+- **主 Agent 下一步（Phase 3 整合介面瘦身、Option 1）**：① ⏳ 等上游 `diaphragm_excursion` repo 依契約 `docs/ai_inference_contract.md` 實作 `inference.py`（工程師交付給上游 agent） ② 工程師貼 `inference.py` 進 `./AI/` → 主 Agent re-vendor（trim viz/tools/experiments/font、相依實測） ③ engine 簡化（去 importlib hack + `_build_bundle` reach-in + numpy 正規化）。其後：mask PNG endpoint（與 facade `save_mask_dir` 合一）、前端接數值
 - **R4 stale check 規則調整**（2026-05-16，工程師授權）：主 Agent 改為 per-Read inline、active phase 不再做 blanket per-session 全掃；不動 CLAUDE.md 文字（仍符合 §10 R4 letter）
 
 ### 待決定事項
@@ -62,7 +62,8 @@
 | 9 | AI 真實功能何時接 | 工程師裁示「優先序低、系統架構完工後再接、由工程師親自串接」（2026-05-18） | 不再阻擋；Phase 3 backend scaffolding 仍可做但不接 PyTorch |
 | 10 | 系統架構優先項目排序 | 工程師回歸 + AI vendoring 完成、進入 Phase 3 整合主線；其他候選 (§6.3 logging / Production / §6.14 Conflict UI / PLAN §14 跳過) 暫降權 | 整合完成後再回看 |
 | 13 | ~~Phase 3 Schema 對齊：AIResult excursion_cm 怎麼存~~ | ✅ 已決 (2026-06-09)：統一 header + JSON payload — `ai_results` +`measurement_type`/`result_json`(JSONB)/`primary_value`/`primary_unit`；新增量測類型零 migration。設計 `.work/ai_result_design.md` | — |
-| 14 | ai_service.py 執行模型 | (a) 同 process import (PLAN §9.1 同步、最快) / (b) subprocess 隔離 / (c) worker queue (PLAN §3 Non-goal) | 起手前確認；推薦 (a) |
+| 14 | ~~ai_service.py 執行模型~~ | ✅ 已決 + 已實作 + 已驗證 (2026-06-10/11)：(a) 同 process import（lazy、缺 paddle→503）。run_config 共用調參走 Option A | — |
+| 15 | AI 整合介面瘦身策略 | ✅ 已決 (2026-06-11)：Option 1 上游 facade `inference.py` + re-vendor；tuning 100% 上游 run_config。契約 `docs/ai_inference_contract.md` | 等上游實作 inference.py |
 | 11 | ~~init_db/alembic race condition 根治時機 (§6.13)~~ | ✅ 已決 (2026-05-19)：方案 A、拿掉 startup_event 的 init_db() 呼叫、conftest 不動 | — |
 | 12 | §6.14 Conflict resolution UI / replace endpoint 何時實作 | §6.12 dedup 完成留下；需要 admin 概念 → 必須先做 §6.4 auth；MVP 階段不在 scope | 等 §6.4 auth 階段一起做 |
 
@@ -156,6 +157,27 @@
   4. **評估後端補完**：依前端回報的後端需求（最可能：`/studies/{id}/series` + `/series/{id}/instances`）決定是否派 backend task
   5. **派 Phase 2 task #9 dispatch**：API client + AppContext + 4 業務元件 + `VITE_API_BASE_URL` env var 制度
   6. **修 `frontend/PROGRESS.md` lines 5, 64 的 `./IMPLEMENTATION.md` stale link**（→ `./docs/IMPLEMENTATION.md`）— 屬前端 Agent territory，但若前端 Agent 沒順手修，下次 session 可標 §9.5 結構性修正例外動一下並在 commit message 註明
+
+---
+
+### 2026-06-11 session 結尾狀態（Phase 3 AI 整合端到端打通 + facade 契約定案）
+
+- **本 session 三段工作**：
+  1. **AI engine 整合層 + endpoint 真實實作**（commit `e934025`/`22101af`/`f7f16de`、工程師 /commit）：
+     - `services/ai_engine/`：抽象 `DiaphragmEngine` ABC + 平台中立 `EngineResult`/`Measurement` + paddle `DiaphragmExcursionEngine`（#14 同 process import；sys.path 插 AI/ + importlib 避 `main` 撞名；lazy、缺 paddle→`EngineUnavailableError`→503）+ serialize→design §4 envelope + `get_engine()` factory（DI 注入、測試換 fake）
+     - `main.py`：`/ai/segment` 真實流程（resolver→unknown 422 / thickness 501 / excursion·sniff 跑引擎 / EngineUnavailable 503 / 失敗留 error 列後 500）→ 寫 ai_results；`/ai/result` 回最新結果（未跑→404）
+     - `MACHINE_MODEL_MAP` 填 C62→excursion / L154→thickness（**key 改 model-only**，工程師裁示）；db_service `create_ai_result` + `get_latest_ai_result_by_instance`；82 tests 全綠
+  2. **端到端真實推論驗證**（工程師裝 paddle+weights、`POST /ai/segment/12` 跑完 150-frame model → 200 OK + ai_results 寫入）。途中三修：
+     - `requirements-ai.txt`：cp950 locale 下 pip 撞 UTF-8 破折號/§ → 改純 ASCII；補 paddleseg 漏列相依 `pyyaml`/`visualdl`/`filelock`/`requests`（module-level import）
+     - **numpy→native 正規化**：AI 回 np.int64/np.float64，`result_json`(JSONB) 走 json.dumps 不認 → engine 邊界 `_opt_int/_opt_float/_opt_point` 轉 native
+     - **run_config 共用調參（Option A）**：engine `_build_bundle` 以 `run_config.build_bundle()` 為基底 + 強制 API-safe（LEGACY/viz-off/save_predictions-off）。工程師修好 run_config.py bug 後驗證通過
+  3. **AI 整合介面瘦身決策（待決定 #15、Option 1）**：上游 `diaphragm_excursion` repo 加 `inference.py` facade + re-vendor；tuning 100% 上游 run_config。寫契約施工圖 `docs/ai_inference_contract.md`（git-track、已 /commit）交付上游 agent
+- **踩雷摘要（避免重蹈）**：
+  - **環境**：`.venv`(3.8.8) vs base anaconda 並存；裝套件 / 跑 server 要同一 python；`--reload` 不會因 pip 裝新套件而生效 → **裝套件後 server 必重啟**
+  - **cp950 encoding**：pip 讀 requirements / pytest 讀 ini，Windows locale 用 Big5 解 UTF-8 中文會炸；對策 ASCII 化或 `PYTHONUTF8=1`
+  - **整合 vendored 非 package**：AI/ 用 sys.path 絕對 import + `main` 撞名 → importlib hack（facade 落地後可消除）
+- **下次 session 起手（Phase 3 facade）**：等上游交付 `inference.py` → re-vendor（trim viz/tools/experiments/font、相依實測能否砍 visualdl 等）→ engine 簡化（~250→十幾行）。詳 `docs/ai_inference_contract.md` §5/§6
+- **commit 狀態**：4 個本地 commit 未 push（`f7f16de`/`22101af`/`e934025` + facade 契約）
 
 ---
 
