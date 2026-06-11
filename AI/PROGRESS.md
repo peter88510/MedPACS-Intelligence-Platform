@@ -223,6 +223,19 @@
 
 **Patch 13B（取消）**：原計畫把 paddle model 路徑搬出 `paddleseglibs/predict.py`；發現 `PaddleSegSegmenterConfig` 已將 `config_path / model_path / save_dir` 暴露為欄位，user 可直接 override，預設值放哪不影響使用體驗。
 
+### Step 12 — Inference facade（MedPACS 整合契約 `inference.py`）
+
+依 `docs/ai_inference_contract.md` 提供乾淨程式化入口；MedPACS 只呼叫一個 function 拿 native 結果。
+
+| Patch | 主題 | 狀態 |
+|---|---|---|
+| 29A | 抽單幀核心 `algorithm/single_frame.py::run_single_frame`；`main._run_single_frame` 改 viz/timing 薄包；`FrameResult` + `seg_mask` 欄位 | ✅ 落地（byte-identical，待實機驗證 LEGACY 等價） |
+| 29B | `inference.py` facade（`analyze` / `InferenceResult` / `ExcursionMeasurement` / `build_api_bundle` / `prepare_segmenter`）+ warm segmenter 注入（`PaddleSegSegmenter.configure_output`）+ 契約 v1.0→v1.1（§9 增補） | ✅ 落地，待實機 smoke |
+
+- **29A 設計**：核心去 viz/timing（timing 仍 duck-typed 續傳，per-stage 計時棧不變）；`pv.render_frame` + `pv_render` timing 留 main wrapper；`seg_mask` 經 `FrameResult` 帶出供 viz。core 不 import main（無循環依賴）。
+- **29B 設計（依用戶決策）**：(1) 共用核心抽到 `algorithm/`（非 import main underscore fn）；(2) `model_version` 用模組常數 `MODEL_VERSION="5adfeaa"`（vendored 後無 .git）；(3) warm segmenter — `prepare_segmenter()` service 啟動 load 一次，`analyze(segmenter=)` 注入重用，`configure_output` per-call 切 mask 輸出不重載；(4) 契約同步用「正本 + 有界 §9 增補 + 頂部指標行」，MedPACS agent 只讀 §9。
+- **未動**：`main.py` `run()` 主流程、三 mode dispatch、`_run_light_frame` 全不變。
+
 ---
 
 ## ✅ 已完成
@@ -292,16 +305,31 @@
   - **26D 即時性評估**：新加 §1 Realtime Assessment（頂部最關鍵）；目標 FPS（CLI `--fps`，預設 15）→ 預算 = 1000/FPS ms；平均/最壞 run 每幀 / Budget 使用率 / Margin / PASS-FAIL；超 budget 時結論句指明需減多少 ms/frame
   - **26E docs sync**：api_reference 0.12 → 0.13；INDEX bump
   - **限制標明**：真 per-frame P95/P99 需 per-frame timing schema（目前 jsonl 只存 per-stage 累計）；本版以「跨 run avg 最壞 run」當壞情況指標
+- Tooling — Patch 27：timing 分析棧 4 sub-patch（schema 升級 + 三層瓶頸視角）：
+  - **27C 假設情境**：CLI `--exclude <CSV>` → §1.1「假設量化後對照」（純算術扣除指定 stage total）；實機 `--exclude seg_predict` 顯示 79.6 ms FAIL → 35.6 ms PASS（margin +31.1 ms）；seg_predict 占 loop μ 55.3%
+  - **27A schema 1.0 → 1.1**：`main.py::_run_realtime` 每幀首 `frame_start = perf_counter()`，含 skip 幀都記，append 到 `per_frame_ms` list；`visualization/timing_record.py` 接 `per_frame_ms` 參數，jsonl row 多 `per_frame_ms` array；向後兼容（舊 reader 忽略未知欄位）；per-frame timer overhead < 1 μs/frame
+  - **27B per-frame 分佈**：§1.2 解析 schema 1.1 records → 分位數（平均/P50/P90/P95/P99/Max）+ 累計超出率桶（≤Budget / >Budget / >10%/>20%/>50%/>100%/>500%）+ Per-run 摘要；實機 6 runs / 894 frames 揭示 bimodal：79% ≤ Budget（light P50=38.7ms）vs 21% > Budget 且全 >100% over（heavy 必爆 2x budget）；P95=287ms 取代「最壞 run avg」當真壞情況指標
+  - **27D' 慢幀來源歸因**：§1.2.1 用 Layer per_frame heavy/light μ 為基準做 5 band 統計推論分類（Light 異常 / Heavy 邊緣 / Heavy 正常 / Heavy 慢 / 極端）；條件式結論句依各 band 佔比觸發；實機 188 slow frames 歸因：93.1% Heavy 正常 + 2.7% Heavy 慢 = 95.8% heavy 路徑（seg_predict 占 heavy μ 86%）；3.2% 極端 = paddle lazy init cold start（每 run 1 幀）；門檻：heavy_μ × [0.7, 1.3] = 正常區，× 3.0 = 慢上界，100ms 為 light 異常上界
+  - **三層瓶頸視角串連**：§1（整體 FAIL 79.6 ms）→ §1.1（假設 exclude seg_predict 後 PASS）→ §1.2.1（為什麼 exclude 就 PASS：96.8% 慢幀屬 heavy 路徑、seg_predict 占 heavy 86%）；報表從「描述」轉「驅動行動」
+  - **27D'/Patch 28 cold start 解析**：1.7s outlier 不是 model load（`segmenter.load()` 已在 `_run_realtime` 之前），是第一次 `predict()` 觸發 paddle CUDA graph compile / cudnn init 的 lazy init；解法：loop 前加 1 次 dummy `predict()` warmup（Patch 28 待做）
 
 ---
 
 ## 📝 待辦 / 後續 patch（先記下，不影響當前順序）
 
+- [ ] **Patch 29 實機 smoke**（下次 session，需 paddle env）：契約 §7（`analyze` 回 native、型別非 numpy、`json.dumps` 可序列化、`phase="bogus"`→ValueError、`save_mask_dir` 回實際 PNG）+ §9.4（`prepare_segmenter` warm 重用、第二次 analyze 無 "Load model cost"、mask 輸出 per-call 切換）。並驗 LEGACY 經 `inference.analyze` 與 `python main.py` 量測等價（29A byte-identical 確認）。
+- [ ] **Patch 29C docs sync**：`docs/notes/api_reference` 加 `inference.py` 公開 API 段（`analyze` / `prepare_segmenter` / 兩 result dataclass）+ `algorithm/single_frame.py` 抽核心 + `FrameResult.seg_mask` + `PaddleSegSegmenter.configure_output`；INDEX bump。
+- [ ] **Patch 28 paddle warmup** 與 `prepare_segmenter(warmup_image_path=)` 收斂：service 端 warmup 已由 facade 提供入口；REALTIME loop 內 warmup（消 1.7s outlier）仍待做。
+
 - [ ] **Patch 20B regression**：LEGACY mode 跑數張 frame，比對 `curve_fit_maxfev`=5000 vs 原 10M 的 `detection.best_region` / 選中 idx。20A 為 byte-identical（已實證）；20B 若某 frame 變動代表該擬合本需 >5000 evals，調高 `curve_fit_maxfev` 即可。順便重看 Layer detect `curve_fit` ms 降幅
 - [ ] **timing 跨 run 累積**：累積 ≥ 5 次 REALTIME run（不同 source / config），`output/timing/runs.jsonl` 會自動 append；之後跑 `python -m tools.timing_report` 產 `output/timing/report.md` 看跨 run 變異與趨勢
 - [ ] **pass1 內部優化**（Patch 24A 後續）：實測 pass1 `curve_fit` 仍 56-62 ms/call 為當前 detect 主熱點。優化方向（依優先序）：(1) `curve_fit_maxfev` 從 5000 再砍試（看 fit 是否頻繁觸頂）；(2) candidate `area_ratio` 下限收緊（減少 paddle 碎片進 curve_fit）；(3) paddle mask 後處理 morphological close 減少 connected components
 - [x] **Patch 25A 驗收**：跑 1-2 次 REALTIME 看 timing report 的 Layer detect `curve_fit.avg_ms` 是否大幅下降（多數 paddle 給單一 candidate → 多數 frame 走 short-circuit）；count 不變便於跨 run 對照（25A 完成，待 user 驗收實機效果）
-- [ ] **per-frame timing schema 升級**（Patch 27 候選）：目前 `runs.jsonl` 只有 per-stage 累計，無法算真 per-frame P95/P99；若要做精確即時性分析需 schema 升級為「per-frame ms list」。Trade-off：JSONL 體積大幅增加（150 frame × ~15 stage = ~2250 數字/run）vs P95/P99 / per-frame outlier 偵測能力
+- [x] **per-frame timing schema 升級**（Patch 27A）：schema 1.0 → 1.1 加 `per_frame_ms` array（150 floats / ~1.5 KB / run）；解鎖真 P95/P99 + 超出率桶（27B）+ 慢幀歸因（27D'）
+- [ ] **Patch 28 paddle warmup call**：`_run_realtime` 在 `loop_start` 之前加 1 次 dummy `segmenter.predict(seq.frames[0])` 觸發 paddle CUDA graph compile / cudnn lazy init；預期收益：§1.2.1「極端」帶 3.2% → 0、Max 從 1837ms → ~330ms、loop 內 timing 反映真穩態。Production streaming 也應預熱
+- [ ] **Patch 27E docs sync**：api_reference 0.13 → 0.14（27A schema 1.1 / 27B §1.2 分佈 / 27C `--exclude` / 27D' §1.2.1 歸因）+ INDEX bump + visualization/timing_record.py docstring 補 schema 1.1 註
+- [ ] **§1.2.1 header 5 band 範圍完整描述**（小改）：目前 header 只列「heavy 正常區 = heavy_μ × [0.7, 1.3]；heavy 慢上界 = heavy_μ × 3.0；light 異常上界 = 100 ms」三個常數；Heavy 邊緣（100 ~ heavy_μ × 0.7）與 極端（> heavy_μ × 3.0）兩個 band 範圍要讀者自己推導；補完整 5 band 範圍表更友善
+- [ ] **Schema 1.2 評估**（per-frame × per-stage matrix）：若 27D' 統計推論不夠（如想 drill 「特定壞幀哪 stage 拖累」）→ 升 schema 1.2，每幀記 `{stage: ms}`；體積估 ~150 frame × ~15 stage × 8B ≈ 18 KB / run；trade-off：精確 vs 體積 + 寫入端入侵
 - [ ] **Patch 8 驗證**（下次 session 第一件事）：跑 `python main.py`，看 log 新增的 `excursion_cm=X.XX` 數值是否合理（橫膈膜 excursion 通常 1–7 cm）
 - [ ] PNG path 的實際使用情境確認（目前可能是預留）
 - [x] Multi-frame DICOM 支援 — Step 3 已處理（FrameSequence 首維永遠是 N）
@@ -335,7 +363,7 @@
 
 下次開新 session 時直接看這段：
 
-### 1. 當前狀態（2026-06-03）
+### 1. 當前狀態（2026-06-07）
 
 - **Step 1-7**：✅ 全部完成且驗證
 - **Step 9（ratio 化 10A-10C）**：✅ 完成 + 實機驗證通過
@@ -348,6 +376,8 @@
 - **REALTIME viz 重組（Patch 22）**：✅ canvas → mp4 imageio-ffmpeg libx264；刪 `render_realtime_global`；cfg 拆 `save_realtime_video` / `save_realtime_canvas_png`
 - **REALTIME timing DB（Patch 23）**：✅ JSONL run record（`output/timing/runs.jsonl`）+ aggregation script（`python -m tools.timing_report` → `output/timing/report.md`）；累積 ≥ 5 runs 後分析有意義
 - **detect pass2 條件式跳過（Patch 24A）**：✅ 落地 + 實測同源比對驗證（roi total -22~30%）。pass1 curve_fit 仍 56-62 ms 為當前主熱點（待辦標明後續方向）
+- **timing 分析棧（Patch 26 + 27）**：✅ 完整落地。報表 12 章節 + 三層瓶頸視角（§1 整體 PASS/FAIL → §1.1 假設量化後 → §1.2.1 慢幀歸因）；schema 1.1 per_frame_ms 解鎖真 P95 / 桶 / 歸因；實機驗證：96.8% 慢幀屬 heavy 路徑、seg_predict 占 heavy 86% → seg_predict 量化為單一最大效益優化
+- **Patch 28 paddle warmup**：⬜ 待做。第一次 `predict()` 觸發 paddle lazy init（CUDA graph compile）落在 frame 1 timing 內，造成 1.7s outlier；`_run_realtime` loop 前加 dummy predict 可消除（§1.2.1「極端」帶 → 0）。Production streaming 場景也應預熱
 - **Step 11（cfg 精煉）**：12A / 13A / 13C / 15 ✅；13B 取消
 - **config 入口**：`run_config.py`（gitignored）統一個人實驗值，`run()` 注入 bundle（Patch 15）
 - **清理**：`utils.py` + 兩支實驗檔已刪

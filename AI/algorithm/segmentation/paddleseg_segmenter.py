@@ -40,6 +40,27 @@ class PaddleSegSegmenter(SegmenterBase):
             save_predictions=self._cfg.save_predictions,
         )
 
+    def configure_output(
+        self,
+        save_predictions: bool,
+        save_dir: Optional[str] = None,
+    ) -> None:
+        """不重載模型，per-call 覆寫 mask 輸出設定（save_predictions / save_dir）。
+
+        model 權重在 predictor['model']，與輸出無關，故覆寫不需重 build。供 warm
+        segmenter（load 一次、跨呼叫共用）依每次請求切換 mask 輸出目的地用。
+
+        注意：對共用 segmenter 並發呼叫不具 thread-safety（mutate predictor dict）；
+        並發場景呼叫端需序列化，或每 worker 一個 segmenter。
+        """
+        self._cfg.save_predictions = save_predictions
+        if save_dir is not None:
+            self._cfg.save_dir = save_dir
+        if self._predictor is not None:
+            self._predictor['save_predictions'] = save_predictions
+            if save_dir is not None:
+                self._predictor['save_dir'] = save_dir
+
     def predict(
         self,
         image_path: str,

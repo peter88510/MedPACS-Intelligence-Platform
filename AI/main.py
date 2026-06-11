@@ -25,8 +25,6 @@ import cv2
 import numpy as np
 
 from algorithm import FrameResult
-from algorithm.diaphragm_detection import detect
-from algorithm.excursion import brightness_way, compute_peak_info
 from algorithm.motion_curve import MotionCurveResult, extract_motion_curve
 from algorithm.multiframe import (
     RealtimeState,
@@ -35,12 +33,8 @@ from algorithm.multiframe import (
     get_legacy_frame_indices,
     run_global_window,
 )
-from algorithm.roi_band import (
-    compute_target_y_range,
-    enhanced_search,
-    select_target,
-)
 from algorithm.segmentation import PaddleSegSegmenter
+from algorithm.single_frame import run_single_frame
 from config import Phase, RunBundle
 from config.multiframe_config import MultiframeMode
 from input import apply_dicom_crop, load
@@ -134,107 +128,20 @@ def _run_single_frame(
     scale_y,
     timing: Optional[RealtimeTiming] = None,
 ) -> FrameResult:
-    """單 frame pipeline；LEGACY 與 GLOBAL_WINDOW 兩 mode 共用。
+    """單 frame pipeline（viz/timing wrapper）；LEGACY / GLOBAL_WINDOW / REALTIME-heavy 共用。
 
-    timing 非 None（REALTIME heavy 幀）時記錄 Layer heavy 各子步驟耗時；None 時零影響。
+    純量核心抽到 algorithm.single_frame.run_single_frame；本 wrapper 只加 viz
+    （pv.render_frame）與 pv_render timing。timing 非 None 時記錄 Layer heavy。
     """
-    frame = seq.frames[i]
-
+    result = run_single_frame(
+        seq, i, gray, segmenter, bundle, is_excursion, scale_y, timing=timing,
+    )
     t0 = time.perf_counter()
-    mask_pil = segmenter.predict(
-        image_path=seq.source_path,
-        dcm_array=frame,
-    )
-    seg_mask = np.array(mask_pil.convert("L"), dtype=np.uint8)
-    if timing is not None:
-        timing.record("seg_predict", time.perf_counter() - t0)
-        t0 = time.perf_counter()
-
-    detection = detect(gray, bundle.detection, use_segment=seg_mask, timing=timing)
-
-    y_band = compute_target_y_range(
-        target_y_range=detection.best_region,
-        image_height=gray.shape[0],
-        reserve_ratio=bundle.roi_band.reserve_ratio,
-    )
-    if timing is not None:
-        timing.record("detect_p1", time.perf_counter() - t0)
-
-    # Patch 24A: use_segment_label=True 且 paddle pass1 成功時跳過 pass2 detect
-    # （pass2 mask 在此 cfg 下不被 select_target 消費，省 ~36 ms/heavy frame）；
-    # paddle 失敗（target_binary=None）或 use_segment_label=False 仍走完整 pass2
-    skip_pass2 = (
-        bundle.roi_band.use_segment_label
-        and detection.target_binary is not None
-    )
-    refined = enhanced_search(           # 內部記 enhance / detect_p2（Layer roi）
-        image_gray=gray,
-        y_band=y_band,
-        detection_config=bundle.detection,
-        roi_band_config=bundle.roi_band,
-        timing=timing,
-        skip_detect=skip_pass2,
-    )
-
-    t_sel = time.perf_counter()
-    selection = select_target(
-        detection_pass1=detection,
-        refined=refined,
-        y_band=y_band,
-        image_shape=gray.shape[:2],
-        use_segment_label=bundle.roi_band.use_segment_label,
-    )
-    if timing is not None:
-        now = time.perf_counter()
-        timing.record("select", now - t_sel)
-        timing.record("roi", now - t0)   # rollup（Layer heavy 的 roi 子層總計）
-        t0 = now
-
-    motion_curve = extract_motion_curve(
-        image=cv2.medianBlur(gray, 7),
-        y_range=y_band,
-        config=bundle.motion_curve,
-    )
-    if timing is not None:
-        timing.record("motion_curve", time.perf_counter() - t0)
-        t0 = time.perf_counter()
-
-    excursion = None
-    measurements = []
-    if is_excursion:
-        excursion = brightness_way(
-            diaphragm_mask=selection.diaphragm_mask,
-            diaphragm_p_4crest=motion_curve.diaphragm_p_crest,
-            diaphragm_p_4trough=motion_curve.diaphragm_p_trough,
-            diaphragm_ori_y_value=motion_curve.init_diaphragm,
-            config=bundle.excursion,
-        )
-        measurements = [
-            compute_peak_info(
-                crest=batch.crest_position,
-                trough=batch.trough_position,
-                scale_y=scale_y,
-            )
-            for batch in excursion.batches
-        ]
-    if timing is not None:
-        timing.record("excursion_sf", time.perf_counter() - t0)
-        t0 = time.perf_counter()
-
-    result = FrameResult(
-        detection=detection,
-        y_band=y_band,
-        refined=refined,
-        selection=selection,
-        motion_curve=motion_curve,
-        excursion=excursion,
-        measurements=measurements,
-    )
     pv.render_frame(
         frame_idx=i,
         image_gray=gray,
         image_color=color,
-        seg_mask=seg_mask,
+        seg_mask=result.seg_mask,
         frame_result=result,
     )
     if timing is not None:

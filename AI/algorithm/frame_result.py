@@ -18,6 +18,8 @@
 from dataclasses import dataclass, field
 from typing import List, Optional, Tuple
 
+import numpy as np
+
 from algorithm.diaphragm_detection import DetectionResult
 from algorithm.excursion import ExcursionResult, PeakInfo
 from algorithm.motion_curve import MotionCurveResult
@@ -33,3 +35,4 @@ class FrameResult:
     motion_curve: MotionCurveResult
     excursion: Optional[ExcursionResult] = None
     measurements: List[PeakInfo] = field(default_factory=list)
+    seg_mask: Optional[np.ndarray] = None    # segmentation 階段輸出（viz 用；演算法不消費）
