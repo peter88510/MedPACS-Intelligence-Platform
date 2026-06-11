@@ -12,7 +12,7 @@ Design: .work/ai_result_design.md §5. No FastAPI imports here (CLAUDE.md §6).
 import logging
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Dict, Optional, Protocol, Tuple
+from typing import Any, Dict, Optional, Protocol
 
 logger = logging.getLogger(__name__)
 
@@ -53,39 +53,48 @@ def _norm(value: Optional[str]) -> Optional[str]:
     return stripped or None
 
 
-# (manufacturer, model) -> MeasurementType. Keys are normalized via _norm.
-# Intentionally empty for now: the engineer supplies the real ultrasound
-# machine -> measurement-type table (待澄清, design §10). Until filled,
-# every device resolves to UNKNOWN, which the AI endpoint must reject
-# rather than guess (medical safety, CLAUDE.md §10/§13).
-MACHINE_MODEL_MAP: Dict[Tuple[str, str], MeasurementType] = {}
+# model (ManufacturerModelName, 0008,1090) -> MeasurementType。key 經 _norm 正規化。
+# 只 key 在 model（不是 (manufacturer, model)）—— 工程師 2026-06-10 確認 0008,1090
+# 內的 probe/model 代號就是判別依據；manufacturer 在此不是可靠 key。
+# device_manufacturer 仍存進 Instance 供 audit，只是不用於查表。
+#
+# C62（convex probe）臨床上同時涵蓋 excursion 與 sniff；光靠 probe 代號無法區分
+# 兩者（design §10 —— 需靠 image-content resolver）。依工程師 2026-06-10 裁示，
+# C62 暫解析為 EXCURSION；sniff 的區分延到未來的 ImageContentResolver。
+MACHINE_MODEL_MAP: Dict[str, MeasurementType] = {
+    "C62": MeasurementType.EXCURSION,   # convex probe — 橫膈膜 excursion（M-mode）
+    "L154": MeasurementType.THICKNESS,  # linear probe — 橫膈膜 thickness（B-mode）
+}
 
 
 class MachineModelResolver:
-    """Resolve measurement type from device make/model (MVP)."""
+    """從 device model 解析 measurement type（MVP）。
+
+    只 key 在正規化後的 ManufacturerModelName。未知或缺 model 一律解析為 UNKNOWN，
+    AI endpoint 必須拒絕而非猜測（醫療安全，CLAUDE.md §10/§13）。
+    """
 
     def __init__(
         self,
-        mapping: Optional[Dict[Tuple[str, str], MeasurementType]] = None,
+        mapping: Optional[Dict[str, MeasurementType]] = None,
     ) -> None:
         self._mapping = mapping if mapping is not None else MACHINE_MODEL_MAP
 
     def resolve(self, ctx: ResolveContext) -> MeasurementType:
-        manufacturer = _norm(ctx.device_manufacturer)
         model = _norm(ctx.device_model)
-        if manufacturer is None or model is None:
+        if model is None:
             logger.warning(
-                "MeasurementType UNKNOWN: device tags missing "
+                "MeasurementType UNKNOWN: device_model missing "
                 "(manufacturer=%r, model=%r)",
                 ctx.device_manufacturer, ctx.device_model,
             )
             return MeasurementType.UNKNOWN
 
-        mtype = self._mapping.get((manufacturer, model))
+        mtype = self._mapping.get(model)
         if mtype is None:
             logger.warning(
-                "MeasurementType UNKNOWN: device (%r, %r) not in MACHINE_MODEL_MAP",
-                manufacturer, model,
+                "MeasurementType UNKNOWN: model %r not in MACHINE_MODEL_MAP",
+                model,
             )
             return MeasurementType.UNKNOWN
         return mtype

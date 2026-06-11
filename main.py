@@ -26,9 +26,24 @@ from services.db_service import (
     get_instance_metadata,
     get_series_by_study_id,
     get_instances_by_series_id,
+    create_ai_result,
+    get_latest_ai_result_by_instance,
 )
 from services.storage_backend import LocalStorageBackend
 from core.config import settings
+from services.measurement_type import (
+    MachineModelResolver,
+    MeasurementType,
+    ResolveContext,
+)
+from services.ai_engine import (
+    DiaphragmEngine,
+    EngineError,
+    EngineUnavailableError,
+    get_engine,
+    primary_value_unit,
+    to_result_json,
+)
 
 load_dotenv()
 
@@ -289,29 +304,126 @@ def get_instance_meta(id: int, db: Session = Depends(get_db)):
 
 
 @app.post("/ai/segment/{id}")
-def ai_segment(id: int, db: Session = Depends(get_db)):
+def ai_segment(
+    id: int,
+    db: Session = Depends(get_db),
+    engine: DiaphragmEngine = Depends(get_engine),
+):
+    """對某 instance 跑 AI 橫膈膜量測，結果寫入 ai_results（同步、LEGACY mode）。
+
+    流程（design §6）：解析 measurement type → 醫療安全分支（unknown 422 / thickness
+    501）→ 跑引擎（缺相依 503 / 推論失敗 500）→ 序列化 envelope + 寫 ai_results。
+    回應全 additive（取代原 stub 的 queued 回應）。
+    """
     instance = get_instance_by_id(db, id)
     if not instance:
         raise HTTPException(status_code=404, detail=f"Instance with id {id} not found")
-    # Stub: AI segmentation placeholder
+
+    # 1. 依上傳時抽存的 device model 解析 measurement type
+    device_model = getattr(instance, "device_model", None)
+    ctx = ResolveContext(
+        device_manufacturer=getattr(instance, "device_manufacturer", None),
+        device_model=device_model,
+    )
+    measurement_type = MachineModelResolver().resolve(ctx)
+
+    # 2. 醫療安全分支：不猜（CLAUDE.md §10/§13）
+    if measurement_type == MeasurementType.UNKNOWN:
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                f"Cannot resolve measurement type: device model {device_model!r} "
+                f"is not in the machine-model map. AI segmentation refuses to guess."
+            ),
+        )
+    if measurement_type == MeasurementType.THICKNESS:
+        raise HTTPException(
+            status_code=501,
+            detail=(
+                "Thickness measurement is not implemented yet (forward-design); "
+                "only excursion / sniff are supported."
+            ),
+        )
+
+    # 3. 取 DICOM 檔絕對路徑
+    file_path = get_instance_file_path(db, id)
+    if not file_path or not storage.exists(file_path):
+        raise HTTPException(
+            status_code=404, detail=f"File not found on disk for instance {id}"
+        )
+    abs_path = storage.absolute_path(file_path)
+
+    # 4. 跑引擎（缺相依 → 503；推論失敗 → 留 error 結果後 500）
+    try:
+        result = engine.analyze(abs_path, measurement_type)
+    except EngineUnavailableError as e:
+        raise HTTPException(status_code=503, detail=str(e))
+    except EngineError as e:
+        create_ai_result(
+            db,
+            instance_id=id,
+            model_name=engine.model_name,
+            model_version=engine.model_version,
+            status="error",
+            measurement_type=measurement_type.value,
+            error_message=str(e),
+        )
+        raise HTTPException(status_code=500, detail=str(e))
+
+    # 5. 序列化 envelope + 寫 ai_results
+    envelope = to_result_json(result)
+    primary_value, primary_unit = primary_value_unit(result)
+    ai_row = create_ai_result(
+        db,
+        instance_id=id,
+        model_name=result.model_name,
+        model_version=result.model_version,
+        status="completed",
+        measurement_type=measurement_type.value,
+        result_json=envelope,
+        primary_value=primary_value,
+        primary_unit=primary_unit,
+        mask_path=result.mask_path,
+    )
+
+    # 6. additive response
     return {
         "instance_id": id,
-        "status": "queued",
-        "message": "Segmentation job accepted (stub)"
+        "ai_result_id": ai_row.id,
+        "status": "completed",
+        "measurement_type": measurement_type.value,
+        "primary_value": primary_value,
+        "primary_unit": primary_unit,
+        "measurement_count": len(result.measurements),
     }
 
 
 @app.get("/ai/result/{id}")
 def ai_result(id: int, db: Session = Depends(get_db)):
+    """回傳某 instance 最新一筆 AI 結果。尚未跑過 → 404（提示先 POST /ai/segment）。"""
     instance = get_instance_by_id(db, id)
     if not instance:
         raise HTTPException(status_code=404, detail=f"Instance with id {id} not found")
-    # Stub: return fixed mock result
+
+    ai_row = get_latest_ai_result_by_instance(db, id)
+    if not ai_row:
+        raise HTTPException(
+            status_code=404,
+            detail=f"No AI result for instance {id}; run POST /ai/segment/{id} first",
+        )
+
     return {
         "instance_id": id,
-        "status": "completed",
-        "result": {
-            "mask": "stub_mask_data",
-            "confidence": 0.95
-        }
+        "ai_result_id": ai_row.id,
+        "status": ai_row.status,
+        "measurement_type": ai_row.measurement_type,
+        "model_name": ai_row.model_name,
+        "model_version": ai_row.model_version,
+        "primary_value": ai_row.primary_value,
+        "primary_unit": ai_row.primary_unit,
+        "confidence": ai_row.confidence,
+        "mask_url": None,  # mask PNG endpoint 屬下游（design §8）
+        "result": ai_row.result_json,
+        "error_message": ai_row.error_message,
+        "created_at": ai_row.created_at.isoformat() if ai_row.created_at else None,
     }
