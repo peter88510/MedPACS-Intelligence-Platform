@@ -4,13 +4,18 @@
 #     pip install -r requirements-ai.txt
 #
 # Notes:
+# - Python 3.10 required (matches the CLI/原系統; paddle-gpu 3.2.0 has no cp38 wheel).
+#   The .venv must be rebuilt on Python 3.10 (see README Step 7).
 # - paddleseg itself is NOT in pip - vendored under AI/paddleseglibs/ (excluded
 #   from git, see README "Optional: AI inference setup" for retrieval).
-# - paddlepaddle may need version pin matching CUDA / CPU; uncomment + adjust
-#   to your environment.
-# - Python 3.8 (matches MedPACS .venv).
+#
+# - paddlepaddle-gpu is NOT on plain PyPI; install SEPARATELY from the paddle
+#   index BEFORE this file (GPU build, matches CLI: paddle 3.2.0 / CUDA 11.8):
+#       pip install paddlepaddle-gpu==3.2.0 -i https://www.paddlepaddle.org.cn/packages/stable/cu118/
+#   (cu118 runs on this machine's CUDA 12.0 driver via backward-compat.)
+#   CPU-only fallback (much slower per-frame): pip install paddlepaddle==3.0.0
+#   -> paddle line intentionally omitted from this file (env-specific index URL).
 
-paddlepaddle
 pydicom
 numpy
 scipy
