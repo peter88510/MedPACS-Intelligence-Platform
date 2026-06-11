@@ -1,11 +1,11 @@
-# Phase 3 AI inference dependencies — diaphragm_excursion vendored under AI/
+# Phase 3 AI inference dependencies - diaphragm_excursion vendored under AI/
 #
 # Install separately from requirements.txt:
 #     pip install -r requirements-ai.txt
 #
 # Notes:
-# - paddleseg itself is NOT in pip — vendored under AI/paddleseglibs/ (excluded
-#   from git, see README §"Optional: AI inference setup" for retrieval).
+# - paddleseg itself is NOT in pip - vendored under AI/paddleseglibs/ (excluded
+#   from git, see README "Optional: AI inference setup" for retrieval).
 # - paddlepaddle may need version pin matching CUDA / CPU; uncomment + adjust
 #   to your environment.
 # - Python 3.8 (matches MedPACS .venv).
@@ -23,3 +23,14 @@ matplotlib
 natsort
 imageio
 imageio-ffmpeg
+
+# PaddleSeg (vendored under AI/paddleseglibs/) transitive deps that are NOT
+# auto-installed by paddlepaddle. Imported at module load in paddleseg:
+#   pyyaml   -> cvlibs/config.py
+#   visualdl -> cvlibs/callbacks.py
+#   filelock -> utils/utils.py
+#   requests -> utils/download.py
+pyyaml
+visualdl
+filelock
+requests
