@@ -118,6 +118,16 @@ class DiaphragmExcursionEngine(DiaphragmEngine):
             mask_path=getattr(res, "mask_path", None),
         )
 
+    def warmup(self) -> None:
+        """啟動時預載 facade + warm segmenter 一次，消除第一個 request 的冷啟。
+
+        重用 analyze 走的同一條 lazy 路徑（兩者共用 _segmenter 快取）。
+        缺 paddle/weights → EngineUnavailableError（由 startup 端降級處理）。
+        以 excursion 預載；segmenter 快取單一、後續 sniff 共用。
+        """
+        inference = self._load_inference()
+        self._get_warm_segmenter(inference, MeasurementType.EXCURSION)
+
     def _get_warm_segmenter(self, inference, measurement_type: MeasurementType):
         """lazy 預載 paddle segmenter 一次並快取（model load 秒級、只做一次）。"""
         if self._segmenter is not None:

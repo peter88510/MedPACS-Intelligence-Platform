@@ -159,6 +159,7 @@ notepad .env
 ```text
 DATABASE_URL=postgresql://postgres:your_password@localhost:5432/meddicom_db
 UPLOAD_STORAGE_PATH=./storage
+AI_WARMUP_ON_STARTUP=false
 ```
 
 ### Step 3：建立 PostgreSQL 資料庫
@@ -311,6 +312,19 @@ python main.py  # 先編輯 main.py 底部的 `image_path`
 > 後端整合已完成（2026-06-10）：`/ai/segment/{id}` 透過可抽換的
 > `services/ai_engine` layer 呼叫 `AI.main.run`。一旦此 AI runtime 安裝完成，
 > `/ai/segment` 即執行真正推論；否則回傳 503。見 PROGRESS §5 Phase 3。
+
+**4. （選用）啟動時預載模型，消除第一個請求的冷啟**
+
+第一個 `POST /ai/segment` 才會 lazy 載入 paddle + segmenter 權重（秒級冷啟）。
+若這次啟動就是要跑 AI（demo / 部署 AI 後端），可設 `AI_WARMUP_ON_STARTUP=true`
+讓伺服器在啟動時就預載一次，第一個請求即免等：
+
+```powershell
+$env:AI_WARMUP_ON_STARTUP="true"; uvicorn main:app --reload
+```
+
+僅做上傳 / 查詢、或跑測試時不必設（預設 `false`，零延遲啟動）。缺 paddle/weights
+時 warmup 會降級略過並印 warning，**不影響伺服器啟動**。
 
 ## 前端概覽（Frontend Overview）
 

@@ -108,3 +108,30 @@ def test_engine_metadata():
 def test_get_engine_returns_singleton():
     assert get_engine() is get_engine()
     assert isinstance(get_engine(), DiaphragmExcursionEngine)
+
+
+# --- warmup（不觸發 paddle 載入）---
+
+def test_base_warmup_default_is_noop():
+    """ABC 預設 warmup 為 no-op：fake / 輕量 engine 繼承後呼叫不拋、回 None。"""
+    class _FakeEngine(DiaphragmEngine):
+        @property
+        def model_name(self):
+            return "fake"
+
+        @property
+        def model_version(self):
+            return "0"
+
+        def analyze(self, image_path, measurement_type):
+            return _excursion_result([])
+
+    assert _FakeEngine().warmup() is None
+
+
+def test_excursion_engine_overrides_warmup():
+    """DiaphragmExcursionEngine 真的 override 了 warmup（非繼承的 no-op）。
+
+    此處不實際呼叫——觸發會載 paddle / weights（環境相依，不在單元測試範圍）。
+    """
+    assert DiaphragmExcursionEngine.warmup is not DiaphragmEngine.warmup

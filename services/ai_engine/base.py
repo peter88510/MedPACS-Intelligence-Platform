@@ -99,3 +99,11 @@ class DiaphragmEngine(ABC):
             EngineError: 有嘗試推論但失敗 → 500。
         """
         ...
+
+    def warmup(self) -> None:
+        """選擇性預載重型資源（模型權重等），消除第一次 analyze 的冷啟延遲。
+
+        預設 no-op：輕量 / fake engine 不需實作。重型 engine 覆寫。
+        缺相依時由實作拋 EngineUnavailableError，降級由呼叫端（startup）負責。
+        """
+        return None

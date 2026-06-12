@@ -76,6 +76,20 @@ def startup_event():
     """
     print("✓ FastAPI startup — schema managed by Alembic (run `alembic upgrade head` before launch)")
 
+    # AI warmup（opt-in）— 預載 paddle segmenter，消除第一個 /ai/segment 冷啟。
+    # 只在「這次啟動要跑 AI」時設 AI_WARMUP_ON_STARTUP=true；缺 paddle/weights
+    # 不致命（降級訊息、照常啟動），測試 / 純後端啟動預設不觸發。
+    if os.getenv("AI_WARMUP_ON_STARTUP", "false").lower() in ("1", "true", "yes"):
+        import time
+        t0 = time.perf_counter()
+        try:
+            get_engine().warmup()
+            print(f"✓ AI engine warmed up in {time.perf_counter() - t0:.1f}s")
+        except EngineUnavailableError as e:
+            print(f"⚠ AI warmup skipped — engine unavailable: {e}")
+        except Exception as e:  # warmup 失敗不可擋住服務啟動
+            print(f"⚠ AI warmup failed (continuing startup): {e}")
+
 
 @app.post("/upload")
 async def upload(file: UploadFile = File(...), db: Session = Depends(get_db)):
