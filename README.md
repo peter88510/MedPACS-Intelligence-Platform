@@ -8,119 +8,119 @@ status: "update"
 
 # MedPACS Intelligence Platform
 
-A two-tier system for ultrasound DICOM workflow:
+針對超音波 DICOM 工作流的雙層式系統：
 
-- **Backend** — FastAPI + PostgreSQL + SQLAlchemy + pydicom. DICOM upload, parsing, validation, persistence, and AI measurement endpoints (diaphragm excursion, paddle; real inference needs the AI runtime — see Step 7).
-- **Frontend** — React 19 + Vite + TypeScript + CornerstoneJS. Single-page DICOM viewer with metadata panel and AI overlay.
+- **後端（Backend）** — FastAPI + PostgreSQL + SQLAlchemy + pydicom。負責 DICOM 上傳、解析、驗證、持久化，以及 AI 測量端點（橫膈膜偏移 diaphragm excursion、paddle；真正的推論需要 AI runtime——見 Step 7）。
+- **前端（Frontend）** — React 19 + Vite + TypeScript + CornerstoneJS。單頁式 DICOM 檢視器，含 metadata 面板與 AI overlay。
 
-> See [`docs/PLAN.md`](./docs/PLAN.md) for MVP scope and roadmap, [`PROGRESS.md`](./PROGRESS.md) for current status.
+> MVP 範圍與 roadmap 見 [`docs/PLAN.md`](./docs/PLAN.md)，目前進度見 [`PROGRESS.md`](./PROGRESS.md)。
 
-## Features
+## 功能（Features）
 
-### Backend
-- DICOM file upload and parsing
-- 6-field DICOM validation (PatientID / StudyInstanceUID / SeriesInstanceUID / SOPInstanceUID / Modality / PixelData)
-- Modality whitelist (`US` only)
-- Local file storage (hierarchical by `PatientID` → `StudyInstanceUID`)
-- PostgreSQL persistence with Alembic migrations
-- AI measurement endpoints (`/ai/segment`, `/ai/result`) — swappable engine layer wrapping the vendored `./AI` diaphragm pipeline; end-to-end inference needs the AI runtime (Step 7)
-- CORS middleware for `http://localhost:5173` dev origin
+### 後端
+- DICOM 檔案上傳與解析
+- 6 欄位 DICOM 驗證（PatientID / StudyInstanceUID / SeriesInstanceUID / SOPInstanceUID / Modality / PixelData）
+- Modality 白名單（僅限 `US`）
+- 本地檔案儲存（依 `PatientID` → `StudyInstanceUID` 階層化）
+- PostgreSQL 持久化，搭配 Alembic migrations
+- AI 測量端點（`/ai/segment`、`/ai/result`）——可抽換的 engine layer，包裝 vendored 的 `./AI` 橫膈膜 pipeline；端到端推論需要 AI runtime（Step 7）
+- CORS middleware，對應 `http://localhost:5173` 開發來源
 
-### Frontend (Phase 2, in progress)
-- React + Vite + TypeScript scaffolding (Cornerstone3D deps installed)
-- Planned: 4 components (StudyList / DicomViewer / MetadataPanel / AIPanel)
-- Planned: CornerstoneJS DICOM rendering with AI mask overlay
+### 前端（Phase 2，進行中）
+- React + Vite + TypeScript 骨架（Cornerstone3D 相依套件已安裝）
+- 規劃中：4 個元件（StudyList / DicomViewer / MetadataPanel / AIPanel）
+- 規劃中：CornerstoneJS DICOM 渲染，含 AI mask overlay
 
-## Project Structure
+## 專案結構（Project Structure）
 
-> Reorganized 2026-05-14 (Phase 1 + 2 doc重組): root-level deep docs moved into `docs/`; cross-session working memory moved into `context/`; frontend mirrors the same `context/` + `docs/` layout. The authoritative full tree lives in [`PROGRESS.md`](./PROGRESS.md) §7.
+> 2026-05-14 重組（Phase 1 + 2 文件重組）：root 層深度文件移入 `docs/`；跨 session 工作記憶移入 `context/`；前端鏡像相同的 `context/` + `docs/` 結構。權威的完整目錄樹見 [`PROGRESS.md`](./PROGRESS.md) §7。
 
 ```text
 MedPACS Intelligence Platform/
-├── main.py                          # API layer entrypoint (uvicorn main:app)
-├── core/                            # config (settings)
+├── main.py                          # API layer 入口（uvicorn main:app）
+├── core/                            # config（settings）
 ├── db/                              # session / engine
 ├── models/                          # SQLAlchemy ORM
 ├── services/                        # db_service / storage / storage_backend / measurement_type
 ├── requirements.txt / pytest.ini / alembic.ini
-├── alembic/                          # DB migration scripts (env.py + versions/)
-├── storage/                          # Physical DICOM storage (runtime-created)
-├── validation/                       # DICOM validation rules
-├── tests/                            # Backend pytest suite (36 tests)
-├── test_dicom_files/                 # Sample DICOM fixtures
+├── alembic/                          # DB migration scripts（env.py + versions/）
+├── storage/                          # 實體 DICOM 儲存（runtime 自動建立）
+├── validation/                       # DICOM 驗證規則
+├── tests/                            # 後端 pytest 測試套件（36 個測試）
+├── test_dicom_files/                 # 範例 DICOM fixtures
 │
-├── frontend/                         # Phase 2 frontend (React + Vite + TS + Cornerstone3D)
+├── frontend/                         # Phase 2 前端（React + Vite + TS + Cornerstone3D）
 │   ├── CLAUDE.md / README.md / PROGRESS.md
-│   ├── context/                      # Small must-read state files
-│   │   ├── HANDOFF.md                # Backend-state mirror (main-Agent maintained)
-│   │   ├── DISPATCH.md               # Current task (overwritten per dispatch)
-│   │   └── SESSION_HISTORY.md        # Frontend-Agent working memory
-│   ├── docs/                         # Detail docs (read on demand)
-│   │   ├── IMPLEMENTATION.md         # Frontend architecture
-│   │   └── archive/                  # Frontend-side archive
+│   ├── context/                      # 小型必讀狀態檔
+│   │   ├── HANDOFF.md                # 後端狀態鏡像（主 Agent 維護）
+│   │   ├── DISPATCH.md               # 當前任務（每次派任務時覆寫）
+│   │   └── SESSION_HISTORY.md        # 前端 Agent 工作記憶
+│   ├── docs/                         # 詳細文件（按需查閱）
+│   │   ├── IMPLEMENTATION.md         # 前端架構
+│   │   └── archive/                  # 前端側 archive
 │   ├── package.json / vite.config.ts / tsconfig.*.json
 │   └── src/                          # main.tsx / App.tsx / cornerstone/setup.ts / components/
 │
-├── context/                          # Main-Agent small must-read state
-│   └── SESSION_HISTORY.md            # AI session working memory (A/B sections)
+├── context/                          # 主 Agent 小型必讀狀態
+│   └── SESSION_HISTORY.md            # AI session 工作記憶（A/B 段）
 │
-├── docs/                             # Detail docs (read on demand)
-│   ├── PLAN.md                       # MVP scope + roadmap + non-goals
-│   ├── IMPLEMENTATION.md             # System architecture (backend internals + frontend overview)
-│   ├── generated/                    # 🤖 auto-generated (do not hand-edit)
-│   │   ├── api_spec.md               # FastAPI routes (from main.py)
-│   │   └── db_schema.md              # DB schema (from models/ + alembic)
-│   └── archive/                      # Low-traffic archived docs
-│       ├── QUICKSTART.md             # 5-min API walkthrough
-│       ├── STORAGE_BACKEND.md        # Storage backend design
-│       └── COMMIT_GUIDE.md           # Commit flow (superseded by system prompt)
+├── docs/                             # 詳細文件（按需查閱）
+│   ├── PLAN.md                       # MVP 範圍 + roadmap + non-goals
+│   ├── IMPLEMENTATION.md             # 系統架構（後端內部 + 前端概覽）
+│   ├── generated/                    # 🤖 自動生成（請勿手動編輯）
+│   │   ├── api_spec.md               # FastAPI 路由（由 main.py 生成）
+│   │   └── db_schema.md              # DB schema（由 models/ + alembic 生成）
+│   └── archive/                      # 低流量封存文件
+│       ├── QUICKSTART.md             # 5 分鐘 API 導覽
+│       ├── STORAGE_BACKEND.md        # Storage backend 設計
+│       └── COMMIT_GUIDE.md           # Commit 流程（已被 system prompt 取代）
 │
-├── scripts/                          # Tooling
+├── scripts/                          # 工具
 │   ├── gen_api_spec.py               # → docs/generated/api_spec.md
 │   ├── gen_db_schema.py              # → docs/generated/db_schema.md
-│   └── hooks/pre-commit              # git hook: source change → auto regen
+│   └── hooks/pre-commit              # git hook：source 變動 → 自動 regen
 │
-├── .env.example                      # Env var template (DATABASE_URL / UPLOAD_STORAGE_PATH)
-├── .env                              # Real env config (git ignored)
-├── README.md                         # This file (project overview)
-├── PROGRESS.md                       # Current project status
-├── CLAUDE.md                         # AI operating contract
-└── .venv/                            # Python virtualenv (git ignored)
+├── .env.example                      # 環境變數範本（DATABASE_URL / UPLOAD_STORAGE_PATH）
+├── .env                              # 實際環境設定（git ignored）
+├── README.md                         # 本檔（專案概覽）
+├── PROGRESS.md                       # 目前專案狀態
+├── CLAUDE.md                         # AI 操作合約
+└── .venv/                            # Python virtualenv（git ignored）
 ```
 
-## Setup
+## 安裝設定（Setup）
 
-### Step 1: Install Dependencies
+### Step 1：安裝相依套件
 
-_Linux/macOS:_
+_Linux/macOS：_
 
 ```bash
 pip install -r requirements.txt
 ```
 
-_Windows:_
+_Windows：_
 
 ```powershell
 pip install -r requirements.txt
 ```
 
-### Step 2: Configure Environment
+### Step 2：設定環境
 
-_Linux/macOS:_
+_Linux/macOS：_
 
 ```bash
 cp .env.example .env
 
-# Edit .env
+# 編輯 .env
 nano .env
-# or
+# 或
 vim .env
 ```
 
-_Windows (PowerShell):_
+_Windows（PowerShell）：_
 
 ```powershell
-# Create .env.example if not exists
+# 若 .env.example 不存在則建立
 @"
 # PostgreSQL Configuration
 DATABASE_URL=postgresql://postgres:password@localhost:5432/meddicom_db
@@ -129,215 +129,216 @@ DATABASE_URL=postgresql://postgres:password@localhost:5432/meddicom_db
 UPLOAD_STORAGE_PATH=./storage
 "@ | Set-Content -Path ".env.example" -Encoding UTF8
 
-# Copy to .env
+# 複製為 .env
 Copy-Item .env.example .env
 
-# Edit .env with actual credentials
+# 用實際憑證編輯 .env
 notepad .env
 ```
 
-_Windows (CMD):_
+_Windows（CMD）：_
 
 ```cmd
-REM Create .env.example
+REM 建立 .env.example
 echo # PostgreSQL Configuration > .env.example
 echo DATABASE_URL=postgresql://postgres:password@localhost:5432/meddicom_db >> .env.example
 echo # Server Configuration >> .env.example
 echo UPLOAD_STORAGE_PATH=./storage >> .env.example
 
-REM Copy to .env
+REM 複製為 .env
 copy .env.example .env
 
-REM Edit .env
+REM 編輯 .env
 notepad .env
 ```
 
-#### Configure Credentials
+#### 設定憑證
 
-Edit `.env` and update with your actual PostgreSQL password:
+編輯 `.env`，填入你實際的 PostgreSQL 密碼：
 
 ```text
 DATABASE_URL=postgresql://postgres:your_password@localhost:5432/meddicom_db
 UPLOAD_STORAGE_PATH=./storage
 ```
 
-### Step 3: Create PostgreSQL Database
+### Step 3：建立 PostgreSQL 資料庫
 
-_Linux/macOS:_
+_Linux/macOS：_
 
 ```bash
 createdb -U postgres -h localhost meddicom_db
 ```
 
-_Windows:_
+_Windows：_
 
 ```cmd
 createdb -U postgres -h 127.0.0.1 meddicom_db
 ```
 
-#### Verify Database Creation
+#### 確認資料庫已建立
 
-_Linux/macOS:_
+_Linux/macOS：_
 
 ```bash
 psql -U postgres -h 127.0.0.1 -c "\l"
 ```
 
-_Windows:_
+_Windows：_
 
 ```powershell
 psql -U postgres -h 127.0.0.1 -c "\l"
 ```
 
-Expected output: `meddicom_db` should appear in the list.
+預期輸出：清單中應出現 `meddicom_db`。
 
-#### Alternative: Create Database via psql
+#### 替代方案：透過 psql 建立資料庫
 
-Connect to PostgreSQL on any platform:
+在任何平台連線到 PostgreSQL：
 
-_Linux/macOS:_
+_Linux/macOS：_
 
 ```bash
 psql -U postgres -h 127.0.0.1
 ```
 
-_Windows:_
+_Windows：_
 
 ```powershell
 psql -U postgres -h 127.0.0.1
 ```
 
-Then execute:
+接著執行：
 
 ```sql
 CREATE DATABASE meddicom_db;
 ```
 
-### Step 4: Initialize Schema (Alembic)
+### Step 4：初始化 Schema（Alembic）
 
-After the database is created (Step 3), apply migrations to build the schema.
+資料庫建立完成後（Step 3），套用 migrations 以建構 schema。
 
-**Fresh database (no tables yet):**
+**全新資料庫（尚無任何資料表）：**
 
 ```powershell
 alembic upgrade head
 ```
 
-**Existing database that already has the schema (e.g., pre-Alembic):**
+**已存在且已含 schema 的資料庫（例如 pre-Alembic 時期）：**
 
-Mark the DB as already at head — does **not** execute CREATE TABLE:
+將 DB 標記為已在 head——**不會**執行 CREATE TABLE：
 
 ```powershell
 alembic stamp head
 ```
 
-> ⚠️ Choose `stamp head` (not `upgrade head`) when migrating a DB that pre-dates Alembic and already contains the four tables. Running `upgrade head` on a populated DB will fail with "relation already exists".
+> ⚠️ 當要遷移的是早於 Alembic、且已含那四張資料表的 DB 時，請選 `stamp head`（而非 `upgrade head`）。對已有資料的 DB 跑 `upgrade head` 會因「relation already exists」而失敗。
 
-Verify migration state:
+驗證 migration 狀態：
 
 ```powershell
 alembic current
 ```
 
-### Step 5: Run Application
+### Step 5：執行應用程式
 
-_Linux/macOS:_
+_Linux/macOS：_
 
 ```bash
 uvicorn main:app --reload
 ```
 
-_Windows:_
+_Windows：_
 
 ```powershell
 uvicorn main:app --reload
 ```
 
-Server runs at `http://localhost:8000`.
+伺服器執行於 `http://localhost:8000`。
 
-### Step 6: Start Frontend (Optional, Phase 2)
+### Step 6：啟動前端（選用，Phase 2）
 
-Skip this if you only need the backend API. In a **new terminal** (keep backend running):
+若你只需要後端 API，可略過此步。在**新的終端機**（保持後端執行中）：
 
 ```powershell
 cd frontend
-npm install        # first time, or after pulling new deps
+npm install        # 首次，或拉到新相依套件後
 npm run dev
 ```
 
-Opens at `http://localhost:5173`. The backend's CORS middleware already allows this origin.
+開啟於 `http://localhost:5173`。後端的 CORS middleware 已允許此來源。
 
-> Frontend developer guide: [`frontend/README.md`](./frontend/README.md)
-> Frontend architecture: [`frontend/docs/IMPLEMENTATION.md`](./frontend/docs/IMPLEMENTATION.md)
+> 前端開發者指南：[`frontend/README.md`](./frontend/README.md)
+> 前端架構：[`frontend/docs/IMPLEMENTATION.md`](./frontend/docs/IMPLEMENTATION.md)
 
-### Step 7: Optional — AI inference setup (Phase 3 prep)
+### Step 7：選用——AI 推論設定（Phase 3 準備）
 
-The AI diaphragm-excursion inference pipeline is vendored under [`AI/`](./AI/) (source-only;
-heavy deps and model weights are excluded from git). Skip this section unless you plan to
-run real AI inference (Phase 3 backend integration; see PROGRESS §5 Phase 3).
+AI 橫膈膜偏移推論 pipeline 以 vendored 形式置於 [`AI/`](./AI/)（僅含原始碼；
+重量級相依與 model weights 已從 git 排除）。除非你打算執行真正的 AI 推論
+（Phase 3 後端整合；見 PROGRESS §5 Phase 3），否則可略過本節。
 
-**1. Pull heavy artifacts** (excluded from this repo by `.gitignore`):
+**1. 拉取重量級產物**（被本 repo 的 `.gitignore` 排除）：
 
 ```powershell
-# paddleseglibs/ — vendored PaddleSeg with Patch 2A-2C modifications (~27 MB)
+# paddleseglibs/ — vendored PaddleSeg，含 Patch 2A-2C 修改（約 27 MB）
 git clone --depth 1 https://github.com/peter88510/diaphragm_excursion.git temp-ai
 Copy-Item -Recurse temp-ai/paddleseglibs ./AI/
 Remove-Item -Recurse -Force temp-ai
 
-# Model weights (5 × 323 MB) — obtain from lab storage and place under:
+# Model weights（5 × 323 MB）— 從實驗室儲存取得並放置於：
 #     AI/paddleseglibs/output/model/<model_name>/best_model/model.pdparams
 ```
 
-**2. Install AI Python deps** (separate from MedPACS backend):
+**2. 安裝 AI Python 相依**（與 MedPACS 後端分開）：
 
 ```powershell
 pip install -r requirements-ai.txt
 ```
 
-> ⚠️ `paddlepaddle` may need a version pin matching your CUDA / CPU environment.
-> Edit `requirements-ai.txt` as needed.
+> ⚠️ `paddlepaddle` 可能需要依你的 CUDA / CPU 環境釘選對應版本。
+> 視需要編輯 `requirements-ai.txt`。
 
-**3. Smoke test** the standalone AI pipeline:
+**3. Smoke test** 獨立的 AI pipeline：
 
 ```powershell
 cd AI
-python main.py  # edit `image_path` at the bottom of main.py first
+python main.py  # 先編輯 main.py 底部的 `image_path`
 ```
 
-Expected: `[done] N frames, ..., excursion_runs=M` log line with `excursion_cm` values
-in the 1-7 cm range (typical diaphragm range). See [`AI/README.md`](./AI/README.md) §3
-for full Quick Start.
+預期：`[done] N frames, ..., excursion_runs=M` log 行，且 `excursion_cm` 值
+落在 1-7 cm 範圍（典型橫膈膜範圍）。完整 Quick Start 見
+[`AI/README.md`](./AI/README.md) §3。
 
-> Backend integration is done (2026-06-10): `/ai/segment/{id}` calls `AI.main.run`
-> via the swappable `services/ai_engine` layer. Once this AI runtime is installed,
-> `/ai/segment` runs real inference; otherwise it returns 503. See PROGRESS §5 Phase 3.
+> 後端整合已完成（2026-06-10）：`/ai/segment/{id}` 透過可抽換的
+> `services/ai_engine` layer 呼叫 `AI.main.run`。一旦此 AI runtime 安裝完成，
+> `/ai/segment` 即執行真正推論；否則回傳 503。見 PROGRESS §5 Phase 3。
 
-## Frontend Overview
+## 前端概覽（Frontend Overview）
 
-The frontend is a single-page application (SPA) under `frontend/`:
+前端是位於 `frontend/` 下的單頁應用程式（SPA）：
 
-- **Stack**: React 19 + TypeScript 6 + Vite 8 + CornerstoneJS 4.22 (Cornerstone3D family)
-- **State management**: React Context (5 fields) — no Redux/Zustand
-- **Components**: 4 business (`StudyList` / `DicomViewer` / `MetadataPanel` / `AIPanel`) + 4 structural = 8 total
-- **Styling**: CSS Modules, no UI framework
-- **Backend coupling**: hard-coded `API_BASE = 'http://localhost:8000'` during MVP (env var later)
+- **技術棧**：React 19 + TypeScript 6 + Vite 8 + CornerstoneJS 4.22（Cornerstone3D 家族）
+- **狀態管理**：React Context（5 個欄位）——無 Redux/Zustand
+- **元件**：4 個業務元件（`StudyList` / `DicomViewer` / `MetadataPanel` / `AIPanel`）+ 4 個結構性元件 = 共 8 個
+- **樣式**：CSS Modules，無 UI framework
+- **後端耦合**：MVP 期間 hard-coded `API_BASE = 'http://localhost:8000'`（env var 之後再做）
 
-See [`frontend/docs/IMPLEMENTATION.md`](./frontend/docs/IMPLEMENTATION.md) for component design, Context shape, API client structure, and CornerstoneJS integration plan.
+元件設計、Context 結構、API client 結構，以及 CornerstoneJS 整合計畫見
+[`frontend/docs/IMPLEMENTATION.md`](./frontend/docs/IMPLEMENTATION.md)。
 
-## API Endpoints
+## API 端點（API Endpoints）
 
 ### POST /upload
 
-Upload and process a DICOM file.
+上傳並處理一個 DICOM 檔案。
 
-**Request:**
+**Request：**
 
 ```text
 Content-Type: multipart/form-data
 Body: file (binary DICOM)
 ```
 
-**Response (200 OK):**
+**Response（200 OK）：**
 
 ```json
 {
@@ -350,19 +351,19 @@ Body: file (binary DICOM)
 }
 ```
 
-| Field | Type | Notes |
+| 欄位 | 型別 | 備註 |
 |---|---|---|
-| `instance_id` | integer | DB primary key of the newly-created instance. Use this to drill down via `GET /instances/{id}` / `/instances/{id}/file` / `/instances/{id}/metadata`. Added 2026-05-14. |
-| `filename` | string | Echoed from upload |
-| `patient_id` | string | DICOM `PatientID` tag value (not the DB primary key) |
-| `study_instance_uid` | string | DICOM `StudyInstanceUID` tag value |
-| `modality` | string | DICOM `Modality` tag value |
+| `instance_id` | integer | 新建立 instance 的 DB primary key。可用它透過 `GET /instances/{id}` / `/instances/{id}/file` / `/instances/{id}/metadata` 往下查。2026-05-14 新增。 |
+| `filename` | string | 由上傳回傳 |
+| `patient_id` | string | DICOM `PatientID` tag 值（非 DB primary key） |
+| `study_instance_uid` | string | DICOM `StudyInstanceUID` tag 值 |
+| `modality` | string | DICOM `Modality` tag 值 |
 
 ### GET /health
 
-Health check endpoint.
+健康檢查端點。
 
-**Response (200 OK):**
+**Response（200 OK）：**
 
 ```json
 {
@@ -373,9 +374,9 @@ Health check endpoint.
 
 ### GET /studies
 
-Returns all studies stored in the database, ordered by most recently ingested.
+回傳資料庫中所有 studies，依最近 ingest 排序。
 
-**Response (200 OK):**
+**Response（200 OK）：**
 
 ```json
 {
@@ -387,15 +388,15 @@ Returns all studies stored in the database, ordered by most recently ingested.
 
 ### GET /series/{id}
 
-Returns a single series record by its database ID.
+依資料庫 ID 回傳單一 series 記錄。
 
-| Parameter | Type | Description |
+| 參數 | 型別 | 說明 |
 |---|---|---|
-| `id` | integer | Database primary key of the series |
+| `id` | integer | series 的資料庫 primary key |
 
-**Response (200 OK):** Series object.
+**Response（200 OK）：** Series 物件。
 
-**Response (404 Not Found):**
+**Response（404 Not Found）：**
 
 ```json
 { "detail": "Series with id 99 not found" }
@@ -403,51 +404,51 @@ Returns a single series record by its database ID.
 
 ### GET /studies/{id}/series
 
-Returns all series for the given study (added 2026-05-15).
+回傳指定 study 的所有 series（2026-05-15 新增）。
 
-| Parameter | Type | Description |
+| 參數 | 型別 | 說明 |
 |---|---|---|
-| `id` | integer | Database primary key of the study |
+| `id` | integer | study 的資料庫 primary key |
 
-**Response (200 OK):**
+**Response（200 OK）：**
 
 ```json
 { "series": [ { "id": 10, "series_instance_uid": "1.2.3.4", "study_instance_uid": "1.2.3" } ] }
 ```
 
-Empty `series: []` is valid when the study has no series records yet (e.g., legacy uploads from before 2026-05-15 when the upload pipeline did not write to the series table).
+當 study 尚無 series 記錄時，回傳空的 `series: []` 是合法的（例如 2026-05-15 之前的舊上傳，當時上傳 pipeline 尚未寫入 series 表）。
 
-**Response (404 Not Found):** Returned when the study itself does not exist.
+**Response（404 Not Found）：** 當 study 本身不存在時回傳。
 
 ### GET /series/{id}/instances
 
-Returns all instances for the given series (added 2026-05-15).
+回傳指定 series 的所有 instances（2026-05-15 新增）。
 
-| Parameter | Type | Description |
+| 參數 | 型別 | 說明 |
 |---|---|---|
-| `id` | integer | Database primary key of the series |
+| `id` | integer | series 的資料庫 primary key |
 
-**Response (200 OK):**
+**Response（200 OK）：**
 
 ```json
 { "instances": [ { "id": 100, "sop_instance_uid": "1.2.3.4.5", "series_instance_uid": "1.2.3.4" } ] }
 ```
 
-Empty `instances: []` is valid when the series exists but its child instances were uploaded before the 2026-05-15 schema upgrade (their `series_instance_uid` column is NULL and they cannot be matched).
+當 series 存在、但其子 instances 是在 2026-05-15 schema 升級前上傳時，回傳空的 `instances: []` 是合法的（它們的 `series_instance_uid` 欄位為 NULL，無法配對）。
 
-**Response (404 Not Found):** Returned when the series itself does not exist.
+**Response（404 Not Found）：** 當 series 本身不存在時回傳。
 
 ### GET /instances/{id}
 
-Returns a single instance record by its database ID.
+依資料庫 ID 回傳單一 instance 記錄。
 
-| Parameter | Type | Description |
+| 參數 | 型別 | 說明 |
 |---|---|---|
-| `id` | integer | Database primary key of the instance |
+| `id` | integer | instance 的資料庫 primary key |
 
-**Response (200 OK):** Instance object.
+**Response（200 OK）：** Instance 物件。
 
-**Response (404 Not Found):**
+**Response（404 Not Found）：**
 
 ```json
 { "detail": "Instance with id 99 not found" }
@@ -455,54 +456,53 @@ Returns a single instance record by its database ID.
 
 ### GET /instances/{id}/file
 
-Streams the raw DICOM file for the specified instance.
+串流指定 instance 的原始 DICOM 檔案。
 
-| Parameter | Type | Description |
+| 參數 | 型別 | 說明 |
 |---|---|---|
-| `id` | integer | Database primary key of the instance |
+| `id` | integer | instance 的資料庫 primary key |
 
-**Response (200 OK):** `application/dicom` file stream.
+**Response（200 OK）：** `application/dicom` 檔案串流。
 
-**Response (404 Not Found):** Returned when the instance does not exist, or when the file is not present on disk.
+**Response（404 Not Found）：** 當 instance 不存在、或磁碟上找不到該檔案時回傳。
 
 ### GET /instances/{id}/metadata
 
-Returns all metadata fields for the specified instance.
+回傳指定 instance 的所有 metadata 欄位。
 
-| Parameter | Type | Description |
+| 參數 | 型別 | 說明 |
 |---|---|---|
-| `id` | integer | Database primary key of the instance |
+| `id` | integer | instance 的資料庫 primary key |
 
-**Response (200 OK):**
+**Response（200 OK）：**
 
 ```json
 { "id": 1, "sop_instance_uid": "1.2.840...", "series_id": 10 }
 ```
 
-**Response (404 Not Found):**
+**Response（404 Not Found）：**
 
 ```json
 { "detail": "Instance with id 99 not found" }
 ```
 
-## AI Endpoints
+## AI 端點（AI Endpoints）
 
-> Real integration layer since 2026-06-10 (replaces the previous stubs). The
-> **end-to-end inference** requires the AI runtime (paddle + model weights, see
-> [Step 7](#step-7-optional--ai-inference-setup-phase-3-prep)); without it
-> `/ai/segment` returns **503**. The measurement type is resolved from the DICOM
-> device model (`ManufacturerModelName`): `C62` → excursion, `L154` → thickness.
+> 自 2026-06-10 起為真正的整合層（取代先前的 stubs）。**端到端推論**需要
+> AI runtime（paddle + model weights，見
+> [Step 7](#step-7選用ai-推論設定phase-3-準備)）；若未安裝，
+> `/ai/segment` 回傳 **503**。測量類型由 DICOM device model
+> （`ManufacturerModelName`）解析：`C62` → excursion，`L154` → thickness。
 
 ### POST /ai/segment/{id}
 
-Runs diaphragm measurement for the instance (synchronous, LEGACY mode) and writes
-a row into `ai_results`.
+對該 instance 執行橫膈膜測量（同步，LEGACY 模式），並寫入一筆 `ai_results`。
 
-| Parameter | Type | Description |
+| 參數 | 型別 | 說明 |
 |---|---|---|
-| `id` | integer | Database primary key of the instance |
+| `id` | integer | instance 的資料庫 primary key |
 
-**Response (200 OK):**
+**Response（200 OK）：**
 
 ```json
 { "instance_id": 1, "ai_result_id": 42, "status": "completed",
@@ -510,23 +510,23 @@ a row into `ai_results`.
   "measurement_count": 1 }
 ```
 
-| Status | When |
+| Status | 時機 |
 |---|---|
-| 422 | Device model not in the machine-model map (cannot resolve type — refuses to guess) |
-| 501 | Thickness measurement (forward-design; algorithm not implemented) |
-| 503 | AI runtime deps not installed (install `requirements-ai.txt` + Step 7) |
-| 500 | Inference attempted but failed (an `error` row is recorded) |
-| 404 | Instance not found |
+| 422 | Device model 不在 machine-model map 中（無法解析類型——拒絕猜測） |
+| 501 | Thickness 測量（前瞻設計；演算法尚未實作） |
+| 503 | AI runtime 相依未安裝（安裝 `requirements-ai.txt` + Step 7） |
+| 500 | 已嘗試推論但失敗（會記錄一筆 `error` row） |
+| 404 | Instance 不存在 |
 
 ### GET /ai/result/{id}
 
-Returns the latest AI result for the instance.
+回傳該 instance 最新的 AI 結果。
 
-| Parameter | Type | Description |
+| 參數 | 型別 | 說明 |
 |---|---|---|
-| `id` | integer | Database primary key of the instance |
+| `id` | integer | instance 的資料庫 primary key |
 
-**Response (200 OK):**
+**Response（200 OK）：**
 
 ```json
 { "instance_id": 1, "ai_result_id": 42, "status": "completed",
@@ -537,57 +537,57 @@ Returns the latest AI result for the instance.
   "error_message": null, "created_at": "..." }
 ```
 
-> `mask_url` is currently `null` — the mask PNG endpoint is a downstream task.
+> `mask_url` 目前為 `null`——mask PNG 端點是下游任務。
 
-**Response (404 Not Found):** instance missing, or no AI result yet (run `POST /ai/segment/{id}` first).
+**Response（404 Not Found）：** instance 不存在，或尚無 AI 結果（請先執行 `POST /ai/segment/{id}`）。
 
 ```json
 { "detail": "Instance with id 99 not found" }
 ```
 
-## Database Schema
+## 資料庫 Schema（Database Schema）
 
 ### patients
 
-| Column | Type | Constraints |
+| 欄位 | 型別 | 約束 |
 |---|---|---|
 | `id` | Integer | Primary key |
-| `patient_id` | String | Unique; referenced as FK in studies |
-| `created_at` | DateTime | Auto-set on insert |
+| `patient_id` | String | Unique；在 studies 中作為 FK 被引用 |
+| `created_at` | DateTime | insert 時自動設定 |
 
 ### studies
 
-| Column | Type | Constraints |
+| 欄位 | 型別 | 約束 |
 |---|---|---|
 | `id` | Integer | Primary key |
-| `study_instance_uid` | String | Unique; referenced as FK in instances |
+| `study_instance_uid` | String | Unique；在 instances 中作為 FK 被引用 |
 | `patient_id` | String | FK → `patients.patient_id` |
 | `modality` | String | Nullable |
-| `created_at` | DateTime | Auto-set on insert |
+| `created_at` | DateTime | insert 時自動設定 |
 
 ### series
 
-| Column | Type | Constraints |
+| 欄位 | 型別 | 約束 |
 |---|---|---|
 | `id` | Integer | Primary key |
-| `series_instance_uid` | String | **Unique, NOT NULL** (since 2026-05-15 migration `e25c80289a9c`) |
+| `series_instance_uid` | String | **Unique, NOT NULL**（自 2026-05-15 migration `e25c80289a9c` 起） |
 | `study_instance_uid` | String | FK → `studies.study_instance_uid` |
-| `created_at` | DateTime | Auto-set on insert |
+| `created_at` | DateTime | insert 時自動設定 |
 
 ### instances
 
-| Column | Type | Constraints |
+| 欄位 | 型別 | 約束 |
 |---|---|---|
 | `id` | Integer | Primary key |
-| `sop_instance_uid` | String | Nullable; unique |
-| `file_path` | String | Relative path to stored file |
+| `sop_instance_uid` | String | Nullable；unique |
+| `file_path` | String | 已儲存檔案的相對路徑 |
 | `study_instance_uid` | String | FK → `studies.study_instance_uid` |
-| `series_instance_uid` | String | Nullable; FK → `series.series_instance_uid` (added 2026-05-15; legacy rows are NULL) |
-| `created_at` | DateTime | Auto-set on insert |
+| `series_instance_uid` | String | Nullable；FK → `series.series_instance_uid`（2026-05-15 新增；舊 rows 為 NULL） |
+| `created_at` | DateTime | insert 時自動設定 |
 
-## Storage Structure
+## 儲存結構（Storage Structure）
 
-Files are stored locally in a hierarchical directory structure:
+檔案以階層化目錄結構儲存於本地：
 
 ```text
 storage/
@@ -596,7 +596,7 @@ storage/
         └── {filename}.dcm
 ```
 
-Example with known metadata:
+已知 metadata 的範例：
 
 ```text
 storage/
@@ -605,7 +605,7 @@ storage/
         └── patient_001.dcm
 ```
 
-Example with missing PatientID or StudyInstanceUID:
+缺少 PatientID 或 StudyInstanceUID 的範例：
 
 ```text
 storage/
@@ -614,71 +614,71 @@ storage/
         └── file.dcm
 ```
 
-## Testing
+## 測試（Testing）
 
-Run the core test suite:
+執行核心測試套件：
 
-_Linux/macOS:_
+_Linux/macOS：_
 
 ```bash
 pytest test_dicom_service.py -v
 ```
 
-_Windows:_
+_Windows：_
 
 ```powershell
 pytest test_dicom_service.py -v
 ```
 
-Tests cover:
+測試涵蓋：
 
-- Health endpoint
-- DICOM upload and parsing
-- Local file storage
-- Database operations (upsert patient, upsert study, create instance)
+- Health 端點
+- DICOM 上傳與解析
+- 本地檔案儲存
+- 資料庫操作（upsert patient、upsert study、create instance）
 
-## Database Migration (Alembic)
+## 資料庫 Migration（Alembic）
 
-Schema changes are managed via Alembic. **Per CLAUDE.md §12, any schema change must go through a migration script** — direct `Base.metadata.create_all()` calls are reserved for tests only.
+Schema 變更透過 Alembic 管理。**依 CLAUDE.md §12，任何 schema 變更都必須走 migration script**——直接呼叫 `Base.metadata.create_all()` 僅保留給測試使用。
 
-### Common commands
+### 常用指令
 
 ```powershell
-# Apply all pending migrations
+# 套用所有 pending migrations
 alembic upgrade head
 
-# Roll back one migration
+# 回退一個 migration
 alembic downgrade -1
 
-# Roll back to empty schema
+# 回退到空 schema
 alembic downgrade base
 
-# Show current revision
+# 顯示目前 revision
 alembic current
 
-# Show migration history
+# 顯示 migration 歷史
 alembic history
 
-# Generate a new migration after editing models/orm.py
+# 編輯 models/orm.py 後生成新的 migration
 alembic revision --autogenerate -m "describe change"
 ```
 
-### Authoring a new migration
+### 撰寫新的 migration
 
-1. Edit `models/orm.py` (add column / table)
-2. Run `alembic revision --autogenerate -m "<short description>"`
-3. **Open the generated script in `alembic/versions/` and review it** — autogenerate is not perfect (it misses CHECK constraints, ENUM changes, server defaults, etc.)
-4. Verify both `upgrade()` and `downgrade()` work on a scratch DB
-5. Commit the script
+1. 編輯 `models/orm.py`（新增 column / table）
+2. 執行 `alembic revision --autogenerate -m "<short description>"`
+3. **打開 `alembic/versions/` 中生成的 script 並 review**——autogenerate 並不完美（它會漏掉 CHECK constraints、ENUM 變更、server defaults 等）
+4. 在 scratch DB 上驗證 `upgrade()` 與 `downgrade()` 皆可運作
+5. Commit 該 script
 
-### Notes
+### 註記
 
-- `alembic.ini` does **not** contain credentials; `alembic/env.py` injects `DATABASE_URL` from `core.config.settings` (loaded from `.env`).
-- Tests use in-memory SQLite + `Base.metadata.create_all()` (see `tests/conftest.py`) — they bypass Alembic for speed and isolation.
+- `alembic.ini` **不**含憑證；`alembic/env.py` 從 `core.config.settings`（由 `.env` 載入）注入 `DATABASE_URL`。
+- 測試使用 in-memory SQLite + `Base.metadata.create_all()`（見 `tests/conftest.py`）——它們為了速度與隔離而繞過 Alembic。
 
-## CORS (Dev)
+## CORS（開發用）
 
-`main.py` enables `CORSMiddleware` for development so the frontend (Phase 2 — React + Vite, default port `5173`) can call this API from a browser.
+`main.py` 為開發啟用 `CORSMiddleware`，讓前端（Phase 2——React + Vite，預設 port `5173`）可從瀏覽器呼叫本 API。
 
 ```python
 app.add_middleware(
@@ -690,48 +690,48 @@ app.add_middleware(
 )
 ```
 
-To allow another origin during development (e.g., `http://localhost:3000`), append it to `allow_origins`. **Production CORS is a deployment decision and is intentionally out of MVP scope** (PLAN §8.6).
+開發時若要允許其他來源（例如 `http://localhost:3000`），將它附加到 `allow_origins`。**Production CORS 屬部署決策，刻意排除在 MVP 範圍外**（PLAN §8.6）。
 
-## Integration Notes
+## 整合註記（Integration Notes）
 
-- **API Contract**: The `/upload` response is identical to v1.0. Clients require no changes.
-- **Internal Changes**: File storage and database persistence are transparent to API consumers.
-- **Database Initialization**: Schema is built by Alembic (`alembic upgrade head` — required before first `uvicorn main:app` launch on a fresh DB). The legacy `init_db()` in `db/session.py` is retained as a callable for emergency reset but is **no longer invoked at startup** (since 2026-05-19, PROGRESS §6.13 root-cause fix to avoid `Base.metadata.create_all` racing alembic and causing DuplicateTable on next `alembic upgrade head`).
-- **CORS**: Dev origin is `http://localhost:5173`. See the **CORS (Dev)** section above to add more.
-- **Storage Directory**: The `./storage` directory is created automatically if it does not exist.
+- **API Contract**：`/upload` response 與 v1.0 完全相同。Client 端無需變更。
+- **內部變更**：檔案儲存與資料庫持久化對 API 使用者透明。
+- **資料庫初始化**：Schema 由 Alembic 建構（`alembic upgrade head`——全新 DB 首次啟動 `uvicorn main:app` 前必須執行）。`db/session.py` 中的舊 `init_db()` 保留為可呼叫的緊急重置用，但**已不再於啟動時被呼叫**（自 2026-05-19 起，PROGRESS §6.13 root-cause 修正，避免 `Base.metadata.create_all` 與 alembic 競態而導致下次 `alembic upgrade head` 出現 DuplicateTable）。
+- **CORS**：開發來源為 `http://localhost:5173`。要新增更多請見上方 **CORS（開發用）** 段。
+- **儲存目錄**：`./storage` 目錄若不存在會自動建立。
 
-## Troubleshooting
+## 疑難排解（Troubleshooting）
 
 ### Database Connection Refused
 
-- Ensure PostgreSQL is running.
-- Verify `DATABASE_URL` in `.env` is correct.
-- Check that the database exists: `createdb meddicom_db`.
+- 確認 PostgreSQL 正在執行。
+- 確認 `.env` 中的 `DATABASE_URL` 正確。
+- 確認資料庫存在：`createdb meddicom_db`。
 
 ### No Such Table
 
-Run Alembic to build the schema:
+執行 Alembic 以建構 schema：
 
 ```powershell
 alembic upgrade head
 ```
 
-If migrations are stuck or out of sync, see the **Database Migration (Alembic)** section above.
+若 migrations 卡住或失去同步，見上方 **資料庫 Migration（Alembic）** 段。
 
 ### Permission Denied on ./storage
 
-- Ensure write permissions exist in the project directory.
-- Verify `UPLOAD_STORAGE_PATH` is correctly set in `.env`.
+- 確認專案目錄具有寫入權限。
+- 確認 `.env` 中的 `UPLOAD_STORAGE_PATH` 設定正確。
 
-_Linux/macOS:_
+_Linux/macOS：_
 
 ```bash
 chmod 755 .
 ```
 
-## Version History
+## 版本歷史（Version History）
 
-| Version | Status | Notes |
+| 版本 | 狀態 | 備註 |
 |---|---|---|
-| v2.0 | Current | Added PostgreSQL persistence and local file storage |
-| v1.0 | Superseded | Initial DICOM parsing and upload |
+| v2.0 | Current | 新增 PostgreSQL 持久化與本地檔案儲存 |
+| v1.0 | Superseded | 初版 DICOM 解析與上傳 |
