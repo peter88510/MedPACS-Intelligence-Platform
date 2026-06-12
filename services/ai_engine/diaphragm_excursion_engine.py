@@ -124,6 +124,10 @@ class DiaphragmExcursionEngine(DiaphragmEngine):
         重用 analyze 走的同一條 lazy 路徑（兩者共用 _segmenter 快取）。
         缺 paddle/weights → EngineUnavailableError（由 startup 端降級處理）。
         以 excursion 預載；segmenter 快取單一、後續 sniff 共用。
+
+        不持有 _run_lock：ASGI lifespan 在 startup event 序列完成後才開放接收
+        request，故 warmup 與第一個 analyze 不會並發進入 pipeline；segmenter 的
+        初始化本身已由 _get_warm_segmenter 的 _init_lock 保護。
         """
         inference = self._load_inference()
         self._get_warm_segmenter(inference, MeasurementType.EXCURSION)

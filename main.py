@@ -1,6 +1,7 @@
 import hashlib
 import io
 import os
+import time
 from fastapi import FastAPI, File, UploadFile, Depends
 from fastapi.responses import JSONResponse
 from fastapi.responses import FileResponse
@@ -79,8 +80,7 @@ def startup_event():
     # AI warmup（opt-in）— 預載 paddle segmenter，消除第一個 /ai/segment 冷啟。
     # 只在「這次啟動要跑 AI」時設 AI_WARMUP_ON_STARTUP=true；缺 paddle/weights
     # 不致命（降級訊息、照常啟動），測試 / 純後端啟動預設不觸發。
-    if os.getenv("AI_WARMUP_ON_STARTUP", "false").lower() in ("1", "true", "yes"):
-        import time
+    if settings.AI_WARMUP_ON_STARTUP:
         t0 = time.perf_counter()
         try:
             get_engine().warmup()

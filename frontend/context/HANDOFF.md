@@ -46,6 +46,7 @@
 |---|---|---|---|
 | `DATABASE_URL` | ✅ 是 | 無（Pydantic Settings 會拋錯） | PostgreSQL 連線 URL |
 | `UPLOAD_STORAGE_PATH` | ❌ 否 | `./storage` | DICOM 本地儲存根目錄 |
+| `AI_WARMUP_ON_STARTUP` | ❌ 否 | `false` | 啟動時預載 AI 模型（消除 `/ai/segment` 冷啟）；純後端 ops 開關、前端無相依 |
 
 前端目前不直接使用任何 backend env var。Frontend 自己的 `VITE_API_BASE_URL`（未來才導入）由前端控制。
 
