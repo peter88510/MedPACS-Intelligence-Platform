@@ -6,6 +6,8 @@
 > **流程**：上游依本契約實作 `inference.py` → 工程師把 `inference.py` 貼進 MedPACS `./AI/` → 主 Agent re-vendor + 簡化 engine。
 > **日期**：2026-06-11
 > **git**：本檔 git-track（durable 整合契約；非一次性設計備忘）。
+> **版本**：v1.1（2026-06-11）— 新增 warm segmenter 持久化支援。**已讀 v1.0 的 agent 只需讀 [§9](#9-v11-增補warm-segmenter-持久化) + 本行**，§1–8 未變。
+> **權威副本**：本檔（`docs/`）為 MedPACS 掌控的權威整合 spec。`AI/docs/ai_inference_contract.md` 是上游 repo 的鏡像、隨 vendor snapshot 流動（re-vendor 會覆蓋），**不手動維護**。兩者內容應一致；分歧時以本檔為準。
 >
 > **路徑慣例**：本檔所有 `xxx.py` / `config/` / `algorithm/` 路徑皆相對 **diaphragm_excursion repo root**
 > （= MedPACS 內的 `AI/`）。上游 agent 在自己 repo root 施工即可。
@@ -193,3 +195,75 @@ def analyze(self, image_path, measurement_type):
 - **thickness 不在此契約**：thickness 演算法尚不存在；MedPACS 在呼叫 `analyze` 之前就以 501 擋掉 thickness，facade 不需處理。
 - **viz 相依砍除**：見 §5 ⚠️，Phase 2 實測決定，不在本契約承諾。
 - **`model_version` 來源**：建議用 vendored snapshot 的 git short SHA 或 repo 內某個版本常數；MedPACS 目前 hardcode `"6139799"`，上游回傳值會覆蓋之。
+
+---
+
+## 9. v1.1 增補：warm segmenter 持久化
+
+> **動因**：v1.0 的 `analyze()` 每次呼叫都 `PaddleSegSegmenter(...)` + `load()` → 每個 request 重建 predictor + 重載 model 權重（秒級），且第一次 `predict()` 觸發 paddle lazy init（CUDA graph compile）。對長駐 service（AI 功能隨時在線）不可接受。
+>
+> **v1.1 變更**：公開面新增 `prepare_segmenter`，`analyze` 新增可選 `segmenter` 參數。**全部向後相容**——v1.0 的 `analyze(path, phase=...)` 呼叫行為不變（`segmenter=None` 時走內建 build+load）。
+
+### 9.1 公開面增量
+
+§2 的「對外只公開三個名稱」放寬為**四個**：
+
+```python
+def prepare_segmenter(
+    phase: str = "excursion",
+    *,
+    warmup_image_path: Optional[str] = None,
+) -> PaddleSegSegmenter:
+    """Service 啟動時預載 warm segmenter（model load 一次）。回傳物件傳給 analyze(segmenter=)。"""
+    ...
+
+
+def analyze(
+    image_path: str,
+    *,
+    phase: str = "excursion",
+    save_mask_dir: Optional[str] = None,
+    segmenter: Optional[PaddleSegSegmenter] = None,   # v1.1 新增
+) -> InferenceResult:
+    ...
+```
+
+| 名稱 | 角色 |
+|---|---|
+| `prepare_segmenter(phase, *, warmup_image_path=None)` | service 啟動呼叫；建+載 segmenter，回傳 warm 物件。`warmup_image_path` 給樣本 DICOM 時多跑一次 `predict()` 消 cold start（lazy init）。不給則只 load |
+| `analyze(..., segmenter=None)` | `segmenter` 給定 → 跳過 build+load，重用 warm 物件；`None` → 內建 build+load（v1.0 行為） |
+
+> `PaddleSegSegmenter` 型別本身**不必**對 MedPACS 公開為 import 目標——MedPACS 只需把 `prepare_segmenter()` 的回傳值原樣存著、再傳回 `analyze`，視為 opaque handle。
+
+### 9.2 行為規格（v1.1 補充）
+
+1. **segmenter 與 phase 無關**：同一橫膈膜分割模型服務 excursion / sniff 兩 phase，一個 instance 兩 phase 共用。`prepare_segmenter` 的 `phase` 僅用於透過 `build_api_bundle` 取 run_config 的 segmenter override（model path / device），不綁定後續 `analyze` 的 phase。
+
+2. **mask 輸出 per-call 切換、不重載**：`save_dir` / `save_predictions` 在 `build_predictor()` 時凍結進 predictor。warm segmenter 要支援 per-call `save_mask_dir`，靠 facade 內 `segmenter.configure_output(save_predictions, save_dir)` 覆寫 predictor dict（model 權重不動，便宜操作）。`save_mask_dir=None` 的呼叫會顯式關閉輸出，避免沿用上次設定誤寫檔。
+
+3. **thread-safety**：共用 warm segmenter + per-call `configure_output` **不具 thread-safety**（mutate 共享 predictor dict）。並發推論場景，MedPACS 需序列化 `analyze` 呼叫（單 GPU MVP 通常本就序列化），或每 worker 一個 `prepare_segmenter()` 實例。
+
+### 9.3 MedPACS 消費端（v1.1 形狀）
+
+```python
+class DiaphragmExcursionEngine:
+    def __init__(self):
+        inf = self._load_inference()               # sys.path 插 AI/ + import inference
+        self._inf = inf
+        self._segmenter = inf.prepare_segmenter(    # 啟動時一次；可選 warmup_image_path=<樣本 DICOM>
+            warmup_image_path=settings.AI_WARMUP_DICOM or None)
+
+    def analyze(self, image_path, measurement_type, mask_dir=None):
+        res = self._inf.analyze(
+            image_path, phase=measurement_type.value,
+            save_mask_dir=mask_dir, segmenter=self._segmenter)   # 重用 warm segmenter
+        return EngineResult(...)                    # 同 §6
+```
+
+啟動成本（model load + 選配 warmup）一次付清；之後每 request 只跑 detect→roi→motion→excursion 純算法路徑。
+
+### 9.4 驗收補充（v1.1）
+
+7. `seg = prepare_segmenter()` 回 segmenter；`analyze(path, segmenter=seg)` 與 `analyze(path)` 結果等價（measurements 相同）。
+8. 連續兩次 `analyze(path, segmenter=seg)` 不重載 model（log 無第二次 "Load model cost"）。
+9. `analyze(path, segmenter=seg, save_mask_dir="/tmp/a")` 後 `analyze(path2, segmenter=seg)`（不給 dir）→ 第二次不在 `/tmp/a` 留新檔（輸出已關）。
