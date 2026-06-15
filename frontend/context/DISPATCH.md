@@ -1,14 +1,11 @@
 ---
-issued: 2026-05-16
+issued: 2026-06-15
 issued_by: 主 Agent
-task_id: phase-2-task-9-business-components
-status: completed
-completed_on: 2026-05-18
-completed_commits: fb656c6, e4fd960, 2e1d9fb, ea3cc1b, fec64f5, 7c8fe0b, d66b6ab, 40d766d, 4a016cd, 498a845, fa0dd34
-supersedes: phase-2-task-8-stage-c-restack (Stage C 已 commit 13cccd3 含 UX 缺口；UX 缺口由本 dispatch CSS 整理段順手處理 — Fix-J 已於 commit 40d766d 解決)
+task_id: phase-3-frontend-ai-mask-overlay
+status: active
 ---
 
-# 當前任務 — Phase 2 task #9：4 業務元件 + AppContext + API client + env var 制度
+# 當前任務 — Phase 3 前端：AI 整合接真實 contract + mask overlay
 
 > **本檔機制**：本檔是**當前任務**的單一入口。主 Agent 派發新任務時會**整檔覆蓋**，不累積歷史。歷史請看 `frontend/PROGRESS.md` 的「已完成任務」段與 git commit log。
 >
@@ -18,263 +15,199 @@ supersedes: phase-2-task-8-stage-c-restack (Stage C 已 commit 13cccd3 含 UX �
 
 ---
 
-## ⏸️ 本任務已完成 — 目前無 active 前端任務（2026-05-18 工程師裁示）
-
-- task #9 全部 11 commits 已 push 至 `origin/master`、E2E 瀏覽器驗收 ✅、Stage C UX 缺口同步解決於 commit 7 (`40d766d` Fix-J)
-- **下個前端 dispatch 預告**：等主 Agent 完成 §5.4 後端 backfill（orphan instances 補 series_instance_uid + instance ID gap 來源澄清） + Phase 3 backend (AIResult model + Alembic migration + ai_service + 真實 PyTorch + `/ai/segment` + `/ai/result/{id}/mask` PNG endpoint)；屆時才會派下一個前端 dispatch（AIPanel mask overlay 真實渲染）
-- 本檔內容（下方任務說明）保留供歷史閱讀；不再 active
-
----
-
----
-
 ## 任務
 
 ### 目標
 
-完成 Phase 2 業務元件層 — 從「hardcoded INSTANCE_ID 顯示一張 DICOM」進化到「完整 SPA：選 study → 自動列 series → 列 instance → 渲染 + metadata 顯示 + AI stub 觸發」。
+把 AIPanel 從「舊 stub 形狀 + 顯示 JSON」升級為「接真實 AI contract + 顯示真實量測數字 + mask overlay」。
 
-依賴：
-- ✅ Stage C 已 commit `13cccd3`（DicomViewer 元件已存在，本 task 改造其 props 來源）
-- ✅ Backend 補完 `9967f71` + `40fd1e9`（`/upload` 回 instance_id、`/studies/{id}/series`、`/series/{id}/instances` 都已上線）
-- ✅ 工程師已跑 `alembic upgrade head`（migration `e25c80289a9c` 已 apply）
+**背景（重要）**：後端 `/ai/segment`·`/ai/result` 早在 2026-06-10 就從 stub 升為真實實作，2026-06-15 又補上 `GET /ai/result/{id}/mask` 真 PNG endpoint，但**前端從未跟上** —— `src/api/types.ts` 的 `AISegmentResponse` / `AIResultResponse` 仍是舊 stub 形狀（`result: {mask, confidence}`），`AIPanel.tsx` 還在讀 `aiResult.result.confidence`（對真實回應會壞）。本 task 一次補齊。
+
+依賴（全部已就緒，已實機驗證）：
+- ✅ `/ai/segment/{id}`、`/ai/result/{id}`、`/ai/result/{id}/mask` 三端點都上線（主 Agent 2026-06-15 對 instance 12 實打驗證：segment 寫入、result 回 envelope、mask 回真 PNG 200）
+- ✅ `mask_url` 已接上：有 mask 時 `/ai/result/{id}` 回 `"/ai/result/{id}/mask"`，否則 `null`
 
 ### 主 Agent 已拍板的決策
 
-- **起手 commit 0（先於下面 7 個 commit）— 固化 codex 已做的 aspectRatio 移除修正**：
-  - 工程師於 2026-05-16 用 codex 排查找到根因之一：`element.style.aspectRatio = '${cols}/${rows}'` 套在 Cornerstone-managed outer div 上 → 在 flex / grid + `min-height` / `height: 100%` chain 環境下與瀏覽器 size derive 衝突 → viewport 被壓縮（曾觀察到 ~165px 寬）
-  - codex 已動：移除 `DicomViewer.tsx` 內所有 `element.style.aspectRatio` 設定（不再 runtime 套 aspect-ratio 到 outer div）
-  - **本 commit 0 只固化 codex 的這個刪除動作**，與其 1:1、不擴 scope、不動 module.css、不引入其他變更
-  - Commit message: `fix(frontend): 移除 DicomViewer outer div 的 aspectRatio 設定 (避免與 layout height chain 衝突)`，body 簡述 codex 排查與 root cause、指向 `frontend/PROGRESS §4.4` 與 `根 PROGRESS §6.11`
-- **拒絕 codex 提的 setTimeout 300ms workaround**：那是 race condition 掩蓋、不是 root cause。Layout 三欄就位後若仍有 race（resize 時機晚於 render），用 `useLayoutEffect` + rAF 或 `ResizeObserver`，**禁止 setTimeout**
-- **API base URL**：採 `VITE_API_BASE_URL` env var 制度（本 task dispatch 內正式導入）
-- **State 管理**：React Context（`AppContext`，5 fields）— **不引入** Redux / Zustand / TanStack Query
-- **CSS**：CSS Modules（與 Stage C 同）
-- **Layout**：CSS Grid 三欄 — TopBar 在頂、StudyList 在左、DicomViewer 在中、MetadataPanel + AIPanel 在右上下分（依 frontend/docs/IMPLEMENTATION.md §架構圖）
-- **DicomViewer**：改 props 從 AppContext.currentInstanceId 取；**移除** App.tsx 的 hardcoded `INSTANCE_ID = 1`
-- **AI mask overlay**：本 task **不**做（依賴 Phase 3 真實 mask；frontend §5「後端需求清單」第 3 條 still pending）
-- **Multi-frame UI / cine**：本 task **不**做（Phase 3）
-- **upload UI**：本 task **不**做（依 PLAN §10.5、frontend HANDOFF §3.4）
-- **Stage C UX 缺口（影像未填滿 container）**：在「CSS Modules 樣式整理」子段**順手做方向 J（CSS 層偵錯）**；若 J 無解、留為 known issue（PROGRESS §6.11、根 PROGRESS §6.11）
+- **先修型別、再做 overlay**：分成 A（contract 對齊）→ B（mask overlay）兩段，A 完成可獨立 commit、先讓數值層正確。
+- **mask overlay 互動原則**：① 必須**可開關**（toggle，預設關或開由你定）② 必須**可調透明度**（opacity slider 或至少固定半透明）③ **不可改原 DICOM bytes / 不可 resize 原影像**（與既有渲染原則一致）。
+- **overlay 技術選型由你評估**：Cornerstone3D segmentation API vs 簡單 `<img>` 絕對定位疊在 canvas 上（半透明）。MVP 可接受後者，但**對齊正確性優先於技術純度**。
+- **狀態碼處理**：AIPanel 要能分辨 422（未知機型）/ 501（thickness 未實作）/ 503（引擎未裝）/ 404（未跑過）/ 500（推論失敗），各給可讀提示，不要一律「Failed」。
+- **不動 multi-frame / cine UI**（仍 Phase 3 後續或 realtime demo 範圍）。
 
-### 具體工作（commit 0 + 7 個業務 commit，共 8 個）
+### ⚠️ Step 0（必做，先於 A/B）— mask 偵察 + 對齊可行性回報
 
-**Commit 0**：見上方「主 Agent 已拍板的決策」第一條 — 固化 codex 的 aspectRatio 移除修正。
+mask 是 paddleseg `pseudo_color_prediction` 輸出，**與 DicomViewer 目前顯示的影像未必同一座標空間 / 同尺寸**（這是 M-mode 超音波，mask 可能是某 frame 的分割、viewer 顯示的可能是另一種 view）。動手做 overlay 前**先偵察**：
 
-1. **API client + env var 制度**（`src/api/`）
-   - `client.ts`：fetch wrapper（含 base URL 從 `import.meta.env.VITE_API_BASE_URL` 讀，default `http://localhost:8000`）+ `ApiError` class（含 status code + parsed body）
-   - `types.ts`：共享 TypeScript types（`Study`、`Series`、`Instance`、`InstanceMetadata`、`AISegmentResponse`、`AIResultResponse`）
-   - `studies.ts`：`listStudies()` → `GET /studies`、`listSeriesForStudy(studyId)` → `GET /studies/{id}/series`
-   - `series.ts`：`listInstancesForSeries(seriesId)` → `GET /series/{id}/instances`
-   - `instances.ts`：`getInstance(id)`、`getInstanceMetadata(id)`、`getInstanceFileUrl(id)`（純 URL builder，給 wadouri 用）
-   - `ai.ts`：`triggerSegmentation(instanceId)` → `POST /ai/segment/{id}`、`getResult(instanceId)` → `GET /ai/result/{id}`
-   - `.env.example` 加 `VITE_API_BASE_URL=http://localhost:8000`；建議建 `.env.local`（前端 Agent 不 commit、`.gitignore` 應已涵蓋 `.env*`，若沒涵蓋確認後加）
-   - **commit**：`feat(frontend): API client + VITE_API_BASE_URL env var 制度`
+1. 用一個已有結果的 instance（後端有 instance 12，`mask_url` 非 null）：
+   - 取 `GET /ai/result/12/mask` 看 PNG 實際長相 + 像素尺寸
+   - 取 `GET /instances/12/metadata`（Rows/Columns）+ 看 DicomViewer 目前渲染出來的影像
+2. 判斷：mask 的尺寸 / 內容**能不能合理疊在 viewer 現在顯示的影像上**？
+   - **能**（同尺寸或可等比對齊、語意對得上）→ 繼續 A → B。
+   - **不能 / 不確定**（座標空間根本不同、mask 是裁切後區域、或 viewer 顯示的不是 mask 對應的那張）→ **停下、把發現寫成「後端需求清單 / 設計疑問」回報主 Agent**，先別硬疊。A 段（contract 對齊 + 數值顯示）仍可照做，B 段 overlay 暫緩等主 Agent 裁示。
 
-2. **AppContext**（`src/context/AppContext.tsx`）
-   - 5 fields：`studies: Study[]`、`currentStudyId: number | null`、`currentSeriesId: number | null`、`currentInstanceId: number | null`、`aiResult: AIResultResponse | null`
-   - Provider 含 setter helpers + reducers（用 useReducer 或 useState 視複雜度）
-   - `useAppContext()` hook + null check
-   - 啟動時 fetch `/studies` 填 `studies`、預設選第一個（若有）→ 觸發 series fetch → instance fetch → 預設選第一個 instance
-   - **commit**：`feat(frontend): AppContext + 5 field state shape`
+> 這一步是為了避免「疊出來但對不齊還以為做完了」。寧可先回報。
 
-3. **結構元件**（`src/components/Layout/` + `src/components/TopBar/`）
-   - `Layout.tsx` + `Layout.module.css`：CSS Grid `grid-template-areas: "topbar topbar topbar" "studylist viewer rightpanel"; grid-template-columns: 240px 1fr 280px; grid-template-rows: 56px 1fr;`
-   - `TopBar.tsx` + `TopBar.module.css`：簡單 header（標題 "MedPACS"、可加目前選中的 study/series/instance UID 顯示作 debug）
-   - **commit**：`feat(frontend): Layout + TopBar 結構元件`
+### A 段：AI contract 對齊（數值層）
 
-4. **`<StudyList />`**（`src/components/StudyList/`）
-   - 左欄、列出 `appContext.studies`、可展開 series 子清單（點 study → fetch + show series → 點 series → fetch + show instances）
-   - 三層 nested list 或 expandable tree（看實作偏好）
-   - 點 instance → 設 `currentStudyId / currentSeriesId / currentInstanceId`
-   - **commit**：`feat(frontend): StudyList 元件 + 三層展開`
+1. **修 `src/api/types.ts`**（換成真實後端形狀，見下方「相關 API」）：
+   - `AISegmentResponse`：`{ instance_id, ai_result_id, status, measurement_type, primary_value, primary_unit, measurement_count }`
+   - `AIResultResponse`：完整真實形狀（含 `mask_url: string | null` + `result` envelope + `measurements[]` + `primary`）
+   - 新增 `Measurement` / envelope 子型別。
+2. **修 `src/components/AIPanel/AIPanel.tsx`**：
+   - 移除對 `aiResult.result.confidence` 的依賴（真實 envelope 沒這欄；`confidence` 在頂層、目前恆 null）。
+   - 顯示真實 headline：`measurement_type` / `primary_value` + `primary_unit` / `measurement_count`。
+   - 完整 `measurements[]` 可摺疊顯示（不必全攤）。
+   - 狀態碼分支提示（422/501/503/404/500）。
+3. **`src/context/AppContext.tsx`**：`aiResult` 型別與 `runAi()` 配合新 contract 調整（runAi 走 `triggerSegmentation` → `getResult`）。
+4. **commit**：`feat(frontend): AIPanel 接真實 AI contract — 量測數值 + 狀態碼分支`
 
-5. **`<MetadataPanel />`**（`src/components/MetadataPanel/`）
-   - 右上、依 `currentInstanceId` fetch `/instances/{id}/metadata` 顯示 key-value 表
-   - Loading / empty / error 三態（不必過度設計）
-   - **commit**：`feat(frontend): MetadataPanel 元件`
+### B 段：mask overlay（Step 0 判定可行才做）
 
-6. **`<AIPanel />`**（`src/components/AIPanel/`）
-   - 右下、`Run AI` 按鈕（disabled if no `currentInstanceId`）
-   - 按下 → `POST /ai/segment/{id}` → polling or one-shot fetch `/ai/result/{id}` → 顯示 `aiResult` JSON
-   - **mask overlay 不做**（pending Phase 3 真實 mask）— UI 顯示「Mask 渲染待 Phase 3」字樣即可
-   - **commit**：`feat(frontend): AIPanel 元件 + AI stub 接通`
-
-7. **DicomViewer 改造 + App.tsx 改寫 + CSS Modules 樣式整理**
-   - DicomViewer：移除 prop `instanceId`、改從 `useAppContext().currentInstanceId` 取（或保留 prop 但 App.tsx 從 context 傳入 — 視 prop 純度偏好）
-   - `currentInstanceId === null` 時顯示空狀態（避免 wadouri URL 變成 `/instances/null/file`）
-   - App.tsx 改為：`<AppContextProvider><Layout><TopBar /><StudyList /><DicomViewer /><MetadataPanel /><AIPanel /></Layout></AppContextProvider>`
-   - 移除 hardcoded `INSTANCE_ID = 1` 與相關註解
-   - **CSS Modules 樣式整理**：
-     - 統一視覺風格（深色主題或淺色擇一、本 task 限縮為深色 — viewer 黑底為主、配深灰 panel）
-     - 清掉 Vite scaffold 殘留（`App.css` 不再 import 可刪、`assets/` 留空、`public/vite.svg` 等）
-     - **方向 J — CSS 層偵錯 Stage C UX 缺口**：
-       - F12 → Computed 對照 `#root`、`.viewport`、`.viewport-element`、`canvas` 四層的真實 box dimensions
-       - 確認 Vite scaffold `#root` 是否有 `max-width` / `padding` / `text-align: center` 限制
-       - 確認 DicomViewer container 在 Layout 三欄內（`grid-area: viewer`）的實際寬高、`min-height` 與 dynamic `aspect-ratio` 是否衝突
-       - 嘗試移除 `min-height` 或改用 `display: flex` + `flex: 1` 給 viewport
-       - 若找到 root cause、修；**若 30 分鐘內無解、停下、加進 PROGRESS §4.4 Fix-J 子段、留為 known issue 進 task #9 commit**
-   - **commit**：`feat(frontend): DicomViewer ← AppContext + CSS Modules 整理 (含方向 J 嘗試)`
+1. `src/api/ai.ts` 加 mask URL builder：`getMaskUrl(instanceId)` → 純 URL（`${API_BASE}/ai/result/${id}/mask`），給 `<img>` / loader 用。
+2. overlay 渲染（技術選型你定，守上方「互動原則」三條）：
+   - mask `mask_url` 非 null 時才提供 overlay 開關。
+   - toggle 控制顯示 / 隱藏；opacity 可調。
+   - DicomViewer 原影像不動。
+3. AIPanel 的「Mask 渲染待 Phase 3」字樣移除、換成真實 overlay 控制。
+4. **commit**：`feat(frontend): mask overlay 渲染 + toggle/opacity 控制`
 
 ---
 
 ## 相關 API
 
-完整 spec 見 `docs/generated/api_spec.md`（11 routes 全可用）。本 task 用到：
+完整 spec 見 `docs/generated/api_spec.md`（12 routes）。本 task 用到的 AI 三端點**真實形狀**（取代前端舊 stub）：
 
-| Endpoint | 用途 | Component |
+**`POST /ai/segment/{id}`** — 觸發量測、寫入 ai_results：
+
+| 情境 | HTTP | 回傳 / 意義 |
 |---|---|---|
-| `GET /studies` | 啟動時填 AppContext.studies | AppContext init |
-| `GET /studies/{id}/series` | 點 study 展開 series | StudyList |
-| `GET /series/{id}/instances` | 點 series 展開 instances | StudyList |
-| `GET /instances/{id}/file` | DICOM bytes（透過 wadouri） | DicomViewer（既有） |
-| `GET /instances/{id}/metadata` | metadata 顯示 | MetadataPanel |
-| `POST /ai/segment/{id}` | 觸發 AI（stub queued） | AIPanel |
-| `GET /ai/result/{id}` | 取 AI 結果（stub completed） | AIPanel |
+| 成功 | 200 | `{instance_id, ai_result_id, status:"completed", measurement_type, primary_value, primary_unit, measurement_count}` |
+| 未知機型（resolver 解不出） | 422 | `{detail}`（device model 不在 machine-model map） |
+| thickness（尚未實作） | 501 | `{detail}` |
+| 引擎未裝（缺 paddle/weights） | 503 | `{detail}` |
+| 推論失敗 | 500 | `{detail}`（已留 error 結果列） |
+| instance 不存在 | 404 | `{detail}` |
 
-**已知缺口**：
-- `/upload` UI 不做（HANDOFF §3.4）
-- AI mask 真實 PNG 不存在（HANDOFF §6 第 3 條）— AIPanel 顯示 JSON、不做 overlay
+**`GET /ai/result/{id}`** — 回最新一筆：
+
+```jsonc
+{ "instance_id": 12, "ai_result_id": 7, "status": "completed",
+  "measurement_type": "excursion", "model_name": "diaphragm_excursion",
+  "model_version": "5adfeaa", "primary_value": 1.13, "primary_unit": "cm",
+  "confidence": null,
+  "mask_url": "/ai/result/12/mask",          // 有 mask 時；否則 null
+  "result": {                                  // envelope
+    "schema_version": 1, "measurement_type": "excursion", "pipeline_mode": "legacy",
+    "model_name": "diaphragm_excursion", "model_version": "5adfeaa",
+    "measurements": [
+      { "batch_index": 0, "excursion_cm": 1.13, "excursion_pixel": 23,
+        "time_pixel": 182, "time_sec": null, "velocity": null,
+        "crest": [631,293], "trough": [450,315] }
+      // ... N 筆
+    ],
+    "primary": { "label": "excursion_cm", "value": 1.13, "unit": "cm" }
+  },
+  "error_message": null, "created_at": "2026-06-15T03:28:42.261962" }
+```
+- 尚未跑過 → 404（提示先 segment）。
+
+**`GET /ai/result/{id}/mask`** —（2026-06-15 新增）回 mask PNG：
+
+| 情境 | HTTP | 回傳 |
+|---|---|---|
+| 有 mask | 200 | `Content-Type: image/png`、影像 binary |
+| instance 不存在 / 無結果 / 結果無 mask / 檔案遺失 | 404 | `{detail}` |
+
+- **mask 與原 DICOM 未必同尺寸**（見 Step 0）。
+
+詳見 `frontend/context/HANDOFF.md` §3.3（AI 三端點補充說明）+ §6 / §7（endpoint 狀態 + 2026-06-15 changelog）。
 
 ---
 
 ## 相關深入文件
 
-- **必查**：`frontend/docs/IMPLEMENTATION.md` §10「開發順序建議」+ §架構圖 + §components 表
-- **必查**：`frontend/context/HANDOFF.md` §3 / §4 / §6 / §7（後端 API 補充說明 + endpoint 狀態 + 重大變更）
-- **必查**：`docs/generated/api_spec.md`（API 權威來源）+ `docs/generated/db_schema.md`（schema 權威來源）
-- **背景**：`frontend/PROGRESS.md` §4.4（Stage C UX 缺口完整紀錄、4 個方向都 fail 的歷程；方向 J 候選）
+- **必查**：`frontend/context/HANDOFF.md` §3.3（AI 端點補充）/ §6 / §7
+- **必查**：`docs/generated/api_spec.md`（API 權威來源）
+- **按需**：`frontend/docs/IMPLEMENTATION.md`（AIPanel / DicomViewer 元件設計、Cornerstone 整合）— 做 overlay 時查 Cornerstone 整合段
+- **背景**：`frontend/PROGRESS.md`（AIPanel 現況、Stage C 渲染歷史）
 
 ---
 
 ## 注意事項
 
-### 渲染原則（與 Stage C 同，重申）
-
-- **等比縮放 + 保留原始資料**：DicomViewer 內部不可寫自訂 image resize / canvas redraw / Image() hack / 改 image data
-- Cornerstone WebGL canvas 永遠等比 + 高品質 resampling
-- 原 DICOM bytes 全程不變
-
-### Stage C UX 缺口處理（方向 J）
-
-- 在「CSS Modules 樣式整理」commit 內順手做
-- **30 分鐘 timebox**：若 30 分鐘 CSS 偵錯找不到、停下、寫 §4.4 Fix-J 結果、留為 known issue
-- 不要 scope creep 到 Cornerstone code、不要再做 Fix-5/6 type 的 deep dive
-- 若 J 找到根因 + 修好 → PROGRESS §4.4 主段標「已解決於 commit XXX (Fix-J)」+ 根 PROGRESS §6.11 同步更新
-
 ### Scope 邊界（禁忌）
 
-- ❌ 不可動 backend / `vite.config.ts` server.port / `main.tsx` / `setup.ts`
-- ❌ 不可改 Stage C 既有的 metadata-aware aspect-ratio / 二次 setStack / destroy+recreate 邏輯（保留 Fix-4 累積結果）
-- ❌ 不可加 frame 切換 / cine / multi-frame UI（Phase 3）
-- ❌ 不可實作 AI mask overlay 渲染（Phase 3 真實 mask 才做）
-- ❌ 不可實作 upload UI（PLAN §10.5）
-- ❌ 不可引入 Redux / Zustand / TanStack Query / SWR / React Query（Context 夠用）
-- ❌ 不可引入 UI framework（MUI / Antd / Chakra）— 用 CSS Modules
-- ❌ 不可改 `frontend/CLAUDE.md` §11 待補規範（屬主 Agent + 工程師決策範圍）
-- ❌ 不可修改本檔
-- ❌ Fix-J 不可超時 30 分鐘 / 不可動 Cornerstone code
+- ❌ 不可動 backend / `main.py` / DB / 根目錄文件
+- ❌ 不可動 `vite.config.ts` 的 `server.port`（5173，CORS 對齊）
+- ❌ 不可改既有 DicomViewer 的 Cornerstone 渲染核心邏輯（metadata-aware aspect-ratio / setStack / destroy+recreate）— overlay 應**疊加**，不重寫渲染
+- ❌ 不可 resize / 改原 DICOM 影像 bytes
+- ❌ 不可引入 Redux / Zustand / UI framework / 新 HTTP library
+- ❌ 不可做 multi-frame / cine UI、upload UI
+- ❌ 不可修改本檔 / `frontend/CLAUDE.md`
+- ❌ Step 0 判定 overlay 對不齊時，**不可硬疊裝作完成** → 回報主 Agent
 
-### Commit 操作
+### 渲染原則（重申）
 
-- **拆 7 個 commit**（見「具體工作」段標註）— 不要單一 commit
-- 每個 commit 都要：tsc 通過 + dev server 啟動乾淨 + 該 commit 範圍內的元件可運作（不必所有元件都跑、只測新加的）
-- 最後一個 commit 後做 end-to-end 瀏覽器驗收（點 study → 渲染 → metadata → AI 觸發）
-- pre-commit hook 對前端檔不觸發（仍會跑、不影響）
-- 完成後 TaskStop background dev server
-
-### 環境變數規範（新導入）
-
-- `VITE_API_BASE_URL=http://localhost:8000` 寫進 `.env.example`
-- 前端 Agent 在自己 dev 環境**可建** `.env.local` 覆蓋（不 commit；確認 `.gitignore` 涵蓋 `.env*` 或至少 `.env.local`）
-- 若 `.gitignore` 沒涵蓋、回報主 Agent（這屬 backend `.gitignore` 範圍、主 Agent 處理）
-- `client.ts` 應 fallback：`const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'`
+- 等比縮放、保留原始資料；mask overlay 為半透明疊層、可開關
+- overlay 對齊以「視覺正確」為準，不確定先回報
 
 ---
 
 ## 完成標準
 
-### 必須全部成立
+### A 段（必須）
 
-- [ ] `src/api/` 完整：`client.ts` / `types.ts` / `studies.ts` / `series.ts` / `instances.ts` / `ai.ts`
-- [ ] `.env.example` 含 `VITE_API_BASE_URL`；`client.ts` 有 fallback
-- [ ] `src/context/AppContext.tsx` 完整：5 fields + Provider + `useAppContext()` hook
-- [ ] `<Layout />` + `<TopBar />` + `<StudyList />` + `<MetadataPanel />` + `<AIPanel />` 全部存在 + module.css
-- [ ] App.tsx 改為 `AppContextProvider` 包 `Layout` + 5 元件；移除 hardcoded `INSTANCE_ID`
-- [ ] DicomViewer 改用 `useAppContext().currentInstanceId`；`null` 時顯示空狀態
-- [ ] CSS Modules 樣式整理：深色主題、Vite scaffold 殘留清乾淨
-- [ ] **方向 J 嘗試結果**：成功 → §4.4 標已解決；timebox 內無解 → §4.4 加 Fix-J 結果 + 留 known issue
-- [ ] `npx tsc -b --noEmit` 通過
-- [ ] `npm run dev` 啟動乾淨（無 error / warning）
-- [ ] **End-to-end 瀏覽器驗收**：
-  - 開 `http://localhost:5173` → 看到 Layout 三欄
-  - StudyList 顯示 studies → 點一個 study → 自動展開 series → 點一個 series → 展開 instances → 點一個 instance
-  - DicomViewer 渲染該 instance（影像出現；填滿狀況依 J 結果）
-  - MetadataPanel 顯示 metadata
-  - AIPanel `Run AI` 按下 → response 顯示
-- [ ] 8 個 commit（commit 0 codex 固化 + 7 業務 commit；依「具體工作」段拆分）
-- [ ] 每 commit 都 push（不要全做完才 push、避免單筆 push 過大）
-- [ ] PROGRESS.md §1 加各元件完成項；§2 進行中清空；§3 待辦移除 task #9 / 加 Phase 3 預告（如「真實 AI 推論 / mask overlay」）
-- [ ] SESSION_HISTORY 更新到反映 task #9 完工
-- [ ] 完成後 TaskStop background dev server
+- [ ] `src/api/types.ts` 的 `AISegmentResponse` / `AIResultResponse` 換成真實形狀 + `Measurement`/envelope 子型別
+- [ ] `AIPanel.tsx` 不再讀 `aiResult.result.confidence`；顯示 `measurement_type` / `primary_value`+`primary_unit` / `measurement_count`
+- [ ] `measurements[]` 可摺疊檢視
+- [ ] 狀態碼分支提示（422/501/503/404/500 各有可讀訊息）
+- [ ] `AppContext` 的 `aiResult` / `runAi` 對齊新 contract
+- [ ] `npx tsc -b --noEmit` 通過、`npm run dev` 乾淨
 
-### 允許但不強制
+### Step 0 + B 段
 
-- AppContext 用 useState 或 useReducer 任一 — 視 5 fields 互動複雜度
-- StudyList 三層展開 vs flat list 任一 — 看 UX 偏好
-- AIPanel polling 還是 one-shot fetch — 視體驗
-- 深色主題具體配色 — 黑底為主、深灰 panel；不需精細設計
+- [ ] **Step 0 偵察結果有結論**：mask 可對齊 → 做 B；不可 → 回報主 Agent、B 暫緩（在 PROGRESS / 回報中明確寫出哪一種）
+- [ ] （若做 B）`getMaskUrl(instanceId)` URL builder
+- [ ] （若做 B）mask overlay：toggle + opacity，`mask_url` 非 null 才提供，原影像不動
+- [ ] （若做 B）AIPanel 移除「待 Phase 3」字樣、換真實 overlay 控制
+- [ ] End-to-end 瀏覽器驗收：選 instance → Run AI → 看到真實量測數字（→ 若做 B：開 overlay 看到 mask 半透明疊上）
 
-### 禁止
+### 文件
 
-- ❌ 單一 commit
-- ❌ 動 backend / 既有 Stage C Cornerstone 邏輯 / Phase 3 範圍
-- ❌ 引入 Redux / UI framework / 任何超出 fetch wrapper 的 HTTP library
-- ❌ Fix-J 超時 30 分鐘繼續鑽
-- ❌ 跳過 end-to-end 驗收
+- [ ] `frontend/PROGRESS.md`：已完成段加本 task（含 commit hash）；若 Step 0 判 overlay 不可行，加「已知缺口 / 後端需求清單」
+- [ ] `frontend/context/SESSION_HISTORY.md`：更新結尾狀態（commit 序列、Step 0 結論、意外發現）
 
 ---
 
 ## 驗證步驟（工程師驗收用）
 
-1. 確認 backend 跑著 + 至少有 2 個 study 在 DB（用 `curl /studies` 確認）
-2. `cd frontend && npm install`（若有新依賴；本 task 不應引入新 npm 依賴、純前端）
-3. `cd frontend && npm run dev`
-4. 瀏覽器開 `http://localhost:5173`
-5. **預期**：
-   - 看到三欄 Layout + TopBar
-   - StudyList 顯示 studies
-   - 點 study → 展開 series → 展開 instances
-   - 點 instance → DicomViewer 渲染 + MetadataPanel 顯示 metadata
-   - Run AI 按下 → AIPanel 顯示 stub 結果
-6. F12 → Console 無 red error
-7. F12 → Network：所有 fetch 走 `http://localhost:8000`（即 fallback 生效；若想驗證 env var、改 `.env.local` 設不同 URL 重啟 dev server）
-8. **方向 J 驗收**：影像填滿狀況比 Stage C `13cccd3` 改善？或仍同樣 60% 黑底？依 PROGRESS §4.4 Fix-J 結果
+1. backend 跑著（`conda activate medpacs_gpu` → uvicorn），DB 有已跑過 AI 的 instance（instance 12 已有結果）
+2. `cd frontend && npm run dev` → 開 `http://localhost:5173`
+3. 選到 instance 12（或任何已 segment 過的）→ AIPanel 應顯示 `excursion` / `primary_value ~1.13 cm` / `measurement_count`
+4. 對沒跑過的 instance 按 Run AI → 觀察 segment 流程 + 狀態碼提示是否正確
+5. （若做 B）開 mask overlay toggle → mask 半透明疊在影像上、調 opacity 有效、關掉恢復原影像
+6. F12 Console 無 red error；Network 的 AI 請求走 `http://localhost:8000`
 
 ---
 
-## 回報格式（每 commit message + 最後總結）
+## 回報格式
 
-每個 commit message 格式：
+每個 commit message：
 ```
-feat(frontend): <component name> — <one-line summary>
+feat(frontend): <段> — <one-line>
 
-<2-3 lines on what + why>
-
-<optional: gotchas observed>
+<2-3 行 what + why>
 ```
 
-最後總結（寫進 SESSION_HISTORY B 段「上次 session 結尾狀態」）：
-- 7 個 commit hash 序列
-- 方向 J 結果（成功 / 30 分鐘 timebox 觸發 / 找到 root cause 但未修）
-- 任何意外發現（後端 API 行為、Cornerstone 整合細節、CSS quirks）
-- 新發現的 known issue（加進 PROGRESS §4 已知缺口）
+最後總結（寫進 `frontend/context/SESSION_HISTORY.md` B 段）：
+- commit hash 序列（A 段 / B 段）
+- **Step 0 結論**：mask 與 viewer 影像對齊可行 / 不可行（附尺寸與發現）
+- overlay 技術選型（Cornerstone seg API / `<img>` 疊層）與原因
+- 任何後端需求 / 設計疑問（若 Step 0 判不可行，這裡是重點）
 
 ---
 
-## 預期下個 dispatch（Phase 3 起手，主 Agent 規劃中）
+## 注意：本任務需互動迭代
 
-- **Phase 3 backend**：`AIResult` model + Alembic migration + `ai_service.py` + PyTorch 模型載入 + `/ai/segment/{id}` 真實實作 + `/ai/result/{id}/mask` 真 PNG endpoint
-- **Phase 3 frontend**：AIPanel mask overlay 真渲染（取代 stub JSON 顯示）
-- **Phase 4**：sample DICOM 準備 + end-to-end demo 演練（PLAN §13）
-- **可能的 Stage C UX 缺口收尾**：若 task #9 期方向 J 仍無解、可能在 Phase 3 期單獨派 viewer-fit dispatch（depending on demo gating）
+mask overlay 對齊需要在瀏覽器裡看一張、調一次。**請在專屬前端 `claude` session 執行**（新 session 才讀得到本 DISPATCH，避免快取舊版）。遇到對齊 / 設計分歧 → 依 `frontend/CLAUDE.md` §4 回報主 Agent。
