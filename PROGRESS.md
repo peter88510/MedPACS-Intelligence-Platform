@@ -57,7 +57,7 @@
 - [x] **AIResult model + Alembic migration `91725486ef55`**（Phase 3 task #10、2026-05-19）— PLAN §9.3 schema scaffolding；不接 PyTorch（工程師親自串接演算法/模型）；upgrade/downgrade round-trip 驗證通過
 
 ### 測試與品質
-- [x] 82 個測試案例（單元 / 整合 / API / ORM 多層）
+- [x] 84 個測試案例（單元 / 整合 / API / ORM 多層）
 - [x] 共用 fixtures（`tests/conftest.py`）
 - [x] pytest 配置（`pytest.ini`）
 - [x] 測試隔離機制（記憶體 SQLite + monkeypatch）
@@ -107,7 +107,7 @@
 ## 3. 測試覆蓋簡況
 
 ### 總覽
-- **總測試數**：82 個
+- **總測試數**：84 個
 - **執行方式**：`pytest tests/ -v`
 - **隔離機制**：記憶體 SQLite + monkeypatch 臨時 storage，每個測試獨立
 
@@ -120,7 +120,7 @@
 | ORM 測試 | `tests/test_ai_result_model.py` | 6 | 純 SQLAlchemy model 層（task #10：CRUD + nullable + relationship；2026-06-09：measurement_type default + result_json round-trip + 新欄 nullable） |
 | 單元測試 | `tests/test_validators.py` | 9 | 純邏輯，無 DB / HTTP |
 | 單元測試 | `tests/test_measurement_type.py` | 13 | MeasurementType resolver（model-only key、known/unknown/missing、whitespace 正規化、manufacturer 缺值仍命中、production map C62→excursion/L154→thickness、enum str、ImageContentResolver stub） |
-| 單元測試 | `tests/test_ai_engine.py` | 10 | AI engine 抽象層（serialize envelope / primary value-unit / engine guard 不載 paddle / get_engine singleton） |
+| 單元測試 | `tests/test_ai_engine.py` | 12 | AI engine 抽象層（serialize envelope / primary value-unit / engine guard 不載 paddle / get_engine singleton；2026-06-12 加 warmup base no-op / 子類 override 兩項） |
 
 ### 已覆蓋路徑
 - ✅ DICOM 上傳完整流程（解析 / 儲存 / DB 寫入）
@@ -176,8 +176,9 @@
 - [x] **Schema 對齊 + Measurement Type resolver 架構**（2026-06-09、設計 `.work/ai_result_design.md`）— 裁示方案：統一 header + JSON payload（`ai_results` +`measurement_type`/`result_json`(JSONB)/`primary_value`/`primary_unit`；新增量測類型零 migration）。`instances` +`device_manufacturer`/`device_model`（上傳時抽、懶解析）。`services/measurement_type.py` plugin 架構（MVP MachineModelResolver、未來可換 ImageContentResolver）。Alembic `7f3c9a2b1d04` additive。66 tests 全綠。**endpoint 仍 stub**
 - [x] **AI engine wrapper（`services/ai_engine/`）+ `/ai/segment`·`/ai/result` 真實實作**（2026-06-10）— 可替換式 `DiaphragmEngine` ABC + paddle `DiaphragmExcursionEngine`（#14 同 process import、lazy、缺 paddle→503）+ serialize → design §4 envelope + `get_engine()` factory；resolver 接通（C62→excursion / L154→thickness、unknown 422 / thickness 501）；ai_results 寫入 + 查詢。82 tests 全綠（fake-engine 注入）。commit `e934025`/`22101af`/`f7f16de`
 - [x] **端到端真實推論驗證 + run_config 共用調參**（2026-06-11）— 工程師裝 paddle+weights，`POST /ai/segment/12` 跑完 150-frame model → **200 OK + ai_results 寫入**。途中修：① requirements-ai 缺 paddleseg 相依(pyyaml/visualdl/filelock/requests) + cp950 encoding ② 邊界 numpy→native 正規化(result_json JSON-serializable) ③ engine `_build_bundle` 接 `run_config.build_bundle()`（Option A：tuning 100% 上游 run_config、API 強制 LEGACY/viz-off）。整合 Option A 已驗證
-- [x] **AI 整合介面瘦身（facade re-vendor、Option 1）**（2026-06-11）— Phase 0 契約✅(`docs/ai_inference_contract.md`、commit `772faed`) / Phase 1 上游 `inference.py` facade✅ / Phase 2 re-vendor✅(@`5340456`、8 檔、commit `8f15e18`) / Phase 3 engine 簡化✅(~250→~150 行、commit `bca26ab`)。engine 改呼叫 `inference.analyze`：去 importlib hack + `_build_bundle` reach-in + numpy 正規化；接 warm segmenter(lazy 載一次重用)。**剩 Phase 2b trim**(viz/tools/experiments/font + 砍 visualdl，延後、需 GPU env 實測) + **startup warmup**(保留)
+- [x] **AI 整合介面瘦身（facade re-vendor、Option 1）**（2026-06-11）— Phase 0 契約✅(`docs/ai_inference_contract.md`、commit `772faed`) / Phase 1 上游 `inference.py` facade✅ / Phase 2 re-vendor✅(@`5340456`、8 檔、commit `8f15e18`) / Phase 3 engine 簡化✅(~250→~150 行、commit `bca26ab`)。engine 改呼叫 `inference.analyze`：去 importlib hack + `_build_bundle` reach-in + numpy 正規化；接 warm segmenter(lazy 載一次重用)。**剩 Phase 2b trim**(viz/tools/experiments/font + 砍 visualdl，延後、需 GPU env 實測) + ~~startup warmup~~(✅ 2026-06-12 完成、見下)
 - [x] **GPU 環境收斂**（2026-06-11）— `.venv`(3.8/CPU paddle) per-frame 慢 → 改用 clone 自 CLI `diaphragmalgo_env` 的 `medpacs_gpu`(Python 3.10.18 + paddlepaddle-gpu 3.2.0/cu118 + 後端 web 依賴)；GPU 提速已驗證。日常啟動：`conda activate medpacs_gpu` → `uvicorn main:app --reload`
+- [x] **AI engine startup warmup（opt-in `AI_WARMUP_ON_STARTUP`）**（2026-06-12、commit `418f29d` + review fixes）— FastAPI startup 預載 paddle segmenter 消第一個 `/ai/segment` 冷啟；`DiaphragmEngine` ABC 加預設 no-op `warmup()`、子類 override 走既有 lazy 路徑。env-gated（預設 false、測試/純後端啟動零延遲）+ exception-safe（缺 paddle 降級不擋啟動）。Settings 收編 `AI_WARMUP_ON_STARTUP: bool`（修寫入 `.env` 時 pydantic extra_forbidden 崩潰）。+2 test、84 全綠。設計筆記 `learning/asgi-lifespan-and-engine-locks.md`（gitignored）
 - [ ] `/ai/result/{id}/mask` — mask PNG endpoint（engine 預留 `mask_path`；與 facade `save_mask_dir` 合一設計，見契約 §4.3）
 - [ ] **Realtime 串流 demo endpoint**（候選）— REALTIME mode 逐 frame 推 excursion + video artifact；正解活在 run-loop state（run() 不回傳）→ 需另設 streaming endpoint，工程師 territory
 - [ ] 前端 mask overlay / 量測結果渲染 — ⏸ 數值層可先接（後端已就緒）、mask overlay 等 mask endpoint

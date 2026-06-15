@@ -24,14 +24,14 @@
 ### 系統現況（2026-06-11）
 
 - **定位**：AI-ready Ultrasound DICOM 平台 MVP（非完整 PACS 替代）
-- **階段**：**Phase 3 AI 整合 — 端到端打通 + facade 瘦身 + GPU 提速完成** — AI engine 整合層 ✅(2026-06-10、`e934025`) + 端到端驗證 ✅(2026-06-11) + **facade re-vendor @`5340456` ✅(`8f15e18`) + engine 簡化接 facade ✅(`bca26ab`、~250→~150 行) + GPU 環境 `medpacs_gpu` ✅**；82 tests 全綠。**剩**：Phase 2b trim(viz/tools/experiments/font + 砍 visualdl、需 GPU env 實測) + startup warmup（皆保留）→ 其後 mask PNG endpoint + 前端接數值。工程師親接 AI 演算法、主 Agent 接整合層
+- **階段**：**Phase 3 AI 整合 — 端到端打通 + facade 瘦身 + GPU 提速完成** — AI engine 整合層 ✅(2026-06-10、`e934025`) + 端到端驗證 ✅(2026-06-11) + **facade re-vendor @`5340456` ✅(`8f15e18`) + engine 簡化接 facade ✅(`bca26ab`、~250→~150 行) + GPU 環境 `medpacs_gpu` ✅**；84 tests 全綠。**startup warmup 已完成（2026-06-12、`418f29d` + review fixes）**。**剩**：Phase 2b trim(viz/tools/experiments/font + 砍 visualdl、需 GPU env 實測、保留) → 其後 mask PNG endpoint + 前端接數值。工程師親接 AI 演算法、主 Agent 接整合層
 - **Backend**：FastAPI + PostgreSQL + SQLAlchemy + pydicom，**11 個 API endpoints 全完整**（AI 兩端 2026-06-10 真實實作、端到端 2026-06-11 驗證）；分層：main.py=API root / `core/` 設定 / `db/` session / `models/` ORM / `services/`(db_service+storage+storage_backend+measurement_type+**ai_engine/**) / `validation/`；DB schema 5 tables，`ai_results` +4 量測欄、`instances` +2 device 欄；`/upload` 抽 Manufacturer/ModelName + dedup
 - **CORS**：✅ dev allow `http://localhost:5173`（Vite default）
 - **驗證層**：6 個必填欄位全部就位（PatientID / StudyInstanceUID / SeriesInstanceUID / SOPInstanceUID / Modality / PixelData）+ Modality 白名單（US）
 - **Frontend**：✅ **完整 SPA E2E 可用** — React 19 + Vite 8 + TS 6 + Cornerstone3D v4.22 + AppContext (5 fields + cascade) + Layout/TopBar/StudyList/MetadataPanel/AIPanel/DicomViewer 全業務元件 + API client + `VITE_API_BASE_URL` env var 制度。Stage C UX 缺口已解決
 - **AI 推論**：核心演算法 vendored `./AI/` **@ `5340456`**（含上游 `inference.py` facade + `algorithm/single_frame.py`）；MedPACS 整合層 engine 改呼叫 `inference.analyze`（去 importlib hack/reach-in/numpy 正規化、接 warm segmenter）。tuning 100% 上游 `run_config`。resolver C62→excursion/L154→thickness、design §4 envelope
 - **執行環境**：**改用 conda `medpacs_gpu`**（clone 自 CLI `diaphragmalgo_env`、Python 3.10.18 + paddlepaddle-gpu 3.2.0/cu118 + 後端 web 依賴）— GPU 提速已驗證。舊 `.venv`(3.8/CPU paddle) 退役。啟動：`conda activate medpacs_gpu` → `uvicorn main:app --reload`；pytest 需 `PYTHONUTF8=1`（pytest.ini 中文、cp950 locale）
-- **測試**：82 個測試（單元 9 validators + 13 measurement_type + 10 ai_engine / 整合 13 / API 31 / ORM 6），in-memory SQLite + StaticPool 隔離；AI engine 走 DI fake、不碰 paddle。前端尚無測試套件
+- **測試**：84 個測試（單元 9 validators + 13 measurement_type + 12 ai_engine / 整合 13 / API 31 / ORM 6），in-memory SQLite + StaticPool 隔離；AI engine 走 DI fake、不碰 paddle。前端尚無測試套件
 - **儲存**：本地檔案系統（`storage/{patient}/{study}/{filename}.dcm`），已透過 `StorageBackend` 抽象預留 S3 接口
 - **DB Migration 工具**：✅ Alembic，baseline `20809e26d134` + Series `e25c80289a9c` + AIResult `91725486ef55` + measurement fields `7f3c9a2b1d04` (2026-06-09、instances +2 / ai_results +4) 共 4 個 migration；工程師已 `alembic upgrade head`、alembic_version = `7f3c9a2b1d04`
 - **DB 資料狀態（2026-05-18 backfill 後）**：1 study + 1 series + 8 instances 全部 link 到 series 1 (uid `...593537`)；orphan count=0。Instance ID gap [2, 5] 已澄清為 PostgreSQL SERIAL sequence 在 IntegrityError rollback 後不 reset 的正常設計（不是 bug）。連帶發現 upload pipeline 缺 graceful duplicate detection → 新 known issue PROGRESS §6.12
@@ -43,9 +43,9 @@
 
 ### 進行中的任務
 
-- 無 in-flight 程式碼修改（主 Agent 端）；3 個本地 commit 未 push（`f7f16de`/`22101af`/`e934025`）+ facade 契約 commit（已 /commit）
+- 無 in-flight 程式碼修改；facade/engine/GPU 三批已進 master（`8a0a367` 等）。本 session：warmup 已 commit `418f29d`；review fixes（4 檔）+ PROGRESS/SESSION_HISTORY 同步待 commit + push 收尾
 - **前端**：task #9 已完成；無 active 前端 dispatch。**現可派**：AIPanel 接真實 `/ai/segment`·`/ai/result`（數值層、後端已就緒）；mask overlay 等 mask PNG endpoint
-- **主 Agent 下一步（Phase 3 整合介面瘦身、Option 1）**：① ⏳ 等上游 `diaphragm_excursion` repo 依契約 `docs/ai_inference_contract.md` 實作 `inference.py`（工程師交付給上游 agent） ② 工程師貼 `inference.py` 進 `./AI/` → 主 Agent re-vendor（trim viz/tools/experiments/font、相依實測） ③ engine 簡化（去 importlib hack + `_build_bundle` reach-in + numpy 正規化）。其後：mask PNG endpoint（與 facade `save_mask_dir` 合一）、前端接數值
+- **主 Agent 下一步（Phase 3 收尾）**：① mask PNG endpoint `/ai/result/{id}/mask`（engine 已預留 `mask_path` + facade `save_mask_dir`、契約 §4.3） ② 派前端 AIPanel 接真實量測數值（後端已就緒） ③ Phase 2b trim（砍 AI/ viz/tools/experiments/font + 測 visualdl 可否移除、需 GPU env 實測）
 - **R4 stale check 規則調整**（2026-05-16，工程師授權）：主 Agent 改為 per-Read inline、active phase 不再做 blanket per-session 全掃；不動 CLAUDE.md 文字（仍符合 §10 R4 letter）
 
 ### 待決定事項
@@ -158,6 +158,25 @@
   4. **評估後端補完**：依前端回報的後端需求（最可能：`/studies/{id}/series` + `/series/{id}/instances`）決定是否派 backend task
   5. **派 Phase 2 task #9 dispatch**：API client + AppContext + 4 業務元件 + `VITE_API_BASE_URL` env var 制度
   6. **修 `frontend/PROGRESS.md` lines 5, 64 的 `./IMPLEMENTATION.md` stale link**（→ `./docs/IMPLEMENTATION.md`）— 屬前端 Agent territory，但若前端 Agent 沒順手修，下次 session 可標 §9.5 結構性修正例外動一下並在 commit message 註明
+
+---
+
+### 2026-06-12 session 結尾狀態（Phase 3：AI engine startup warmup）
+
+- **本 session 工作（兩段）**：
+  1. **startup warmup（opt-in）實作**（commit `418f29d`、工程師 /commit）：
+     - `services/ai_engine/base.py`：`DiaphragmEngine` ABC 加 concrete 預設 no-op `warmup()`（非 abstractmethod → fake/未來 engine 不需實作、測試零破壞）
+     - `diaphragm_excursion_engine.py`：override `warmup()` = `_load_inference()` + `_get_warm_segmenter(EXCURSION)`，重用既有 lazy 路徑、不複製
+     - `main.py:startup_event`：env-gated（`AI_WARMUP_ON_STARTUP`）+ exception-safe（`EngineUnavailableError`/任何 Exception → 降級訊息、不擋啟動）
+     - 文件：`.env.example` + README Step 7 + `frontend/context/HANDOFF.md §2`；+2 test
+  2. **code review（code-reviewer subagent）+ 修正**（review fixes 待 commit）：
+     - 結果 0 CRITICAL / 0 HIGH / 3 MEDIUM / 4 LOW、APPROVE WITH SUGGESTIONS、紅線零命中
+     - 採納修正：① `import time` 移頂層 ② `warmup()` docstring 補 `_run_lock` 並發假設 ③ HANDOFF §2 env var row ④ **Settings 收編 `AI_WARMUP_ON_STARTUP: bool`**
+     - 保留不改：print vs logger（與既有 startup 一致）、`on_event` deprecation（既有技術債）
+- **踩雷（重要）**：把 `AI_WARMUP_ON_STARTUP` 寫進 `.env` 後，舊版（os.getenv + Settings `extra=forbid`）→ pydantic-settings 對 dotenv 未宣告 key 直接 **forbid → 後端整個起不來**（不是 review 建議、是真 bug）。收編進 Settings 後根除；main.py 改讀 `settings.AI_WARMUP_ON_STARTUP`（型別化 bool、去字串解析）
+- **設計筆記**：`learning/asgi-lifespan-and-engine-locks.md`（gitignored）— ASGI lifespan 序列性 + 雙鎖（`_init_lock` vs `_run_lock`）+ warmup 為何不需 `_run_lock`
+- **commit 狀態**：warmup `418f29d` 已進 master；本批 review fixes（`main.py`/`core/config.py`/`diaphragm_excursion_engine.py`/`frontend/context/HANDOFF.md`）+ docs（PROGRESS/SESSION_HISTORY）待 commit + push
+- **下次 session 起手**：Phase 3 收尾 — ① mask PNG endpoint `/ai/result/{id}/mask` ② 派前端 AIPanel 接數值 ③ Phase 2b trim（需 GPU env 實測）
 
 ---
 
