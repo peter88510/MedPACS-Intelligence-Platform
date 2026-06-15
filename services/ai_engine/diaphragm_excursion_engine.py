@@ -65,7 +65,10 @@ class DiaphragmExcursionEngine(DiaphragmEngine):
         return getattr(self._inference, "MODEL_VERSION", "unknown")
 
     def analyze(
-        self, image_path: str, measurement_type: MeasurementType
+        self,
+        image_path: str,
+        measurement_type: MeasurementType,
+        save_mask_dir: Optional[str] = None,
     ) -> EngineResult:
         if measurement_type not in _SUPPORTED:
             # endpoint 已擋 unknown/thickness；此處防禦性再擋一次。
@@ -85,6 +88,7 @@ class DiaphragmExcursionEngine(DiaphragmEngine):
                     image_path,
                     phase=measurement_type.value,
                     segmenter=segmenter,
+                    save_mask_dir=save_mask_dir,
                 )
         except EngineUnavailableError:
             raise

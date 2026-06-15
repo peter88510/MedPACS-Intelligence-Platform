@@ -367,9 +367,16 @@ def ai_segment(
         )
     abs_path = storage.absolute_path(file_path)
 
+    # mask 輸出目錄：病患 storage 樹下、與 DICOM 同層的 masks/inst{id}/（§7 病患
+    # 資料隔離）。paddleseg 會在此目錄寫 pseudo_color_prediction/{stem}.png；facade
+    # 回寫實際路徑到 result.mask_path。目錄由 paddleseg 自建。
+    mask_dir = storage.absolute_path(
+        os.path.join(os.path.dirname(file_path), "masks", f"inst{id}")
+    )
+
     # 4. 跑引擎（缺相依 → 503；推論失敗 → 留 error 結果後 500）
     try:
-        result = engine.analyze(abs_path, measurement_type)
+        result = engine.analyze(abs_path, measurement_type, save_mask_dir=mask_dir)
     except EngineUnavailableError as e:
         raise HTTPException(status_code=503, detail=str(e))
     except EngineError as e:
@@ -387,6 +394,14 @@ def ai_segment(
     # 5. 序列化 envelope + 寫 ai_results
     envelope = to_result_json(result)
     primary_value, primary_unit = primary_value_unit(result)
+    # facade 回絕對路徑 → 轉相對 storage base（與 instance.file_path 一致，S3 遷移時
+    # 走 storage backend 即可）。無 mask（未偵測到 / 未產檔）→ None。
+    mask_rel = None
+    if result.mask_path:
+        mask_rel = os.path.relpath(
+            os.path.abspath(result.mask_path),
+            os.path.abspath(storage.base_dir),
+        )
     ai_row = create_ai_result(
         db,
         instance_id=id,
@@ -397,7 +412,7 @@ def ai_segment(
         result_json=envelope,
         primary_value=primary_value,
         primary_unit=primary_unit,
-        mask_path=result.mask_path,
+        mask_path=mask_rel,
     )
 
     # 6. additive response
@@ -436,8 +451,43 @@ def ai_result(id: int, db: Session = Depends(get_db)):
         "primary_value": ai_row.primary_value,
         "primary_unit": ai_row.primary_unit,
         "confidence": ai_row.confidence,
-        "mask_url": None,  # mask PNG endpoint 屬下游（design §8）
+        # mask 有產才給 URL（指向下方 mask endpoint）；否則 None。
+        "mask_url": f"/ai/result/{id}/mask" if ai_row.mask_path else None,
         "result": ai_row.result_json,
         "error_message": ai_row.error_message,
         "created_at": ai_row.created_at.isoformat() if ai_row.created_at else None,
     }
+
+
+@app.get("/ai/result/{id}/mask")
+def ai_result_mask(id: int, db: Session = Depends(get_db)):
+    """回傳某 instance 最新一筆 AI 結果的 mask PNG（前端 overlay 用）。
+
+    mask 由 POST /ai/segment 當下產生（paddleseg pseudo_color_prediction）並存於病患
+    storage 樹；本 endpoint 純讀檔回傳、不重跑推論（對 AI stack 零依賴）。
+    無 instance / 無結果 / 該結果無 mask / 檔案不在磁碟 → 各自明確 404。
+    """
+    instance = get_instance_by_id(db, id)
+    if not instance:
+        raise HTTPException(status_code=404, detail=f"Instance with id {id} not found")
+
+    ai_row = get_latest_ai_result_by_instance(db, id)
+    if not ai_row:
+        raise HTTPException(
+            status_code=404,
+            detail=f"No AI result for instance {id}; run POST /ai/segment/{id} first",
+        )
+    if not ai_row.mask_path:
+        raise HTTPException(
+            status_code=404,
+            detail=f"AI result {ai_row.id} has no mask (no detection or mask not produced)",
+        )
+    if not storage.exists(ai_row.mask_path):
+        raise HTTPException(
+            status_code=404,
+            detail=f"Mask file missing on disk for AI result {ai_row.id}",
+        )
+    return FileResponse(
+        path=storage.absolute_path(ai_row.mask_path),
+        media_type="image/png",
+    )

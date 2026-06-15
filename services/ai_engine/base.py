@@ -82,7 +82,10 @@ class DiaphragmEngine(ABC):
 
     @abstractmethod
     def analyze(
-        self, image_path: str, measurement_type: MeasurementType
+        self,
+        image_path: str,
+        measurement_type: MeasurementType,
+        save_mask_dir: Optional[str] = None,
     ) -> EngineResult:
         """對單一 DICOM 檔跑推論。
 
@@ -90,6 +93,9 @@ class DiaphragmEngine(ABC):
             image_path: 已儲存 .dcm 檔的絕對路徑。
             measurement_type: 已解析的類型（excursion / sniff）。unknown / thickness
                 由 endpoint 在進入這裡之前就擋掉。
+            save_mask_dir: 給定時開啟 segmenter mask 輸出到此目錄，並在
+                EngineResult.mask_path 回寫實際 PNG 路徑；未給（None）則不寫檔、
+                mask_path 為 None。caller（endpoint）負責決定目錄落點。
 
         Returns:
             EngineResult（平台中立）。
