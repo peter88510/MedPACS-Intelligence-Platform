@@ -73,6 +73,15 @@
   - 瀏覽器驗收：以 `INSTANCE_ID=1`（`Peter_Quiet_1.dcm`，1640×1990 portrait US）功能 ✅（DICOM 顯示、metadata 主路成功、無 console error、cache hit 正確）；**UX 缺口 ❌：影像未撐滿 container**（從 80% 黑底改善到 60% 黑底後停滯）
   - 4 次嘗試後仍未解 → 根因可能在 CSS layout 層或 Cornerstone GPU+VTK module-level state；待主 Agent 拍板方向 J（CSS 層偵錯）或 H（暫退、留 task #9）— 詳 §4.4「整體狀況彙整」
 
+### Phase 3 — AI 推論整合 + Mask Overlay
+
+- [x] **Phase 3 #2 A 段：AIPanel 接真實 AI contract + 結果快取/自動載入**（2026-06-15，commit `a2a52dc`，branch `feat/phase3-ai-overlay`）
+  - `src/api/types.ts`：換成後端真實形狀（`measurement_type`/`primary_value`/`measurements[]`/envelope）+ `Measurement` / `AIResultEnvelope` 子型別，取代舊 stub `{mask, confidence}`
+  - `AIPanel.tsx`：移除 `result.confidence` 依賴；headline 顯示 `measurement_type`/`primary_value`+`primary_unit`/count；measurements 可摺疊；422/501/503/404/500 狀態碼分支可讀提示
+  - `AppContext.tsx`：`runAi` 錯誤上拋（給 AIPanel 分支）；AI 結果**依 instanceId 快取**（切走切回還原、in-flight 結果落正確那筆不汙染）；選 instance **自動唯讀載入既有結果**（`GET /ai/result`，繞過後端重跑 bug）
+  - `npx tsc -b --noEmit` 乾淨；座標空間已驗證（instance 12 crest/trough x∈[103,699]≈Columns 720、y∈[285,326]<Rows 930 → **完整原圖座標系**，B 段可直接畫 marker、不需 crop offset）
+  - ⚠️ completed 結果的瀏覽器目視驗收**待後端問題 B**（見 §5）：instance 12 最新一筆是 error、好結果（id≈7）被遮蔽撈不到
+
 ### 文件
 
 - [x] **`frontend/README.md`** — 新手向中文啟動指引、目錄結構解析、名詞速查表（commit `2d055de`）
@@ -84,7 +93,13 @@
 
 ## 2. 進行中
 
-> **目前無進行中項目。** task #9 已完成（commits `fb656c6` → 本 commit）；等主 Agent 派下個 dispatch（預期 Phase 3：真實 AI 推論 + mask overlay，或 Stage C UX 缺口最終收尾 + 後端 §5.4 audit 處理）。
+### Phase 3 #2 B 段：mask overlay（**暫停 — 等後端問題 A/B**）
+- **任務來源**：2026-06-15 DISPATCH.md（task_id: `phase-3-frontend-ai-mask-overlay`）
+- **核心工作**：用 `measurements[].crest`/`trough` 在原影像畫向量 marker（對齊 `info_display`「每組都畫」）+ headline `excursion_cm` 文字；toggle + opacity；用 Cornerstone `imageToWorldCoords`→`viewport.worldToCanvas` 映射，原 DICOM 不動
+- **座標方向已定**：§3.3.1 判定完整原圖座標系、B 直接畫（已驗證，見 §1 A 段條目）
+- **阻擋**：需要一筆**可達的 completed 結果**驗收 overlay 對齊；目前被後端問題 A（重跑 crash）+ B（latest-only 遮蔽好結果）卡住 → 見 §5
+- **motion curve 軌跡線不做**：資料未暴露、屬 debug；工程師指示之後要再加後端欄位才做
+- **重要禁忌**：不動 backend/DB；不動 vite port 5173；不重寫 DicomViewer 渲染核心（疊加不重寫）；不引入 Redux/UI framework
 
 ---
 
@@ -116,7 +131,7 @@
 詳見 §5「後端需求清單」。本節保留追蹤前端視角的影響：
 
 - **無法依 study 取得 series 清單** → StudyList 切換 study 時無法自動列出 series → 暫時 hack：fetch 所有 instances 後用 `study_instance_uid` 過濾
-- **AI mask endpoint 不確定是否真實實作** → AIPanel mask overlay 渲染卡關
+- ~~**AI mask endpoint 不確定是否真實實作** → AIPanel mask overlay 渲染卡關~~ → **已釐清（2026-06-15）**：mask endpoint 已實作但為 debug 級分割圖、與顯示影像對不齊；overlay 改走 `crest`/`trough` 座標自畫（HANDOFF §3.3.1）。B 段阻擋改為**後端問題 A/B**（見 §5）
 
 ### 4.2 前端工具鏈
 
@@ -280,7 +295,18 @@ restack dispatch（Fix-3）失敗後，工程師基於「目標是處理影像�
 
 ### 待回報 / 待處理
 
-> **目前無待處理需求**（Stage B/C 尚未開始，待實際整合時可能浮現）。
+> 以下 2 項為 2026-06-15 Phase 3 #2 整合時實測發現，**已回報主 Agent，待後端處理**。B 段 overlay 阻擋於此。
+
+**後端問題 A — diaphragm_excursion segmenter 第二次推論崩潰**
+- 現象：任一 instance 第一次 `POST /ai/segment` 成功，第二次 → `TypeError: conv2d(): argument (position 2) must be Value, but got EagerParamBase`（`paddleseglibs/.../mix_transformer.py` patch_embed proj conv）
+- 推測：warm segmenter 是 process 級 singleton，第一次 `predict` 後 model 參數狀態被汙染（in-place cast / no_grad / to_static 殘留）→ 之後**任何** instance 的 predict 都失效（共用 model 中毒，非單筆問題）；需重啟 backend 才能再成功一次
+- 阻擋：B 段需要穩定產出 completed 結果驗收對齊
+
+**後端問題 B — `GET /ai/result/{id}` 最新一筆遮蔽好結果**
+- 現象：`GET /ai/result/{id}` 回「最新一筆、不分 status」。一次失敗重跑寫了 status=error 紀錄（instance 12 的 `ai_result_id=16`），就把先前 completed 好結果（`id≈7`、167 筆、1.13cm）擠出 API 視野
+- 建議：改回「**最新一筆 completed**，無 completed 才 fallback error」，或加 status filter
+- 影響：前端自動載入忠實顯示最新 error；好結果仍在 DB 但前端撈不到 → B 段無法用 instance 12 驗收
+- 前端現況：行為正確（如實反映 DB）；A 段已對 error 狀態做可讀顯示，非前端 bug
 
 ### 已預期但尚未確認的需求
 

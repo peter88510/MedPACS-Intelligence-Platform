@@ -57,7 +57,9 @@
 
 ### 進行中的任務
 
-> **無進行中任務**。task #9 已 commit `fb656c6` → 本 commit（9 commits + 1 hash 回填）；StudyList toggle 行為已補 (commit 8)；後端 audit 已寫進 PROGRESS §5.4 待主 Agent 處理。**等主 Agent 下個 dispatch**（預期 Phase 3 真實 AI + mask overlay、或 Stage C UX 缺口最終收尾 + 後端 §5.4 audit 處理）。
+> **Phase 3 #2（task_id: `phase-3-frontend-ai-mask-overlay`）— A 段已完成、B 段暫停等後端。**
+> - A 段（commit `a2a52dc`）：AIPanel 接真實 AI contract + 結果依 instanceId 快取 + 選 instance 自動唯讀載入既有結果。
+> - B 段（mask overlay，用 crest/trough 座標自畫）**卡後端問題 A/B**（見 PROGRESS §5）：segmenter 重跑崩潰 + GET 回 latest-only 遮蔽好結果。等後端/主 Agent 處理後開新 branch 做。
 
 ### 待決定事項
 
@@ -85,7 +87,16 @@
 - **Stage C 完整版含 UX 缺口（2026-05-16, `13cccd3`）** — 主體 + Fix-1 (fit) + Fix-2 (metadata) + Fix-3 (restack) + Fix-4 (destroy+recreate engine) 全部 4 次嘗試已 commit；功能可用、影像未撐滿 container 的 UX 缺口未解，等主 Agent 拍板方向 J（CSS 層偵錯）或 H（暫退）
 - **Phase 2 task #9 — 業務元件層完工（2026-05-16 → 2026-05-18，commits `fb656c6` → `fa0dd34`）** — 11 個 commit (commit 0 固化 codex Fix-J + commits 1-8 業務 + commit 9 docs finalize + commit 10 hash 回填) 完成 API client + VITE_API_BASE_URL env var 制度 + AppContext (5 fields) + Layout/TopBar/StudyList/MetadataPanel/AIPanel 全部業務元件 + DicomViewer ← AppContext + Vite scaffold 清掉。E2E 瀏覽器驗收通過（Layout、cascade、DICOM viewer、metadata、AI、env var fallback 全 ✅）。StudyList toggle 行為已補 (commit 8)。後端 audit 完成、寫進 PROGRESS §5.4 待主 Agent 處理 (orphan instances 1/3/4 + instance ID gap 來源澄清)
 
-### 上次 session 結尾狀態（2026-05-18）
+### 上次 session 結尾狀態（2026-06-15）
+
+- **Phase 3 #2 A 段完成並 commit `a2a52dc`**（branch `feat/phase3-ai-overlay`）：types/AppContext/AIPanel/css 4 檔 — 接真實 AI contract + 結果依 instanceId 快取 + 選 instance 自動唯讀載入既有結果（`GET /ai/result`）。`tsc -b --noEmit` 乾淨。
+- **HANDOFF.md §3.3.1**（mask overlay 正解：用 crest/trough 座標自畫、別用 mask PNG）由主 Agent 更新；該變更**未進 A 段 commit**（前端不寫 HANDOFF），留工作樹待主 Agent 收。
+- **座標空間已驗證**：instance 12 crest/trough x∈[103,699]≈Columns 720、y∈[285,326]<Rows 930 → **完整原圖座標系**；overlay 定為 Option B（前端自畫向量 marker），不用 mask PNG。
+- **B 段暫停 — 卡後端兩問題**（PROGRESS §5）：A) segmenter 第二次推論崩潰（process 級 model 中毒 `conv2d EagerParamBase`，需重啟 backend）；B) `GET /ai/result` 回 latest-only，失敗 error 紀錄遮蔽先前 completed 好結果（id≈7 被 id 16 蓋）。皆待後端/主 Agent。
+- **DICOM 實況**：instance 12 = 720×930、**NumberOfFrames=150 multi-frame**，viewer 顯示 frame 0；B 段目視須確認 crest/trough 是否疊在顯示 frame 上（M-mode 語意）。
+- **下次起手**：① 等後端修 A/B → 有可達 completed 結果後開新 branch 做 B 段 overlay（crest/trough → Cornerstone `imageToWorldCoords`→`worldToCanvas`、toggle+opacity、原 DICOM 不動） ② merge/push A 段視工程師決定（建議先 merge）。
+
+### 更早 session 結尾狀態（2026-05-18）
 
 - **task #9 完成跨 session 工作 — 11 commits 全 push 完畢**（`fb656c6` → `fa0dd34`，皆在 `origin/master`）：
   - Commit 0 `fb656c6` 固化 codex 移除 outer div aspectRatio（Fix-J 根因之一）
