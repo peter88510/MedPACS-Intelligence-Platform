@@ -27,7 +27,7 @@ class _FakeEngine:
         self._result = result
         self._exc = exc
 
-    def analyze(self, image_path, measurement_type):
+    def analyze(self, image_path, measurement_type, save_mask_dir=None):
         if self._exc is not None:
             raise self._exc
         return self._result
@@ -301,6 +301,7 @@ class TestAiResult:
             id=7, status="completed", measurement_type="excursion",
             model_name="diaphragm_excursion", model_version="6139799",
             primary_value=2.31, primary_unit="cm", confidence=None,
+            mask_path=None,
             result_json={"schema_version": 1}, error_message=None, created_at=None,
         )
         response = api_client.get("/ai/result/1")
@@ -311,6 +312,22 @@ class TestAiResult:
         assert data["measurement_type"] == "excursion"
         assert data["primary_value"] == 2.31
         assert data["result"]["schema_version"] == 1
+        assert data["mask_url"] is None  # 無 mask → mask_url None
+
+    @patch("main.get_latest_ai_result_by_instance")
+    @patch("main.get_instance_by_id")
+    def test_mask_url_set_when_mask_exists(self, mock_get, mock_latest, api_client):
+        mock_get.return_value = make_instance(id=1)
+        mock_latest.return_value = MagicMock(
+            id=7, status="completed", measurement_type="excursion",
+            model_name="diaphragm_excursion", model_version="6139799",
+            primary_value=2.31, primary_unit="cm", confidence=None,
+            mask_path="P001/study/masks/inst1/pseudo_color_prediction/img.png",
+            result_json={"schema_version": 1}, error_message=None, created_at=None,
+        )
+        response = api_client.get("/ai/result/1")
+        assert response.status_code == 200
+        assert response.json()["mask_url"] == "/ai/result/1/mask"
 
     @patch("main.get_latest_ai_result_by_instance")
     @patch("main.get_instance_by_id")
@@ -325,6 +342,69 @@ class TestAiResult:
     def test_returns_404_when_instance_not_found(self, mock_get, api_client):
         mock_get.return_value = None
         response = api_client.get("/ai/result/999")
+        assert response.status_code == 404
+        assert "not found" in response.json()["detail"].lower()
+
+
+# ---------------------------------------------------------------------------
+# GET /ai/result/{id}/mask  (added 2026-06-15)
+# ---------------------------------------------------------------------------
+
+class TestAiResultMask:
+
+    @patch("main.get_latest_ai_result_by_instance")
+    @patch("main.get_instance_by_id")
+    def test_returns_png_when_mask_exists(
+        self, mock_get, mock_latest, api_client, tmp_path
+    ):
+        png = tmp_path / "mask.png"
+        png.write_bytes(b"\x89PNG\r\n\x1a\n")  # minimal PNG magic bytes
+        mock_get.return_value = make_instance(id=1)
+        mock_latest.return_value = MagicMock(id=7, mask_path="P001/study/m.png")
+        with patch("main.storage") as mock_storage:
+            mock_storage.exists.return_value = True
+            mock_storage.absolute_path.return_value = str(png)
+            response = api_client.get("/ai/result/1/mask")
+        assert response.status_code == 200
+        assert response.headers["content-type"] == "image/png"
+
+    @patch("main.get_latest_ai_result_by_instance")
+    @patch("main.get_instance_by_id")
+    def test_returns_404_when_result_has_no_mask(
+        self, mock_get, mock_latest, api_client
+    ):
+        mock_get.return_value = make_instance(id=1)
+        mock_latest.return_value = MagicMock(id=7, mask_path=None)
+        response = api_client.get("/ai/result/1/mask")
+        assert response.status_code == 404
+        assert "no mask" in response.json()["detail"].lower()
+
+    @patch("main.get_latest_ai_result_by_instance")
+    @patch("main.get_instance_by_id")
+    def test_returns_404_when_mask_file_missing(
+        self, mock_get, mock_latest, api_client
+    ):
+        mock_get.return_value = make_instance(id=1)
+        mock_latest.return_value = MagicMock(id=7, mask_path="P001/study/gone.png")
+        with patch("main.storage") as mock_storage:
+            mock_storage.exists.return_value = False
+            response = api_client.get("/ai/result/1/mask")
+        assert response.status_code == 404
+        assert "missing on disk" in response.json()["detail"].lower()
+
+    @patch("main.get_latest_ai_result_by_instance")
+    @patch("main.get_instance_by_id")
+    def test_returns_404_when_no_result_yet(self, mock_get, mock_latest, api_client):
+        mock_get.return_value = make_instance(id=1)
+        mock_latest.return_value = None
+        response = api_client.get("/ai/result/1/mask")
+        assert response.status_code == 404
+        assert "no ai result" in response.json()["detail"].lower()
+
+    @patch("main.get_instance_by_id")
+    def test_returns_404_when_instance_not_found(self, mock_get, api_client):
+        mock_get.return_value = None
+        response = api_client.get("/ai/result/999/mask")
         assert response.status_code == 404
         assert "not found" in response.json()["detail"].lower()
 

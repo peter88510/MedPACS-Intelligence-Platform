@@ -106,8 +106,19 @@
 | instance 不存在 | 404 | — |
 
 - `result` 欄為完整 envelope（`{schema_version, measurement_type, pipeline_mode, model_name, model_version, measurements:[...], primary:{label,value,unit}}`）。
-- ⚠️ `mask_url` 目前**固定為 `null`** — mask PNG endpoint 屬下游（見 §6）。前端 mask overlay 仍卡在這；但**量測數值（primary_value/unit + measurements）已可顯示**。
+- ✅ `mask_url`（2026-06-15 起）：該結果有產 mask 時為 `"/ai/result/{id}/mask"`，無 mask（未偵測到 / 未產檔）時為 `null`。**前端 mask overlay 現可接**。
 - `measurement_type` 值域：`excursion` / `sniff` / `thickness` / `unknown`。
+
+**`GET /ai/result/{id}/mask`** —（2026-06-15 新增）回最新一筆結果的 mask PNG，供 overlay：
+
+| 情境 | HTTP | 回傳 |
+|---|---|---|
+| 有 mask | 200 | `Content-Type: image/png`、mask 影像 binary |
+| instance 不存在 / 無結果 / 結果無 mask / 檔案遺失 | 404 | `{detail}` |
+
+- 用法：`/ai/result/{id}` 拿到非 null 的 `mask_url` 後，直接以該 URL 取 PNG 疊在 DICOM 上。
+- mask 與原 DICOM **未必同尺寸**（paddleseg `pseudo_color_prediction` 輸出，可能是 crop / segment 後尺寸）— overlay 對齊邏輯前端需自行驗證（建議先實測一張）。
+- 純讀檔、對 AI runtime 零依賴：只要 segment 當下產過 mask，即使後端沒裝 paddle 也能取得。
 
 ### 3.4 Upload UI 不在 MVP 範圍
 
@@ -174,7 +185,7 @@ Alembic 在 DB 多建一張 `alembic_version`（單欄、單列、記錄目前 m
 |---|---|---|
 | `GET /studies/{id}/series` | 列出該 study 的所有 series | ✅ **已實作（2026-05-15）**；response `{"series": [...]}`；2026-05-15 前 upload 沒寫 series 表，舊 study 會回 `[]` 直到累積新上傳資料 |
 | `GET /series/{id}/instances` | 列出該 series 的所有 instance | ✅ **已實作（2026-05-15）**；response `{"instances": [...]}`；2026-05-15 前 upload 的 instances `series_instance_uid` 為 NULL、無法被新 endpoint 匹配（legacy gap，MVP 接受） |
-| `GET /ai/result/{id}/mask` | 回真實 PNG mask（含 `image/png` content-type）| ❌ 不存在；`/ai/result/{id}` 的 `mask_url` 固定 null。engine 已預留 `mask_path`，下游 task |
+| `GET /ai/result/{id}/mask` | 回真實 PNG mask（含 `image/png` content-type）| ✅ **已實作（2026-06-15）**；mask 由 segment 當下產、`/ai/result/{id}` 的 `mask_url` 有 mask 時指向此端點。詳 §3.3 |
 | 真實 AI 推論（背後機制） | `POST /ai/segment/{id}` 實際跑模型 | ⚠️ 整合層已接通（2026-06-10）；但 dev 需裝 paddle+weights 才會跑真資料，否則回 503 |
 | Cancel running AI job | 中止已觸發的 AI | ❌ Out of scope（MVP 同步） |
 | Server-Sent Events / WebSocket for AI progress | 串流推論進度（realtime demo 候選）| ❌ Out of scope（同步 LEGACY 已足；realtime 串流為未來 demo 候選） |
@@ -200,6 +211,7 @@ Alembic 在 DB 多建一張 `alembic_version`（單欄、單列、記錄目前 m
 | 2026-05-19 | **Phase 3 task #10：AIResult 表** (Alembic migration `91725486ef55`) | DB schema 新增 `ai_results` 表（5 tables total）；前端目前不直接 query、僅當 `/ai/result/{id}` endpoint 真實實作後才會反映；schema 詳細見 `docs/generated/db_schema.md` |
 | 2026-05-19 | **`POST /upload` duplicate detection** (PROGRESS §6.12 修復) | response 新增 `duplicate` bool；新增 409 conflict status code；若前端日後加 upload UI，需處理 200+duplicate / 409 兩個新分支。詳 §3.1 / §3.2 |
 | 2026-06-10 | **`/ai/segment`·`/ai/result` 真實實作**（取代 stub、Phase 3 #2/#3） | AIPanel 可改接真實回應：segment 回 `measurement_type`/`primary_value` 等、result 回完整 envelope；新 status code 語義 422(未知機型)/501(thickness)/503(引擎未裝)/404(未跑過)。**量測數值已可顯示；mask overlay 仍卡**（`mask_url=null`、mask PNG 屬下游）。詳 §3.3。⚠️ dev 端要看真資料需先裝 paddle+weights，否則 503 |
+| 2026-06-15 | **`GET /ai/result/{id}/mask` mask PNG endpoint** + `mask_url` 接上 | **mask overlay 解除阻擋**：`/ai/result/{id}` 的 `mask_url` 有 mask 時指向新端點、否則 null；新端點回 `image/png`。mask 與原 DICOM 未必同尺寸（overlay 對齊需實測）。無 migration、無既有 contract 破壞。詳 §3.3 / §6 |
 
 > ⏸ **目前無 in-flight 後端變更**。下次更新時機：當主 Agent 在派發新前端任務前發現有新的 API、schema、env var、CORS 異動時（spec 變動會自動進 `docs/generated/`，本檔 §3.x / §4.x 只在「補充說明」需新增 / 修正時動）。
 

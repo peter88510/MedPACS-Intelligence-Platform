@@ -123,7 +123,7 @@ def test_base_warmup_default_is_noop():
         def model_version(self):
             return "0"
 
-        def analyze(self, image_path, measurement_type):
+        def analyze(self, image_path, measurement_type, save_mask_dir=None):
             return _excursion_result([])
 
     assert _FakeEngine().warmup() is None

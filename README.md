@@ -546,17 +546,35 @@ Body: file (binary DICOM)
 { "instance_id": 1, "ai_result_id": 42, "status": "completed",
   "measurement_type": "excursion", "model_name": "diaphragm_excursion",
   "model_version": "6139799", "primary_value": 2.31, "primary_unit": "cm",
-  "confidence": null, "mask_url": null,
+  "confidence": null, "mask_url": "/ai/result/1/mask",
   "result": { "schema_version": 1, "measurements": [ ... ], "primary": { ... } },
   "error_message": null, "created_at": "..." }
 ```
 
-> `mask_url` 目前為 `null`——mask PNG 端點是下游任務。
+> `mask_url`：該結果有產 mask 時指向下方 `GET /ai/result/{id}/mask`；無 mask（未偵測到 / 未產檔）時為 `null`。
 
 **Response（404 Not Found）：** instance 不存在，或尚無 AI 結果（請先執行 `POST /ai/segment/{id}`）。
 
 ```json
 { "detail": "Instance with id 99 not found" }
+```
+
+### GET /ai/result/{id}/mask
+
+回傳該 instance 最新一筆 AI 結果的 mask PNG（前端 overlay 用）。mask 由 `POST /ai/segment`
+當下產生（paddleseg `pseudo_color_prediction`）並存於病患 storage 樹；本端點純讀檔回傳、
+不重跑推論（對 AI runtime 零依賴）。
+
+| 參數 | 型別 | 說明 |
+|---|---|---|
+| `id` | integer | instance 的資料庫 primary key |
+
+**Response（200 OK）：** `Content-Type: image/png`，回傳 mask 影像 binary。
+
+**Response（404 Not Found）：** instance 不存在 / 尚無 AI 結果 / 該結果無 mask（未偵測到或未產檔）/ mask 檔不在磁碟。
+
+```json
+{ "detail": "AI result 42 has no mask (no detection or mask not produced)" }
 ```
 
 ## 資料庫 Schema（Database Schema）
