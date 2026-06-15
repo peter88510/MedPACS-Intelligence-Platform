@@ -539,6 +539,7 @@ Body: file (binary DICOM)
 | 參數 | 型別 | 說明 |
 |---|---|---|
 | `id` | integer | instance 的資料庫 primary key |
+| `status`（query，選用） | string | 給定時只取該 status 的最新一筆（如 `completed`），繞過失敗重跑寫的 `error` 紀錄遮蔽好結果；省略則回任意最新（向後相容）。`GET /ai/result/{id}/mask` 同樣支援 |
 
 **Response（200 OK）：**
 
