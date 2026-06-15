@@ -43,12 +43,16 @@ export function AppContextProvider({ children }: { children: ReactNode }) {
   const [currentStudyId, setCurrentStudyId] = useState<number | null>(null)
   const [currentSeriesId, setCurrentSeriesId] = useState<number | null>(null)
   const [currentInstanceId, setCurrentInstanceId] = useState<number | null>(null)
-  const [aiResult, setAiResult] = useState<AIResultResponse | null>(null)
+  // AI 結果依 instanceId 快取：切走再切回會還原、in-flight 推論結果落到正確那筆
+  // （不會汙染當下顯示的其他 instance）。aiResult 由 currentInstanceId 推導。
+  const [aiResultByInstance, setAiResultByInstance] = useState<Record<number, AIResultResponse>>({})
   const [loadingStudies, setLoadingStudies] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
   // Guard against repeated auto-selection on remount (StrictMode dev double-invoke).
   const autoSelectedRef = useRef(false)
+  // 記錄已嘗試自動載入 AI 結果的 instance，避免切回時對同一筆重複打 GET。
+  const aiLoadAttemptedRef = useRef<Set<number>>(new Set())
 
   const fetchSeriesFor = useCallback(
     async (studyId: number): Promise<Series[]> => {
@@ -74,14 +78,13 @@ export function AppContextProvider({ children }: { children: ReactNode }) {
 
   const selectInstance = useCallback((instanceId: number) => {
     setCurrentInstanceId(instanceId)
-    setAiResult(null)
+    // 不清 AI 結果：依 instanceId 快取，aiResult 會跟著 currentInstanceId 推導。
   }, [])
 
   const selectSeries = useCallback(
     async (seriesId: number) => {
       setCurrentSeriesId(seriesId)
       setCurrentInstanceId(null)
-      setAiResult(null)
       try {
         const instances = await fetchInstancesFor(seriesId)
         if (instances[0]) setCurrentInstanceId(instances[0].id)
@@ -97,7 +100,6 @@ export function AppContextProvider({ children }: { children: ReactNode }) {
       setCurrentStudyId(studyId)
       setCurrentSeriesId(null)
       setCurrentInstanceId(null)
-      setAiResult(null)
       try {
         const series = await fetchSeriesFor(studyId)
         if (series[0]) await selectSeries(series[0].id)
@@ -110,12 +112,33 @@ export function AppContextProvider({ children }: { children: ReactNode }) {
 
   const runAi = useCallback(async () => {
     if (currentInstanceId === null) return
-    try {
-      await triggerSegmentation(currentInstanceId)
-      const result = await getResult(currentInstanceId)
-      setAiResult(result)
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e))
+    // 抓當下 targetId：即使推論期間使用者切到別筆，結果也落到正確的那筆快取，
+    // 不會汙染當下顯示。錯誤往上拋給呼叫端（AIPanel）做狀態碼分支提示。
+    const targetId = currentInstanceId
+    await triggerSegmentation(targetId)
+    const result = await getResult(targetId)
+    setAiResultByInstance((prev) => ({ ...prev, [targetId]: result }))
+  }, [currentInstanceId])
+
+  // 選到 instance 時自動載入既有 AI 結果（唯讀 GET /ai/result）：
+  //   - DB 已跑過 → 填快取顯示；未跑過(404) → 忽略（正常情況）
+  //   - 繞過 backend 重跑推論的問題、並讓持久化結果在切回/重開頁面時自動還原
+  //   - 用 ref 記「已嘗試」確保每筆只自動打一次；想刷新走 Run AI（會重跑 segment）
+  useEffect(() => {
+    if (currentInstanceId === null) return
+    if (aiLoadAttemptedRef.current.has(currentInstanceId)) return
+    aiLoadAttemptedRef.current.add(currentInstanceId)
+    const targetId = currentInstanceId
+    let cancelled = false
+    getResult(targetId)
+      .then((r) => {
+        if (!cancelled) setAiResultByInstance((prev) => ({ ...prev, [targetId]: r }))
+      })
+      .catch(() => {
+        // 404 = 此 instance 尚未跑過 AI；其他錯誤亦靜默，不擋主 UI。
+      })
+    return () => {
+      cancelled = true
     }
   }, [currentInstanceId])
 
@@ -145,6 +168,10 @@ export function AppContextProvider({ children }: { children: ReactNode }) {
     // and selectStudy's identity churns when its dep maps grow.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  // 當前 instance 的 AI 結果（從快取推導；無則 null）。
+  const aiResult =
+    currentInstanceId !== null ? aiResultByInstance[currentInstanceId] ?? null : null
 
   const value = useMemo<AppContextValue>(
     () => ({

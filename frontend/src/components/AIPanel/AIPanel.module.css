@@ -46,12 +46,66 @@
   gap: 8px;
 }
 
+.headline {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px;
+  background-color: #0f1729;
+  border: 1px solid #1f2937;
+  border-radius: 4px;
+}
+
+.measurementType {
+  font-size: 13px;
+  font-weight: 600;
+  color: #93c5fd;
+  text-transform: capitalize;
+}
+
+.primaryValue {
+  font-size: 18px;
+  font-weight: 700;
+  color: #fff;
+  font-family: ui-monospace, monospace;
+}
+
 .resultMeta {
   display: flex;
   justify-content: space-between;
   font-size: 12px;
   color: #b0b0b0;
   font-family: ui-monospace, monospace;
+}
+
+.summary {
+  cursor: pointer;
+  font-size: 12px;
+  color: #b0b0b0;
+  user-select: none;
+}
+
+.measurementList {
+  margin-top: 6px;
+  max-height: 220px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.measurementRow {
+  display: flex;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 3px 6px;
+  font-size: 11px;
+  font-family: ui-monospace, monospace;
+  color: #b0b0b0;
+  background-color: #0a0a0a;
+  border-radius: 3px;
+  white-space: nowrap;
 }
 
 .json {
