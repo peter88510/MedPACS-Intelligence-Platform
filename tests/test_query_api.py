@@ -331,6 +331,37 @@ class TestAiResult:
 
     @patch("main.get_latest_ai_result_by_instance")
     @patch("main.get_instance_by_id")
+    def test_status_filter_passed_and_mask_url_carries_status(
+        self, mock_get, mock_latest, api_client
+    ):
+        mock_get.return_value = make_instance(id=1)
+        mock_latest.return_value = MagicMock(
+            id=7, status="completed", measurement_type="excursion",
+            model_name="diaphragm_excursion", model_version="6139799",
+            primary_value=2.31, primary_unit="cm", confidence=None,
+            mask_path="P001/study/m.png",
+            result_json={"schema_version": 1}, error_message=None, created_at=None,
+        )
+        response = api_client.get("/ai/result/1?status=completed")
+        assert response.status_code == 200
+        # status 透傳給 db_service
+        assert mock_latest.call_args.kwargs["status"] == "completed"
+        # mask_url 帶上同一 status，讓 mask endpoint 撈到同一筆
+        assert response.json()["mask_url"] == "/ai/result/1/mask?status=completed"
+
+    @patch("main.get_latest_ai_result_by_instance")
+    @patch("main.get_instance_by_id")
+    def test_status_filter_no_match_returns_404(
+        self, mock_get, mock_latest, api_client
+    ):
+        mock_get.return_value = make_instance(id=1)
+        mock_latest.return_value = None
+        response = api_client.get("/ai/result/1?status=completed")
+        assert response.status_code == 404
+        assert "completed" in response.json()["detail"].lower()
+
+    @patch("main.get_latest_ai_result_by_instance")
+    @patch("main.get_instance_by_id")
     def test_returns_404_when_no_result_yet(self, mock_get, mock_latest, api_client):
         mock_get.return_value = make_instance(id=1)
         mock_latest.return_value = None
@@ -407,6 +438,16 @@ class TestAiResultMask:
         response = api_client.get("/ai/result/999/mask")
         assert response.status_code == 404
         assert "not found" in response.json()["detail"].lower()
+
+    @patch("main.get_latest_ai_result_by_instance")
+    @patch("main.get_instance_by_id")
+    def test_status_filter_passed_to_db(self, mock_get, mock_latest, api_client):
+        mock_get.return_value = make_instance(id=1)
+        mock_latest.return_value = MagicMock(id=7, mask_path="P001/study/m.png")
+        with patch("main.storage") as mock_storage:
+            mock_storage.exists.return_value = False  # 檔案不在 → 404；只驗 status 透傳
+            api_client.get("/ai/result/1/mask?status=completed")
+        assert mock_latest.call_args.kwargs["status"] == "completed"
 
 
 # ---------------------------------------------------------------------------

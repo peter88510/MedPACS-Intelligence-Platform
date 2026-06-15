@@ -428,18 +428,33 @@ def ai_segment(
 
 
 @app.get("/ai/result/{id}")
-def ai_result(id: int, db: Session = Depends(get_db)):
-    """回傳某 instance 最新一筆 AI 結果。尚未跑過 → 404（提示先 POST /ai/segment）。"""
+def ai_result(id: int, status: str | None = None, db: Session = Depends(get_db)):
+    """回傳某 instance 最新一筆 AI 結果。尚未跑過 → 404（提示先 POST /ai/segment）。
+
+    `?status=completed`（選用）：只取最新一筆 completed，繞過失敗重跑寫的 error 紀錄
+    遮蔽好結果的問題；省略則回任意最新（向後相容）。
+    """
     instance = get_instance_by_id(db, id)
     if not instance:
         raise HTTPException(status_code=404, detail=f"Instance with id {id} not found")
 
-    ai_row = get_latest_ai_result_by_instance(db, id)
+    ai_row = get_latest_ai_result_by_instance(db, id, status=status)
     if not ai_row:
+        suffix = f" with status={status!r}" if status else ""
         raise HTTPException(
             status_code=404,
-            detail=f"No AI result for instance {id}; run POST /ai/segment/{id} first",
+            detail=(
+                f"No AI result{suffix} for instance {id}; "
+                f"run POST /ai/segment/{id} first"
+            ),
         )
+
+    # mask 有產才給 URL；帶上同一 status filter 讓 mask endpoint 撈到同一筆。
+    mask_url = None
+    if ai_row.mask_path:
+        mask_url = f"/ai/result/{id}/mask"
+        if status:
+            mask_url += f"?status={status}"
 
     return {
         "instance_id": id,
@@ -451,8 +466,7 @@ def ai_result(id: int, db: Session = Depends(get_db)):
         "primary_value": ai_row.primary_value,
         "primary_unit": ai_row.primary_unit,
         "confidence": ai_row.confidence,
-        # mask 有產才給 URL（指向下方 mask endpoint）；否則 None。
-        "mask_url": f"/ai/result/{id}/mask" if ai_row.mask_path else None,
+        "mask_url": mask_url,
         "result": ai_row.result_json,
         "error_message": ai_row.error_message,
         "created_at": ai_row.created_at.isoformat() if ai_row.created_at else None,
@@ -460,22 +474,27 @@ def ai_result(id: int, db: Session = Depends(get_db)):
 
 
 @app.get("/ai/result/{id}/mask")
-def ai_result_mask(id: int, db: Session = Depends(get_db)):
+def ai_result_mask(id: int, status: str | None = None, db: Session = Depends(get_db)):
     """回傳某 instance 最新一筆 AI 結果的 mask PNG（前端 overlay 用）。
 
     mask 由 POST /ai/segment 當下產生（paddleseg pseudo_color_prediction）並存於病患
     storage 樹；本 endpoint 純讀檔回傳、不重跑推論（對 AI stack 零依賴）。
+    `?status=completed`（選用）：與 /ai/result 一致，只取最新 completed 那筆的 mask。
     無 instance / 無結果 / 該結果無 mask / 檔案不在磁碟 → 各自明確 404。
     """
     instance = get_instance_by_id(db, id)
     if not instance:
         raise HTTPException(status_code=404, detail=f"Instance with id {id} not found")
 
-    ai_row = get_latest_ai_result_by_instance(db, id)
+    ai_row = get_latest_ai_result_by_instance(db, id, status=status)
     if not ai_row:
+        suffix = f" with status={status!r}" if status else ""
         raise HTTPException(
             status_code=404,
-            detail=f"No AI result for instance {id}; run POST /ai/segment/{id} first",
+            detail=(
+                f"No AI result{suffix} for instance {id}; "
+                f"run POST /ai/segment/{id} first"
+            ),
         )
     if not ai_row.mask_path:
         raise HTTPException(

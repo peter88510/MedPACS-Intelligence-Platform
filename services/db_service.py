@@ -249,12 +249,15 @@ def create_ai_result(
 
 
 def get_latest_ai_result_by_instance(
-    db: Session, instance_id: int
+    db: Session, instance_id: int, status: Optional[str] = None
 ) -> Optional[AIResult]:
-    """取某 instance 最新一筆 AI 結果（依 id 降序）。無結果回 None。"""
-    return (
-        db.query(AIResult)
-        .filter(AIResult.instance_id == instance_id)
-        .order_by(AIResult.id.desc())
-        .first()
-    )
+    """取某 instance 最新一筆 AI 結果（依 id 降序）。無結果回 None。
+
+    status 給定時只取該 status 的最新一筆（如 'completed'）；省略則任意最新（預設、
+    向後相容）。用途：一次失敗重跑寫的 error 紀錄會是「最新一筆」，前端要撈回先前
+    成功結果時傳 status='completed'。
+    """
+    q = db.query(AIResult).filter(AIResult.instance_id == instance_id)
+    if status is not None:
+        q = q.filter(AIResult.status == status)
+    return q.order_by(AIResult.id.desc()).first()

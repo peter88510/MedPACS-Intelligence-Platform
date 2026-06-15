@@ -1,7 +1,7 @@
 <!-- AUTO-GENERATED — DO NOT EDIT -->
 <!-- Source: main.py -->
 <!-- Generator: scripts/gen_api_spec.py -->
-<!-- Last regenerated against git HEAD: f298b8e -->
+<!-- Last regenerated against git HEAD: 9f00ac7 -->
 
 # API Spec (Generated)
 
@@ -18,14 +18,18 @@
 
 回傳某 instance 最新一筆 AI 結果。尚未跑過 → 404（提示先 POST /ai/segment）。
 
+    `?status=completed`（選用）：只取最新一筆 completed，繞過失敗重跑寫的 error 紀錄
+    遮蔽好結果的問題；省略則回任意最新（向後相容）。
+
 ## `GET /ai/result/{id}/mask`
 
-**Handler**: `main.py:ai_result_mask` (line 462)
+**Handler**: `main.py:ai_result_mask` (line 476)
 
 回傳某 instance 最新一筆 AI 結果的 mask PNG（前端 overlay 用）。
 
     mask 由 POST /ai/segment 當下產生（paddleseg pseudo_color_prediction）並存於病患
     storage 樹；本 endpoint 純讀檔回傳、不重跑推論（對 AI stack 零依賴）。
+    `?status=completed`（選用）：與 /ai/result 一致，只取最新 completed 那筆的 mask。
     無 instance / 無結果 / 該結果無 mask / 檔案不在磁碟 → 各自明確 404。
 
 ## `POST /ai/segment/{id}`

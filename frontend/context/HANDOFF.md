@@ -106,19 +106,39 @@
 | instance 不存在 | 404 | — |
 
 - `result` 欄為完整 envelope（`{schema_version, measurement_type, pipeline_mode, model_name, model_version, measurements:[...], primary:{label,value,unit}}`）。
-- ✅ `mask_url`（2026-06-15 起）：該結果有產 mask 時為 `"/ai/result/{id}/mask"`，無 mask（未偵測到 / 未產檔）時為 `null`。**前端 mask overlay 現可接**。
+- 每筆 `measurements[]`：`{batch_index, excursion_cm, excursion_pixel, time_pixel, time_sec, velocity, crest:[x,y], trough:[x,y]}`。**`crest`/`trough` 是像素座標**（見 §3.3.1）。
+- `mask_url`（2026-06-15 起）：有產 mask 時為 `"/ai/result/{id}/mask"`，否則 `null`。**但這是 debug 級分割圖、不是臨床疊圖 → 見 §3.3.1，別拿它做 overlay。**
 - `measurement_type` 值域：`excursion` / `sniff` / `thickness` / `unknown`。
+- ✅ **`?status=completed`（2026-06-15，修後端問題 B）**：只取最新一筆 completed，繞過「失敗重跑寫的 error 紀錄遮蔽好結果」。**前端撈結果 / 做 overlay 一律帶 `?status=completed`**；省略則回任意最新（向後相容）。回應的 `mask_url` 會自動帶上同一 `?status=completed`。
 
-**`GET /ai/result/{id}/mask`** —（2026-06-15 新增）回最新一筆結果的 mask PNG，供 overlay：
+**`GET /ai/result/{id}/mask`** —（2026-06-15 新增）回 paddleseg 原始 mask PNG：
 
 | 情境 | HTTP | 回傳 |
 |---|---|---|
-| 有 mask | 200 | `Content-Type: image/png`、mask 影像 binary |
+| 有 mask | 200 | `Content-Type: image/png`、影像 binary |
 | instance 不存在 / 無結果 / 結果無 mask / 檔案遺失 | 404 | `{detail}` |
 
-- 用法：`/ai/result/{id}` 拿到非 null 的 `mask_url` 後，直接以該 URL 取 PNG 疊在 DICOM 上。
-- mask 與原 DICOM **未必同尺寸**（paddleseg `pseudo_color_prediction` 輸出，可能是 crop / segment 後尺寸）— overlay 對齊邏輯前端需自行驗證（建議先實測一張）。
-- 純讀檔、對 AI runtime 零依賴：只要 segment 當下產過 mask，即使後端沒裝 paddle 也能取得。
+- 同樣支援 `?status=completed`（與 `/ai/result` 一致）。
+- ⚠️ 這是 paddleseg `pseudo_color_prediction` 的**原始分割輸出（debug 用）**，**與顯示影像對不齊、非臨床疊圖**。臨床 overlay 請走 §3.3.1。本端點保留供 debug。
+
+> **後端問題 A 已修（2026-06-15）**：第二次 `POST /ai/segment` 崩潰（`conv2d EagerParamBase vs Value`）已解 —— MedPACS 停用 warm segmenter 重用、改 fresh-per-call（= 原驗證行為），**連續對多個 instance segment 不再 crash、不需重啟 backend**。代價:每次 segment 多幾秒 model load（warmup 對此 model 暫失效）。warm 效能的根治屬上游 AI lane、修好再恢復。
+
+### 3.3.1 AI overlay 正解（2026-06-15 — mask overlay 前端必讀）
+
+> **一句話**：別用 mask PNG 疊圖；用 `measurements[].crest`/`trough` 座標在原影像上自己畫 marker + excursion 線 + 數字。
+
+**為什麼**：原演算法的臨床疊圖不是 mask，而是 `AI/visualization/info_display.py` 的 `excursion_info_display()` —— 它直接在原圖上、用 `m.crest[0,1]` / `m.trough[0,1]` 座標畫 peak/trough markers + excursion 文字。這些座標**已經在 `/ai/result` 的 `measurements[]` 裡**，所以前端可完整重現、且天生對齊。`/ai/result/{id}/mask` 的 PNG 是 paddleseg 原始分割（debug），既非臨床疊圖也對不齊。
+
+**做法**：
+- 在 DicomViewer 影像上疊一層（Cornerstone annotation 或 SVG/canvas），對每筆 measurement 在 `crest` / `trough` 像素座標畫標記；可連 crest↔trough 表 excursion、標 `excursion_cm`。
+- 向量繪製、可開關、原 DICOM 不動。**不需要 mask PNG、後端不需再動。**
+
+**唯一要先驗證 — 座標空間**：`crest`/`trough` 是 `(x,y)=(column,row)` 像素座標，但需確認落在**完整原圖**還是**裁切 ROI**：
+- 取一個有結果的 instance（如 12），看 `measurements[]` 的 `crest`/`trough` x 最大值（instance 12 約 x≈697），對 `GET /instances/{id}/metadata` 的 `Columns`。
+- x 範圍 ≈ `Columns` → 完整圖座標，直接畫即可。
+- x 明顯 < `Columns`（且 y < `Rows`）→ 量測前有 `apply_dicom_crop`，座標在裁切座標系 → 需加 crop offset 才對齊 → **這種情況回報主 Agent**（crop 參數在後端 / AI 側，可能需後端多回 crop bbox）。
+
+**參考**：`AI/visualization/info_display.py`（`excursion_info_display` / `_draw_peak_marker` / `_draw_big_text_block`）= 座標→繪製語意的權威來源。
 
 ### 3.4 Upload UI 不在 MVP 範圍
 
@@ -212,6 +232,7 @@ Alembic 在 DB 多建一張 `alembic_version`（單欄、單列、記錄目前 m
 | 2026-05-19 | **`POST /upload` duplicate detection** (PROGRESS §6.12 修復) | response 新增 `duplicate` bool；新增 409 conflict status code；若前端日後加 upload UI，需處理 200+duplicate / 409 兩個新分支。詳 §3.1 / §3.2 |
 | 2026-06-10 | **`/ai/segment`·`/ai/result` 真實實作**（取代 stub、Phase 3 #2/#3） | AIPanel 可改接真實回應：segment 回 `measurement_type`/`primary_value` 等、result 回完整 envelope；新 status code 語義 422(未知機型)/501(thickness)/503(引擎未裝)/404(未跑過)。**量測數值已可顯示；mask overlay 仍卡**（`mask_url=null`、mask PNG 屬下游）。詳 §3.3。⚠️ dev 端要看真資料需先裝 paddle+weights，否則 503 |
 | 2026-06-15 | **`GET /ai/result/{id}/mask` mask PNG endpoint** + `mask_url` 接上 | **mask overlay 解除阻擋**：`/ai/result/{id}` 的 `mask_url` 有 mask 時指向新端點、否則 null；新端點回 `image/png`。mask 與原 DICOM 未必同尺寸（overlay 對齊需實測）。無 migration、無既有 contract 破壞。詳 §3.3 / §6 |
+| 2026-06-15 | **修前端回報的後端問題 A + B** | **A**：第二次 segment 崩潰 → 停用 warm reuse、fresh-per-call（多個 instance 連續 segment 不再 crash；每次多幾秒 load）。**B**：`/ai/result`·`/ai/result/{id}/mask` 加 `?status=completed`（additive、不改預設）→ 前端帶此參數可繞過 error 紀錄撈回好結果。詳 §3.3 / §3.3.1。前端 B 段 overlay 阻擋解除（用 `?status=completed` + crest/trough 座標） |
 
 > ⏸ **目前無 in-flight 後端變更**。下次更新時機：當主 Agent 在派發新前端任務前發現有新的 API、schema、env var、CORS 異動時（spec 變動會自動進 `docs/generated/`，本檔 §3.x / §4.x 只在「補充說明」需新增 / 修正時動）。
 

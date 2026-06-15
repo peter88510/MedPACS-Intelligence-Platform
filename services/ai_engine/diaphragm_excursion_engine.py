@@ -38,6 +38,17 @@ _MODEL_NAME = "diaphragm_excursion"
 # facade 只接受 excursion / sniff；unknown/thickness 由 endpoint 在呼叫前擋掉。
 _SUPPORTED = {MeasurementType.EXCURSION, MeasurementType.SNIFF}
 
+# warm segmenter 重用目前【停用】。
+# paddleseglibs.predict 重用同一個 model object 時，paddle 3.x 第二次 predict 會崩：
+# `conv2d(): argument must be Value, but got EagerParamBase`（mix_transformer patch_embed
+# proj）——第一次 predict 後 model 參數狀態被汙染（疑 PIR/to_static/in-place cast）。
+# 改回 fresh-per-call（= 2026-06-11 端到端驗證的行為）：每次 analyze 讓 facade 自建並載入
+# segmenter（segmenter=None），每個 model 只 predict 一次 → 不觸發第二次崩潰。
+# 代價：每次 /ai/segment 多幾秒 model load（warmup 對此 model 失效）。
+# 根因修復屬上游 AI lane（paddleseglibs reuse 安全化）；修好後把本旗標設回 True 即恢復
+# warm 效能。見 frontend「後端問題 A」、docs/ai_inference_contract.md §9。
+_WARM_REUSE_ENABLED = False
+
 
 class DiaphragmExcursionEngine(DiaphragmEngine):
     """驅動 `AI/inference.py` facade（LEGACY 同步量測）。
@@ -80,7 +91,11 @@ class DiaphragmExcursionEngine(DiaphragmEngine):
             raise EngineError(f"DICOM file not found for inference: {image_path}")
 
         inference = self._load_inference()
-        segmenter = self._get_warm_segmenter(inference, measurement_type)
+        # warm reuse 停用中（見 _WARM_REUSE_ENABLED）→ segmenter=None，facade 每次自建。
+        segmenter = (
+            self._get_warm_segmenter(inference, measurement_type)
+            if _WARM_REUSE_ENABLED else None
+        )
 
         try:
             with self._run_lock:
@@ -134,6 +149,10 @@ class DiaphragmExcursionEngine(DiaphragmEngine):
         初始化本身已由 _get_warm_segmenter 的 _init_lock 保護。
         """
         inference = self._load_inference()
+        if not _WARM_REUSE_ENABLED:
+            # warm reuse 停用中（見 _WARM_REUSE_ENABLED）：預建 segmenter 不會被 analyze
+            # 重用、無益 → 只載入 facade（觸發 import + paddle 環境就緒），不預建 segmenter。
+            return
         self._get_warm_segmenter(inference, MeasurementType.EXCURSION)
 
     def _get_warm_segmenter(self, inference, measurement_type: MeasurementType):
