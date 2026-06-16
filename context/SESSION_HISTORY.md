@@ -24,14 +24,14 @@
 ### 系統現況（2026-06-11）
 
 - **定位**：AI-ready Ultrasound DICOM 平台 MVP（非完整 PACS 替代）
-- **階段**：**Phase 3 AI 整合 — 端到端打通 + facade 瘦身 + GPU 提速完成** — AI engine 整合層 ✅(2026-06-10、`e934025`) + 端到端驗證 ✅(2026-06-11) + **facade re-vendor @`5340456` ✅(`8f15e18`) + engine 簡化接 facade ✅(`bca26ab`、~250→~150 行) + GPU 環境 `medpacs_gpu` ✅**；84 tests 全綠。**startup warmup 已完成（2026-06-12、`418f29d` + review fixes）**。**剩**：Phase 2b trim(viz/tools/experiments/font + 砍 visualdl、需 GPU env 實測、保留) → 其後 mask PNG endpoint + 前端接數值。工程師親接 AI 演算法、主 Agent 接整合層
+- **階段**：**Phase 3 AI 整合 — 端到端 + facade 瘦身 + GPU + mask endpoint 完成** — AI engine 整合層 ✅(2026-06-10) + 端到端驗證 ✅(2026-06-11) + facade re-vendor ✅ + engine 簡化 ✅ + GPU env `medpacs_gpu` ✅ + **mask PNG endpoint `/ai/result/{id}/mask` ✅(2026-06-15、merge `4f6b236`、實機驗證)**；**93 tests 全綠**。**剩**：① 前端 #2 B 段臨床 overlay（前端 session 進行中、走 crest/trough 座標）② warm segmenter 重用根治（上游 AI lane；目前 fresh-per-call）③ Phase 2b trim（保留）。工程師親接 AI 演算法、主 Agent 接整合層
 - **Backend**：FastAPI + PostgreSQL + SQLAlchemy + pydicom，**11 個 API endpoints 全完整**（AI 兩端 2026-06-10 真實實作、端到端 2026-06-11 驗證）；分層：main.py=API root / `core/` 設定 / `db/` session / `models/` ORM / `services/`(db_service+storage+storage_backend+measurement_type+**ai_engine/**) / `validation/`；DB schema 5 tables，`ai_results` +4 量測欄、`instances` +2 device 欄；`/upload` 抽 Manufacturer/ModelName + dedup
 - **CORS**：✅ dev allow `http://localhost:5173`（Vite default）
 - **驗證層**：6 個必填欄位全部就位（PatientID / StudyInstanceUID / SeriesInstanceUID / SOPInstanceUID / Modality / PixelData）+ Modality 白名單（US）
 - **Frontend**：✅ **完整 SPA E2E 可用** — React 19 + Vite 8 + TS 6 + Cornerstone3D v4.22 + AppContext (5 fields + cascade) + Layout/TopBar/StudyList/MetadataPanel/AIPanel/DicomViewer 全業務元件 + API client + `VITE_API_BASE_URL` env var 制度。Stage C UX 缺口已解決
-- **AI 推論**：核心演算法 vendored `./AI/` **@ `5340456`**（含上游 `inference.py` facade + `algorithm/single_frame.py`）；MedPACS 整合層 engine 改呼叫 `inference.analyze`（去 importlib hack/reach-in/numpy 正規化、接 warm segmenter）。tuning 100% 上游 `run_config`。resolver C62→excursion/L154→thickness、design §4 envelope
+- **AI 推論**：核心演算法 vendored `./AI/`（含上游 `inference.py` facade）；MedPACS engine 呼叫 `inference.analyze`。tuning 100% 上游 `run_config`；resolver C62→excursion/L154→thickness、design §4 envelope。**warm segmenter 重用目前停用**（`_WARM_REUSE_ENABLED=False`）— paddleseglibs 重用同一 model 第二次 predict 崩潰（paddle 3.x `EagerParamBase vs Value`）→ 改 fresh-per-call（每次 segment 重載 model、慢幾秒但不 crash）；根治屬上游 AI lane。mask 走 `save_mask_dir` 寫病患 storage 樹（debug 分割圖；臨床 overlay 用 crest/trough 座標）
 - **執行環境**：**改用 conda `medpacs_gpu`**（clone 自 CLI `diaphragmalgo_env`、Python 3.10.18 + paddlepaddle-gpu 3.2.0/cu118 + 後端 web 依賴）— GPU 提速已驗證。舊 `.venv`(3.8/CPU paddle) 退役。啟動：`conda activate medpacs_gpu` → `uvicorn main:app --reload`；pytest 需 `PYTHONUTF8=1`（pytest.ini 中文、cp950 locale）
-- **測試**：84 個測試（單元 9 validators + 13 measurement_type + 12 ai_engine / 整合 13 / API 31 / ORM 6），in-memory SQLite + StaticPool 隔離；AI engine 走 DI fake、不碰 paddle。前端尚無測試套件
+- **測試**：93 個測試（單元 9 validators + 13 measurement_type + 12 ai_engine / 整合 13 / API 40 / ORM 6），in-memory SQLite + StaticPool 隔離；AI engine 走 DI fake、不碰 paddle。前端尚無測試套件
 - **儲存**：本地檔案系統（`storage/{patient}/{study}/{filename}.dcm`），已透過 `StorageBackend` 抽象預留 S3 接口
 - **DB Migration 工具**：✅ Alembic，baseline `20809e26d134` + Series `e25c80289a9c` + AIResult `91725486ef55` + measurement fields `7f3c9a2b1d04` (2026-06-09、instances +2 / ai_results +4) 共 4 個 migration；工程師已 `alembic upgrade head`、alembic_version = `7f3c9a2b1d04`
 - **DB 資料狀態（2026-05-18 backfill 後）**：1 study + 1 series + 8 instances 全部 link 到 series 1 (uid `...593537`)；orphan count=0。Instance ID gap [2, 5] 已澄清為 PostgreSQL SERIAL sequence 在 IntegrityError rollback 後不 reset 的正常設計（不是 bug）。連帶發現 upload pipeline 缺 graceful duplicate detection → 新 known issue PROGRESS §6.12
@@ -43,9 +43,9 @@
 
 ### 進行中的任務
 
-- 無 in-flight 程式碼修改；facade/engine/GPU 三批已進 master（`8a0a367` 等）。本 session：warmup 已 commit `418f29d`；review fixes（4 檔）+ PROGRESS/SESSION_HISTORY 同步待 commit + push 收尾
-- **前端**：task #9 已完成；無 active 前端 dispatch。**現可派**：AIPanel 接真實 `/ai/segment`·`/ai/result`（數值層、後端已就緒）；mask overlay 等 mask PNG endpoint
-- **主 Agent 下一步（Phase 3 收尾）**：① mask PNG endpoint `/ai/result/{id}/mask`（engine 已預留 `mask_path` + facade `save_mask_dir`、契約 §4.3） ② 派前端 AIPanel 接真實量測數值（後端已就緒） ③ Phase 2b trim（砍 AI/ viz/tools/experiments/font + 測 visualdl 可否移除、需 GPU env 實測）
+- 主 Agent 端無 in-flight 程式碼修改。本 session 已完成並待 commit：mask endpoint(#1) + 問題 A(warm 停用) + 問題 B(`?status=`) 後端修復 + 文件同步（PROGRESS/SESSION_HISTORY/HANDOFF/README）。**待你 GPU env 驗證問題 A**（重啟 backend → 連續對 2 個 instance segment 確認第二次不 crash）
+- **前端**：Phase 3 #2 在獨立前端 session 進行 — A 段（AI contract 對齊）✅ commit `a2a52dc`；B 段（mask overlay）解阻擋中，走 crest/trough 座標自畫 + `?status=completed`（HANDOFF §3.3.1）。DISPATCH `task_id: phase-3-frontend-ai-mask-overlay`
+- **主 Agent 下一步**：① 等前端 #2 B 段回報 ② warm segmenter 重用根治（上游 AI lane，工程師）③ Phase 2b trim（保留、需 GPU env） ④ Realtime 串流 demo endpoint（候選）
 - **R4 stale check 規則調整**（2026-05-16，工程師授權）：主 Agent 改為 per-Read inline、active phase 不再做 blanket per-session 全掃；不動 CLAUDE.md 文字（仍符合 §10 R4 letter）
 
 ### 待決定事項
@@ -158,6 +158,24 @@
   4. **評估後端補完**：依前端回報的後端需求（最可能：`/studies/{id}/series` + `/series/{id}/instances`）決定是否派 backend task
   5. **派 Phase 2 task #9 dispatch**：API client + AppContext + 4 業務元件 + `VITE_API_BASE_URL` env var 制度
   6. **修 `frontend/PROGRESS.md` lines 5, 64 的 `./IMPLEMENTATION.md` stale link**（→ `./docs/IMPLEMENTATION.md`）— 屬前端 Agent territory，但若前端 Agent 沒順手修，下次 session 可標 §9.5 結構性修正例外動一下並在 commit message 註明
+
+---
+
+### 2026-06-15 session 結尾狀態（Phase 3：mask endpoint + 前端整合 + 後端問題 A/B）
+
+- **本 session 工作（主 Agent）**：
+  1. **契約 docs/ 副本同步 v1.0→v1.1**（commit `f298b8e`）— 補 §9 warm segmenter + 標 docs/ 為權威、AI/docs/ 為上游鏡像
+  2. **#1 mask PNG endpoint**（branch `feat/ai-mask-endpoint`、merge `4f6b236`）— `/ai/segment` 寫 mask 進病患 storage 樹、`mask_path` 相對路徑、新 `GET /ai/result/{id}/mask`、`mask_url` 接上；實機驗證 instance 12 → 200 + PNG magic。+6 test
+  3. **派前端 #2**（DISPATCH `phase-3-frontend-ai-mask-overlay`）— A 段 contract 對齊 + B 段 overlay + Step 0 偵察
+  4. **overlay 方向修正**（HANDOFF §3.3.1）— 發現 #1 的 mask 是 paddleseg debug 分割圖、對不齊；臨床 overlay 正解 = 前端用 `measurements[].crest/trough` 座標自畫（= `AI/visualization/info_display` 做的事）；裁示 **Option B（前端向量自畫）not A（後端 render PNG）**；motion curve 軌跡未暴露、屬 debug、需要才加欄位
+  5. **修前端回報的後端問題 A + B**（待 commit）：
+     - **A**：第二次 segment 崩潰（paddleseglibs 重用同一 model → paddle 3.x `conv2d EagerParamBase vs Value`）→ 停用 warm reuse（`_WARM_REUSE_ENABLED=False`）、fresh-per-call。根治屬上游 AI lane
+     - **B**：`/ai/result`·`/ai/result/{id}/mask` 加 `?status=completed`（additive）→ 繞過失敗重跑 error 紀錄遮蔽好結果；`mask_url` 自動帶 status
+     - +3 test、**93 全綠**
+- **前端進度（獨立 session）**：#2 A 段完成（commit `a2a52dc`）；B 段 overlay 走座標自畫 + `?status=completed`、解阻擋中
+- **commit 狀態**：`f298b8e`(契約)/`4f6b236`(#1 merge) 已進 master；本批問題 A/B 修復 + 本次文件同步待 commit + push
+- **待你（工程師）**：① GPU env 驗證問題 A（重啟 → 連續 2 instance segment 不再 crash）② warm segmenter 重用根治（上游 AI lane）
+- **下次 session 起手**：等前端 #2 B 段回報；其後 warm 根治 / Phase 2b trim / realtime demo（候選）
 
 ---
 

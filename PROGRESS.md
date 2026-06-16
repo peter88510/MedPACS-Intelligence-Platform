@@ -57,7 +57,7 @@
 - [x] **AIResult model + Alembic migration `91725486ef55`**（Phase 3 task #10、2026-05-19）— PLAN §9.3 schema scaffolding；不接 PyTorch（工程師親自串接演算法/模型）；upgrade/downgrade round-trip 驗證通過
 
 ### 測試與品質
-- [x] 84 個測試案例（單元 / 整合 / API / ORM 多層）
+- [x] 93 個測試案例（單元 / 整合 / API / ORM 多層）
 - [x] 共用 fixtures（`tests/conftest.py`）
 - [x] pytest 配置（`pytest.ini`）
 - [x] 測試隔離機制（記憶體 SQLite + monkeypatch）
@@ -98,16 +98,17 @@
 | GET | `/instances/{id}/file` | 下載原始 DICOM 檔案 | ✅ 完整 | 透過 FileResponse |
 | GET | `/instances/{id}/metadata` | 取得實例 metadata | ✅ 完整 | — |
 | POST | `/ai/segment/{id}` | 觸發 AI 量測 | ✅ 完整 | 2026-06-10 真實實作（取代 stub）；resolver→422(unknown)/501(thickness)/200(excursion·sniff)；engine 缺 paddle→503、推論失敗→500（留 error 結果）；回 `{instance_id, ai_result_id, status, measurement_type, primary_value, primary_unit, measurement_count}`。**端到端真實推論待 paddle+weights 驗證** |
-| GET | `/ai/result/{id}` | 取得 AI 量測結果 | ✅ 完整 | 2026-06-10 真實實作（取代 stub）；回最新一筆 ai_results（含 `measurement_type`/`result`(envelope)/`primary_value`/`primary_unit`/`mask_url`=null）；尚未跑過→404 |
+| GET | `/ai/result/{id}` | 取得 AI 量測結果 | ✅ 完整 | 2026-06-10 真實實作；回最新一筆 ai_results（envelope + `primary_*` + `mask_url`）；尚未跑過→404。2026-06-15 加 `?status=completed`（additive，繞過失敗重跑的 error 紀錄遮蔽好結果） |
+| GET | `/ai/result/{id}/mask` | 取得 AI mask PNG | ✅ 完整 | 2026-06-15 新增；回 paddleseg `pseudo_color_prediction` PNG（`image/png`，debug 級分割圖、非臨床疊圖）；純讀檔零 AI 依賴；無 mask/檔案遺失→404；同支援 `?status=completed` |
 
-**完整度**：11/11 完整實作（AI 兩端為整合層完整、端到端真實推論待 paddle 環境驗證）。
+**完整度**：12/12 完整實作（AI 兩端為整合層完整、端到端真實推論已驗證；mask endpoint 已驗證）。
 
 ---
 
 ## 3. 測試覆蓋簡況
 
 ### 總覽
-- **總測試數**：84 個
+- **總測試數**：93 個
 - **執行方式**：`pytest tests/ -v`
 - **隔離機制**：記憶體 SQLite + monkeypatch 臨時 storage，每個測試獨立
 
@@ -116,7 +117,7 @@
 | 層級 | 檔案 | 測試數 | 風格 |
 |---|---|---|---|
 | 整合測試 | `tests/test_dicom_service.py` | 13 | 真實 SQLite 記憶體 DB + 臨時 storage（含 2026-05-15 series upsert / upload-creates-series 兩項 + 2026-05-19 duplicate detection 三項 + 2026-06-09 device tag 抽取兩項：有 tag / 無 tag null） |
-| API 測試 | `tests/test_query_api.py` | 31 | TestClient + mock `db_service`（含 /studies/{id}/series 與 /series/{id}/instances 各 4；2026-06-10 AI 兩端真實實作：segment 422/501/200/503/404、result 命中/未跑 404/instance 404，引擎走 DI fake 不碰 paddle） |
+| API 測試 | `tests/test_query_api.py` | 40 | TestClient + mock `db_service`（含 /studies/{id}/series 與 /series/{id}/instances 各 4；2026-06-10 AI segment/result；2026-06-15 mask endpoint 5 案 + mask_url + `?status=completed` filter 透傳/mask_url 帶 status/404，引擎走 DI fake 不碰 paddle） |
 | ORM 測試 | `tests/test_ai_result_model.py` | 6 | 純 SQLAlchemy model 層（task #10：CRUD + nullable + relationship；2026-06-09：measurement_type default + result_json round-trip + 新欄 nullable） |
 | 單元測試 | `tests/test_validators.py` | 9 | 純邏輯，無 DB / HTTP |
 | 單元測試 | `tests/test_measurement_type.py` | 13 | MeasurementType resolver（model-only key、known/unknown/missing、whitespace 正規化、manufacturer 缺值仍命中、production map C62→excursion/L154→thickness、enum str、ImageContentResolver stub） |
@@ -179,7 +180,9 @@
 - [x] **AI 整合介面瘦身（facade re-vendor、Option 1）**（2026-06-11）— Phase 0 契約✅(`docs/ai_inference_contract.md`、commit `772faed`) / Phase 1 上游 `inference.py` facade✅ / Phase 2 re-vendor✅(@`5340456`、8 檔、commit `8f15e18`) / Phase 3 engine 簡化✅(~250→~150 行、commit `bca26ab`)。engine 改呼叫 `inference.analyze`：去 importlib hack + `_build_bundle` reach-in + numpy 正規化；接 warm segmenter(lazy 載一次重用)。**剩 Phase 2b trim**(viz/tools/experiments/font + 砍 visualdl，延後、需 GPU env 實測) + ~~startup warmup~~(✅ 2026-06-12 完成、見下)
 - [x] **GPU 環境收斂**（2026-06-11）— `.venv`(3.8/CPU paddle) per-frame 慢 → 改用 clone 自 CLI `diaphragmalgo_env` 的 `medpacs_gpu`(Python 3.10.18 + paddlepaddle-gpu 3.2.0/cu118 + 後端 web 依賴)；GPU 提速已驗證。日常啟動：`conda activate medpacs_gpu` → `uvicorn main:app --reload`
 - [x] **AI engine startup warmup（opt-in `AI_WARMUP_ON_STARTUP`）**（2026-06-12、commit `418f29d` + review fixes）— FastAPI startup 預載 paddle segmenter 消第一個 `/ai/segment` 冷啟；`DiaphragmEngine` ABC 加預設 no-op `warmup()`、子類 override 走既有 lazy 路徑。env-gated（預設 false、測試/純後端啟動零延遲）+ exception-safe（缺 paddle 降級不擋啟動）。Settings 收編 `AI_WARMUP_ON_STARTUP: bool`（修寫入 `.env` 時 pydantic extra_forbidden 崩潰）。+2 test、84 全綠。設計筆記 `learning/asgi-lifespan-and-engine-locks.md`（gitignored）
-- [ ] `/ai/result/{id}/mask` — mask PNG endpoint（engine 預留 `mask_path`；與 facade `save_mask_dir` 合一設計，見契約 §4.3）
+- [x] **`/ai/result/{id}/mask` — mask PNG endpoint**（2026-06-15、branch `feat/ai-mask-endpoint`、merge `4f6b236`）— `/ai/segment` 將 paddleseg mask 寫進病患 storage 樹（`masks/inst{id}/`）、`mask_path` 存相對路徑；新 endpoint 純讀檔回 `image/png`（零 AI 依賴）；`mask_url` 接上。端到端實機驗證（instance 12 → 200 + PNG magic）。**澄清**：此 mask 為 paddleseg `pseudo_color_prediction`（debug 級、與顯示影像對不齊）；臨床 overlay 改走 `measurements[].crest/trough` 座標前端自畫（HANDOFF §3.3.1）
+- [x] **修前端整合回報的兩個後端阻擋**（2026-06-15）— **A**：第二次 `POST /ai/segment` 崩潰（paddleseglibs 重用同一 model → paddle 3.x `conv2d EagerParamBase vs Value`）→ 停用 warm segmenter 重用、改 fresh-per-call（`_WARM_REUSE_ENABLED=False`；= 原驗證行為，多 instance 連續 segment 不再 crash；代價每次多幾秒 load；根治屬上游 AI lane）。**B**：`/ai/result`·`/ai/result/{id}/mask` 加 `?status=completed`（additive）→ 繞過失敗重跑的 error 紀錄遮蔽好結果；`mask_url` 自動帶同一 status。+3 test、93 全綠
+- [ ] **warm segmenter 重用根治（上游 AI lane）**— paddleseglibs `predict` 重用同一 model object 的 paddle 3.x 參數汙染；修好後 `_WARM_REUSE_ENABLED` 設回 True 恢復 warmup 效能
 - [ ] **Realtime 串流 demo endpoint**（候選）— REALTIME mode 逐 frame 推 excursion + video artifact；正解活在 run-loop state（run() 不回傳）→ 需另設 streaming endpoint，工程師 territory
 - [ ] 前端 mask overlay / 量測結果渲染 — ⏸ 數值層可先接（後端已就緒）、mask overlay 等 mask endpoint
 
@@ -194,7 +197,7 @@
 > 以下為「知道缺、但尚未排入近期計畫」的項目。納入 PLAN.md 後即升格為「下一步」。
 
 ### 6.1 AI 量測功能（業務）
-> ✅ **整合層完成 + 端到端已驗證（2026-06-11）**：`/ai/segment`·`/ai/result` 真實實作、ai_results 寫入/查詢、可替換式 engine（design §4 envelope）；工程師 dev 裝 paddle+weights、`POST /ai/segment` 跑出真實 excursion → 200 OK。**剩餘缺口**：① AI 整合介面瘦身（facade re-vendor、見 §5 + `docs/ai_inference_contract.md`） ② thickness 演算法本體未存在（L154 目前 501 forward-design） ③ mask PNG endpoint + 前端 overlay 渲染 ④ realtime 串流 demo endpoint（候選）。任務佇列（Celery / RQ）MVP 階段不需（同步 LEGACY 已足）。本條保留追蹤剩餘缺口。
+> ✅ **整合層完成 + 端到端已驗證（2026-06-11）**：`/ai/segment`·`/ai/result` 真實實作、ai_results 寫入/查詢、可替換式 engine（design §4 envelope）；工程師 dev 裝 paddle+weights、`POST /ai/segment` 跑出真實 excursion → 200 OK。**剩餘缺口**：① ~~AI 整合介面瘦身（facade re-vendor）~~ ✅ 完成 ② thickness 演算法本體未存在（L154 目前 501 forward-design） ③ ~~mask PNG endpoint~~ ✅ 完成（2026-06-15，見 §5）；前端臨床 overlay 改走 crest/trough 座標自畫（進行中、前端 session） ④ realtime 串流 demo endpoint（候選） ⑤ **warm segmenter 重用根治**（上游 AI lane；目前 fresh-per-call、warmup 暫失效） ⑥ motion curve 軌跡未暴露於 envelope（前端 overlay 若需 debug 軌跡才補欄位）。任務佇列（Celery / RQ）MVP 階段不需。本條保留追蹤剩餘缺口。
 
 ### 6.2 Database Migration 框架（基礎設施）
 > ✅ **已完成（2026-05-12）**。Alembic 已導入，baseline migration 涵蓋現有四表，upgrade/downgrade 雙向驗證通過。後續所有 schema 變更走 migration script（CLAUDE.md §12 強制）。本條保留以供歷史追溯。
