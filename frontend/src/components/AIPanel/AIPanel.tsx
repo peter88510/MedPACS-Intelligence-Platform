@@ -25,7 +25,15 @@ function aiErrorMessage(e: unknown): string {
 }
 
 export default function AIPanel() {
-  const { currentInstanceId, aiResult, runAi } = useAppContext()
+  const {
+    currentInstanceId,
+    aiResult,
+    runAi,
+    aiOverlayVisible,
+    aiOverlayOpacity,
+    setAiOverlayVisible,
+    setAiOverlayOpacity,
+  } = useAppContext()
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -71,6 +79,30 @@ export default function AIPanel() {
           </div>
           {aiResult.status === 'error' && aiResult.error_message && (
             <div className={styles.error}>{aiResult.error_message}</div>
+          )}
+          {measurements.length > 0 && (
+            <div className={styles.overlayControls}>
+              <label className={styles.overlayToggle}>
+                <input
+                  type="checkbox"
+                  checked={aiOverlayVisible}
+                  onChange={(e) => setAiOverlayVisible(e.target.checked)}
+                />
+                在影像上顯示量測標記（{measurements.length} 組）
+              </label>
+              <label className={styles.opacityRow}>
+                透明度
+                <input
+                  type="range"
+                  min={0.2}
+                  max={1}
+                  step={0.05}
+                  value={aiOverlayOpacity}
+                  onChange={(e) => setAiOverlayOpacity(Number(e.target.value))}
+                  disabled={!aiOverlayVisible}
+                />
+              </label>
+            </div>
           )}
           {measurements.length > 0 && (
             <details className={styles.measurements}>

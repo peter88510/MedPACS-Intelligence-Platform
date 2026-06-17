@@ -1,4 +1,5 @@
 .viewer {
+  position: relative;
   width: 100%;
   height: 100%;
   background: #000;
@@ -10,6 +11,33 @@
 .viewport {
   width: 100%;
   height: 100%;
+}
+
+/* AI 量測標記疊層：絕對覆蓋於 viewport（canvas）之上，不吃滑鼠事件，
+   不影響 Cornerstone 渲染。座標由 worldToCanvas 給出（CSS px、含 letterbox 補償）。 */
+.overlay {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.exLine {
+  stroke: rgba(255, 255, 255, 0.55);
+  stroke-width: 1;
+}
+
+.crest {
+  fill: #22d3ee;
+  stroke: #04222a;
+  stroke-width: 0.5;
+}
+
+.trough {
+  fill: #f59e0b;
+  stroke: #2a1a04;
+  stroke-width: 0.5;
 }
 
 .empty {
