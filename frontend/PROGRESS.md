@@ -79,7 +79,7 @@
   - `src/api/types.ts`：換成後端真實形狀（`measurement_type`/`primary_value`/`measurements[]`/envelope）+ `Measurement` / `AIResultEnvelope` 子型別，取代舊 stub `{mask, confidence}`
   - `AIPanel.tsx`：移除 `result.confidence` 依賴；headline 顯示 `measurement_type`/`primary_value`+`primary_unit`/count；measurements 可摺疊；422/501/503/404/500 狀態碼分支可讀提示
   - `AppContext.tsx`：`runAi` 錯誤上拋（給 AIPanel 分支）；AI 結果**依 instanceId 快取**（切走切回還原、in-flight 結果落正確那筆不汙染）；選 instance **自動唯讀載入既有結果**（`GET /ai/result`，繞過後端重跑 bug）
-  - `npx tsc -b --noEmit` 乾淨；座標空間已驗證（instance 12 crest/trough x∈[103,699]≈Columns 720、y∈[285,326]<Rows 930 → **完整原圖座標系**，B 段可直接畫 marker、不需 crop offset）
+  - `npx tsc -b --noEmit` 乾淨；~~座標空間已驗證（instance 12 crest/trough x∈[103,699]≈Columns 720、y∈[285,326]<Rows 930 → **完整原圖座標系**，不需 crop offset）~~ → **此結論 2026-06-16 已證實為誤**：演算法只取 DICOM **下半部 M-mode 區**計算，crest/trough 是**裁切後座標系**（y∈[285,326] 是相對 crop 上緣、非整圖上緣；對映回整圖應落在下半部 M-mode 區）。需 crop offset 才能對齊整圖 → 見 §5 後端需求 E
   - ⚠️ completed 結果的瀏覽器目視驗收**待後端問題 B**（見 §5）：instance 12 最新一筆是 error、好結果（id≈7）被遮蔽撈不到
 
 ### 文件
@@ -93,12 +93,26 @@
 
 ## 2. 進行中
 
-### Phase 3 #2 B 段：mask overlay（**暫停 — 等後端問題 A/B**）
+### Phase 3 #2 B 段：AI overlay（向量 marker）— **實作完成、待瀏覽器目視驗收**
 - **任務來源**：2026-06-15 DISPATCH.md（task_id: `phase-3-frontend-ai-mask-overlay`）
-- **核心工作**：用 `measurements[].crest`/`trough` 在原影像畫向量 marker（對齊 `info_display`「每組都畫」）+ headline `excursion_cm` 文字；toggle + opacity；用 Cornerstone `imageToWorldCoords`→`viewport.worldToCanvas` 映射，原 DICOM 不動
-- **座標方向已定**：§3.3.1 判定完整原圖座標系、B 直接畫（已驗證，見 §1 A 段條目）
-- **阻擋**：需要一筆**可達的 completed 結果**驗收 overlay 對齊；目前被後端問題 A（重跑 crash）+ B（latest-only 遮蔽好結果）卡住 → 見 §5
+- **後端問題 A/B 已修並 push（2026-06-15，主 Agent 回報）** → B 段解除阻擋：
+  - A：segment 重跑不再 crash（改 fresh-per-call）
+  - B：`GET /ai/result` 支援 `?status=completed`，可拿到好結果那筆（mask_url 同帶該參數）
+- **本 session 已做的實作**（待工程師 commit，5 檔）：
+  - `src/api/ai.ts`：`getResult` 一律帶 `?status=completed`（繞過 latest-only 遮蔽）
+  - `src/context/AppContext.tsx`：新增共用 overlay 狀態 `aiOverlayVisible`(預設 true)/`aiOverlayOpacity`(預設 1) + setter
+  - `src/components/DicomViewer/DicomViewer.tsx` + `.module.css`：SVG 疊層；effect 把每筆 `crest`/`trough`（完整原圖像素）經 `utilities.imageToWorldCoords`→`viewport.worldToCanvas` 映射成 canvas 座標，畫 peak/trough 圓點 + excursion 連線；隨 viewport 重建 / `aiResult` 變動 / 開關切換重算，並監聽 `IMAGE_RENDERED`/`CAMERA_MODIFIED` + `ResizeObserver` 即時跟隨；`pointer-events:none`、原 DICOM 不動
+  - `src/components/AIPanel/AIPanel.tsx` + `.module.css`：measurements>0 時顯示「顯示量測標記」toggle + 透明度 slider（綁 context）
+- **驗證（本 session）**：`npx tsc -b --noEmit` 乾淨；`npm run dev` boot 乾淨（無新 lint error，4 個既有 error 與本次無關）
+- **🔧 B1 修正（2026-06-16，overlay 不顯示根因）**：工程師回報 overlay 完全不顯示。讀 loader 原始碼找到根因 —— 原用的 `utilities.imageToWorldCoords` **硬依賴 ImageOrientationPatient / ImagePositionPatient**，US DICOM 沒這兩個 tag（`dicom-image-loader` 回 `rowCosines/columnCosines=null`、`origin=undefined`）→ `vec3.scaleAndAdd` 讀 `undefined[0]` 拋 TypeError → 被 try/catch 吞掉、markers 全空。**改用 `viewport.getImageData().imageData.indexToWorld([col,row,0])` → `worldToCanvas`**（走 viewport actor 幾何、US 用預設平面，不碰病患座標 tag）。React key 改用陣列 index（防 count>150 時 batch_index 重複）。tsc/lint 乾淨。
+- **⚠️ 待工程師瀏覽器目視 gate（無法由 Agent 完成）**：
+  - overlay 是否**對齊**顯示影像（B1 後 marker 應能畫出；驗證映射數學：對一筆 crest/trough 像素座標 vs 落點）
+  - **工程師瀏覽器回報（2026-06-16）**：B1 後 marker **畫得出來了，但渲染位置錯誤 + 多 marker 重疊**，兩個原因：
+    - ① **座標是裁切後座標系**：演算法只取 DICOM **下半部 M-mode 區**計算，crest/trough 非整圖座標 → 需 crop offset 才對齊（A 段「完整原圖座標系」結論已更正，見 §1）→ §5 後端需求 E
+    - ② **multi-frame 未對應**：per-frame ~150 筆全畫在 frame 0、互相重疊；`Measurement` 無 frame index、count>150 疑後端 → §5 需求 C/D + 設計疑問
+  - → 三項（E/C/D）+ multiframe 呈現方向皆**待後端補資料 + 主 Agent 裁示**，B2/B3 暫緩
 - **motion curve 軌跡線不做**：資料未暴露、屬 debug；工程師指示之後要再加後端欄位才做
+- **每組都畫**：對齊 `AI/visualization/info_display.py` 語意；不畫 per-marker 數字（167 筆會糊；數值在 AIPanel headline + 摺疊清單）
 - **重要禁忌**：不動 backend/DB；不動 vite port 5173；不重寫 DicomViewer 渲染核心（疊加不重寫）；不引入 Redux/UI framework
 
 ---
@@ -131,7 +145,8 @@
 詳見 §5「後端需求清單」。本節保留追蹤前端視角的影響：
 
 - **無法依 study 取得 series 清單** → StudyList 切換 study 時無法自動列出 series → 暫時 hack：fetch 所有 instances 後用 `study_instance_uid` 過濾
-- ~~**AI mask endpoint 不確定是否真實實作** → AIPanel mask overlay 渲染卡關~~ → **已釐清（2026-06-15）**：mask endpoint 已實作但為 debug 級分割圖、與顯示影像對不齊；overlay 改走 `crest`/`trough` 座標自畫（HANDOFF §3.3.1）。B 段阻擋改為**後端問題 A/B**（見 §5）
+- ~~**AI mask endpoint 不確定是否真實實作** → AIPanel mask overlay 渲染卡關~~ → **已釐清（2026-06-15）**：mask endpoint 已實作但為 debug 級分割圖、與顯示影像對不齊；overlay 改走 `crest`/`trough` 座標自畫（HANDOFF §3.3.1）
+- ~~**B 段被後端問題 A/B 卡住**~~ → **已解除（2026-06-15）**：後端 A（重跑 crash）/ B（latest-only 遮蔽）已修並 push；前端 `getResult` 改帶 `?status=completed`、B 段 overlay 已實作（見 §2），餘待瀏覽器目視 gate
 
 ### 4.2 前端工具鏈
 
@@ -307,6 +322,44 @@ restack dispatch（Fix-3）失敗後，工程師基於「目標是處理影像�
 - 建議：改回「**最新一筆 completed**，無 completed 才 fallback error」，或加 status filter
 - 影響：前端自動載入忠實顯示最新 error；好結果仍在 DB 但前端撈不到 → B 段無法用 instance 12 驗收
 - 前端現況：行為正確（如實反映 DB）；A 段已對 error 狀態做可讀顯示，非前端 bug
+- ✅ **已修並 push（2026-06-15）**：`GET /ai/result/{id}?status=completed` 可拿到最新 completed；前端 `getResult` 已一律帶此參數
+
+---
+
+### 後端需求清單 — B 段 overlay 正確對齊（2026-06-16 偵察，待轉交主 Agent）
+
+> **情境**：B 段要在 DicomViewer 上把 AI 量測的 crest/trough 畫成 overlay marker。前端已修好座標映射 bug（B1，marker 能畫出來了），但 overlay **渲染位置錯誤 + 多 marker 重疊**。偵察後確認三個後端資料問題卡住正確呈現。以下需後端配合。
+
+**需要後端做的事**：
+
+1. **後端需求 E（最關鍵）— 回傳 crop bbox / offset**
+   - 情境：演算法**只取 DICOM 下半部 M-mode 區**計算，所以 `crest`/`trough` 是**裁切後座標系**，不是整圖座標。前端把它直接畫在整圖上 → 位置整體偏移（畫到上半部、對不到 M-mode）。
+   - 用途：前端需 `full_x = crop_x0 + crest_x`、`full_y = crop_y0 + crest_y` 才能對齊整圖。
+   - 預期 response shape：envelope 補 crop 資訊，例如 `result.crop = { x0, y0, width, height }`（裁切區左上角在整圖的像素座標 + 寬高），或等價的 offset。
+   - 線索：HANDOFF §3.3.1 提過裁切函式疑為 `apply_dicom_crop`。**裁切 func 的確切位置工程師可告知** —— 若主 Agent 不確定在哪，請向工程師提問。
+   - 阻擋：overlay 整體對齊（即使單 frame 也對不準）。
+
+2. **後端問題 C — `measurements[]` count 超過 frame 數**
+   - 情境：演算法 per-frame 跑、一個 DICOM ~150 frame，原則上應 ~150 筆；但 AIPanel 顯示 count **> 150**（instance 12 先前 167 筆）。
+   - 疑問：`batch_index` 是 frame index 嗎？為何超過 frame 數？是否每 frame 多輸出 / 重複 / batch 是別的語意？
+   - 阻擋：前端無法判斷哪筆對應哪個 frame。
+
+3. **後端需求 D — `Measurement` 補 `frame_index` 欄位**
+   - 用途：每筆量測標註屬第幾個 frame（0-based），前端才能「viewer 顯示某 frame 時只畫該 frame 的 marker」（解目前「全部畫在 frame 0、互相重疊」）。
+   - 預期：`measurements[]` 每筆加 `frame_index`（或確認 `batch_index` 即是、並修正 count>150）。
+   - 阻擋：multiframe overlay 正確 filter。
+
+**設計疑問（需主 Agent 裁示）— multiframe overlay 呈現方式**：
+- DicomViewer 目前只顯示 frame 0；量測 per-frame 分屬不同 frame。可選：
+  - (a) viewer 加 **frame 導覽**（slider / 上下張）+ 只畫當前 frame 的 marker —— 最正確，但要動 multiframe / cine UI（DISPATCH 原列「不動」、超出 scope）→ **需主 Agent 解禁**
+  - (b) viewer 固定顯示**一張代表 frame** + 只畫那筆 → 折衷，需 frame_index（需求 D）
+  - (c) 暫不做 overlay，B 段先收在 A 段（數值層）完成，等 multiframe 設計定案再做
+
+**目前進度**：B1 修映射完成（US 無 IOP/IPP，已改 indexToWorld，marker 能畫出）；E/C/D 解掉前 overlay 無法正確對齊。
+
+**建議優先序**：E（不修連單 frame 都對不準）> D（frame 對應）> C（count 釐清，與 D 常是同源）> 設計方向裁示。
+
+> **前端立場**：座標 crop offset、frame 對應、multiframe UI 都**不自行猜/決定**（frontend/CLAUDE.md §4 / §11）；等後端補資料 + 主 Agent 裁示後再做 B2/B3。
 
 ### 已預期但尚未確認的需求
 

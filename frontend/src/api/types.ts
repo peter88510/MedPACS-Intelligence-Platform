@@ -28,9 +28,10 @@ export type InstanceMetadata = Record<string, unknown>
 
 // ---- AI 量測 contract（對齊後端真實形狀，見 HANDOFF.md §3.3 / §3.3.1）----
 
-// 單筆量測。crest / trough 為 [x, y] 像素座標（column, row），落在完整原圖座標系
-// （instance 12 實測：x∈[103,699]≈Columns 720、y∈[285,326]<Rows 930）。
-// 前端 overlay 直接用這組座標在原影像上畫 marker（不需 mask PNG）。
+// 單筆量測。crest / trough 為 [x, y] 像素座標（column, row）。
+// ⚠️ 2026-06-16 更正：這組座標在**裁切後座標系**（演算法只取 DICOM 下半部 M-mode 區），
+// **非整圖座標**。前端 overlay 對齊整圖需加 crop offset（後端需 回傳 crop bbox，
+// 見 frontend/PROGRESS.md §5 後端需求 E）。早期「完整原圖座標系」結論已證實為誤。
 export interface Measurement {
   batch_index: number
   excursion_cm: number | null

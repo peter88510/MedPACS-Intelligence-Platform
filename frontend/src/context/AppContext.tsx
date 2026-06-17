@@ -20,6 +20,13 @@ interface AppContextValue {
   currentInstanceId: number | null
   aiResult: AIResultResponse | null
 
+  // AI overlay（crest/trough 量測標記疊在 DicomViewer 上）的顯示控制。
+  // 放 context 讓 AIPanel（控制）與 DicomViewer（渲染）共用同一份狀態。
+  aiOverlayVisible: boolean
+  aiOverlayOpacity: number
+  setAiOverlayVisible: (visible: boolean) => void
+  setAiOverlayOpacity: (opacity: number) => void
+
   // Series/instances cache populated on study/series selection so child
   // components (e.g. StudyList) don't refetch on every render.
   seriesByStudy: Record<number, Series[]>
@@ -48,6 +55,9 @@ export function AppContextProvider({ children }: { children: ReactNode }) {
   const [aiResultByInstance, setAiResultByInstance] = useState<Record<number, AIResultResponse>>({})
   const [loadingStudies, setLoadingStudies] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  // overlay 預設顯示、全不透明；切換 instance 不重置（屬使用者偏好）。
+  const [aiOverlayVisible, setAiOverlayVisible] = useState(true)
+  const [aiOverlayOpacity, setAiOverlayOpacity] = useState(1)
 
   // Guard against repeated auto-selection on remount (StrictMode dev double-invoke).
   const autoSelectedRef = useRef(false)
@@ -180,6 +190,10 @@ export function AppContextProvider({ children }: { children: ReactNode }) {
       currentSeriesId,
       currentInstanceId,
       aiResult,
+      aiOverlayVisible,
+      aiOverlayOpacity,
+      setAiOverlayVisible,
+      setAiOverlayOpacity,
       seriesByStudy,
       instancesBySeries,
       selectStudy,
@@ -195,6 +209,8 @@ export function AppContextProvider({ children }: { children: ReactNode }) {
       currentSeriesId,
       currentInstanceId,
       aiResult,
+      aiOverlayVisible,
+      aiOverlayOpacity,
       seriesByStudy,
       instancesBySeries,
       selectStudy,

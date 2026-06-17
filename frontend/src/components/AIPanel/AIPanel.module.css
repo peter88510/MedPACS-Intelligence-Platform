@@ -86,6 +86,38 @@
   user-select: none;
 }
 
+.overlayControls {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 10px;
+  background-color: #0f1729;
+  border: 1px solid #1f2937;
+  border-radius: 4px;
+}
+
+.overlayToggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #cbd5e1;
+  cursor: pointer;
+  user-select: none;
+}
+
+.opacityRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: #b0b0b0;
+}
+
+.opacityRow input[type='range'] {
+  flex: 1;
+}
+
 .measurementList {
   margin-top: 6px;
   max-height: 220px;

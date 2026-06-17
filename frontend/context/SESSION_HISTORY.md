@@ -57,9 +57,9 @@
 
 ### 進行中的任務
 
-> **Phase 3 #2（task_id: `phase-3-frontend-ai-mask-overlay`）— A 段已完成、B 段暫停等後端。**
+> **Phase 3 #2（task_id: `phase-3-frontend-ai-mask-overlay`）— A 段完成；B 段：marker 已能畫出（B1），但正確對齊卡後端資料。**
 > - A 段（commit `a2a52dc`）：AIPanel 接真實 AI contract + 結果依 instanceId 快取 + 選 instance 自動唯讀載入既有結果。
-> - B 段（mask overlay，用 crest/trough 座標自畫）**卡後端問題 A/B**（見 PROGRESS §5）：segmenter 重跑崩潰 + GET 回 latest-only 遮蔽好結果。等後端/主 Agent 處理後開新 branch 做。
+> - B 段（向量 overlay，用 crest/trough 座標自畫）：實作 5 檔 + B1 修 US 座標映射（imageToWorldCoords→indexToWorld），marker 已能畫在影像上。**但 overlay 位置仍錯**——① 座標是裁切後座標系（下半部 M-mode）需 crop offset ② multiframe per-frame 未對應、count>150。三項待後端補資料（PROGRESS §5 需求 E/C/D）+ 主 Agent 裁示 multiframe 方向。尚未 commit。
 
 ### 待決定事項
 
@@ -95,6 +95,34 @@
 - **B 段暫停 — 卡後端兩問題**（PROGRESS §5）：A) segmenter 第二次推論崩潰（process 級 model 中毒 `conv2d EagerParamBase`，需重啟 backend）；B) `GET /ai/result` 回 latest-only，失敗 error 紀錄遮蔽先前 completed 好結果（id≈7 被 id 16 蓋）。皆待後端/主 Agent。
 - **DICOM 實況**：instance 12 = 720×930、**NumberOfFrames=150 multi-frame**，viewer 顯示 frame 0；B 段目視須確認 crest/trough 是否疊在顯示 frame 上（M-mode 語意）。
 - **下次起手**：① 等後端修 A/B → 有可達 completed 結果後開新 branch 做 B 段 overlay（crest/trough → Cornerstone `imageToWorldCoords`→`worldToCanvas`、toggle+opacity、原 DICOM 不動） ② merge/push A 段視工程師決定（建議先 merge）。
+
+### 上次 session 結尾狀態（2026-06-15 晚 — B 段實作）
+
+- **B 段 overlay 實作完成**（後端 A/B 修好、主 Agent 通知後續做），5 檔改動、**尚未 commit**（等工程師敲 git）：
+  - `src/api/ai.ts`：`getResult` → `/ai/result/{id}?status=completed`
+  - `src/context/AppContext.tsx`：加 `aiOverlayVisible`(true)/`aiOverlayOpacity`(1) + setter 進 context value + memo deps
+  - `src/components/DicomViewer/DicomViewer.tsx`：加 `viewportRef`/`imageIdRef`/`viewportEpoch`；Phase 2 render 後公開 viewport + bump epoch；新 overlay effect 用 `utilities.imageToWorldCoords(imageId,[x,y])`→`viewport.worldToCanvas()` 映射 crest/trough 成 canvas 座標，存 `markers` state，監聽 `IMAGE_RENDERED`/`CAMERA_MODIFIED`+`ResizeObserver` 重算；JSX 加 `<svg>` 疊層（line+2 circle/組，opacity 綁 context）
+  - `DicomViewer.module.css`：`.viewer` 加 `position:relative`；新增 `.overlay`(absolute/inset0/pointer-events none) + `.exLine`/`.crest`(cyan)/`.trough`(amber)
+  - `AIPanel.tsx` + `.module.css`：measurements>0 顯示 toggle + opacity slider
+- **技術決策**：
+  - overlay 技術選型 = **SVG 疊層 + worldToCanvas 映射**（非 Cornerstone segmentation API、非 mask `<img>`）。理由：crest/trough 是向量座標、§3.3.1 明示不用 mask PNG；worldToCanvas 自動處理 letterbox/zoom/resize 對齊，最穩。
+  - overlay 控制狀態放 **AppContext**（AIPanel 控制、DicomViewer 渲染共用），非各自 local state。
+- **驗證**：`npx tsc -b --noEmit` 乾淨；`npm run dev` boot 乾淨（483ms；fallback 到 5174 因 5173 已被佔 — 工程師那台的 dev server，CORS 對齊請用 5173 那個）。`npm run lint` 4 個 error 全為**既有**（StudyList setState-in-effect ×2、AppContext react-refresh ×1），本次改動無新 error。
+- **未做 / 待 gate（無法由 Agent 完成）**：
+  - 瀏覽器目視：overlay 是否對齊、調 opacity / toggle 是否如預期。
+  - **multi-frame frame 對應疑問**：instance 12 NumberOfFrames=150、viewer 顯示 frame 0；若量測座標對應的不是 frame 0（M-mode 合成影像 / 另一 frame）→ 會對不齊 → 屆時回報主 Agent，可能需後端補 frame index。
+  - `getMaskUrl` builder **未做**：DISPATCH B 原列此項，但 §3.3.1 改用向量 overlay、不需 mask PNG，故略（避免無用 code）。
+
+### 本次 session 結尾狀態（2026-06-16 — B 段驗收回報 + B1 修映射）
+
+- **工程師瀏覽器回報**：A 段 ✅（excursion 數值顯示、Run AI 不再出錯、count 顯示）；**B 段 overlay 完全不顯示**。另指出：演算法 per-frame 跑、一個 DICOM ~150 frame、應 ~150 值，但 **count > 150**（疑後端）；前端尚未處理 multiframe 呈現。
+- **overlay 不顯示根因（已查實）**：原用 `utilities.imageToWorldCoords` 對 US 拋 TypeError —— US 無 ImageOrientationPatient/ImagePositionPatient，`dicom-image-loader` 回 `rowCosines/columnCosines=null`、`origin=undefined`，`vec3.scaleAndAdd(out, undefined, null, …)` 炸；被 try/catch 吞 → markers 全空。（loader 原始碼 `wadouri/metaData/metaDataProvider.js` + `extractPositioningFromDataset.js` 證實。）
+- **B1 已修（工程師選「先做 B1 修映射」）**：改用 `viewport.getImageData().imageData.indexToWorld([col,row,0])` → `worldToCanvas`（不碰病患座標 tag）。`indexToWorld` 型別為 optional + 回 `Point3|Float32Array` → bind 到 narrowed const + `as Types.Point3`。移除 unused `imageIdRef` 與 `utilities` import。React key 改陣列 index（防 count>150 batch_index 重複）。`tsc -b --noEmit` 乾淨、lint 無新 error。**尚未 commit**。
+- **B1 後工程師再回報（2026-06-16）**：marker **畫得出來了，但位置錯 + 多 marker 重疊**。兩主因：
+  - **裁切座標系（新發現、最關鍵）**：演算法只取 DICOM **下半部 M-mode 區**計算 → crest/trough 是 crop 後座標、非整圖 → 需 crop offset。**這推翻 A 段「完整原圖座標系」結論**（已更正 PROGRESS §1 + types.ts 註解）。HANDOFF §3.3.1 早預判此情況（`apply_dicom_crop`）。裁切 func 位置工程師可告知。
+  - multiframe 未對應（per-frame 全畫 frame 0、重疊）。
+- **回報主 Agent（已整理成 PROGRESS §5「後端需求清單」，待工程師轉交）**：需求 E（crop bbox/offset，最優先）+ 問題 C（count>150）+ 需求 D（frame_index）+ 設計疑問（multiframe 呈現 a/b/c，前端不自決）。
+- **下次起手**：① B1（映射 bug 修正）可先收尾 commit —— 它是正確的、且是後續任何對齊的前提（marker 已能畫出）② overlay **正確對齊**等後端補 E/C/D + 主 Agent 裁示 multiframe 方向後做（B2/B3）③ git：branch `feat/phase3-ai-overlay-b`、commit message 見回報。
 
 ### 更早 session 結尾狀態（2026-05-18）
 
